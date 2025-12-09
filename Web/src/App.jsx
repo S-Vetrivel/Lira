@@ -1,14 +1,12 @@
 import "./App.css";
 import { useContext, useEffect } from "react";
-import { Routes, Route, Outlet } from "react-router-dom"; // Added Outlet
+import { Routes, Route } from "react-router-dom"; // Added Outlet
 
 // --- CONTEXT ---
 import { ThemeContext } from "./context/ThemeContext";
 
 // --- COMPONENTS ---
-import Navbar from "./components/layout/navbar";
-import Footer from "./components/layout/footer";
-import ScrollToTopButton from "./components/ScrollToTopButton";
+
 import ScrollToTop from "./components/ScrollToTop";
 import ProductDisplay from "./components/ProductDisplay";
 import AuthLayout from "./components/layout/AuthLayout"; // Import the AuthLayout created previously
@@ -23,34 +21,7 @@ import Cart from "./pages/Cart";
 import Profile from "./pages/Profile";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup"; // Import the new Signup page
-
-// --- LAYOUT WRAPPERS ---
-
-// 1. Main Layout: Includes Navbar, Footer, and Padding
-// Used for standard pages (Home, Shop, About, etc.)
-const MainLayout = () => {
-  return (
-    <>
-      <Navbar />
-      <ScrollToTopButton />
-      <div
-        style={{
-          paddingTop: "90px",
-          width: "100%",
-          minHeight: "100vh", // Ensures footer pushes down
-          display: "flex",
-          flexDirection: "column",
-        }}
-      >
-        {/* Outlet renders the child route (Home, Shop, etc.) */}
-        <div style={{ flex: 1 }}>
-          <Outlet />
-        </div>
-      </div>
-      <Footer />
-    </>
-  );
-};
+import { MainLayout } from "./components/layout/MainLayout";
 
 function App() {
   const { theme } = useContext(ThemeContext);
@@ -63,7 +34,6 @@ function App() {
 
   return (
     <>
-    
       <ScrollToTop /> {/* Global scroll reset on route change */}
       <Routes>
         {/* GROUP 1: Authentication Routes (Full Screen, No Navbar/Footer) */}
