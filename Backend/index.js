@@ -3,6 +3,10 @@ const express = require("express");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const bodyParser = require("body-parser");
+const passport = require("passport");
+
+// 1. Pass the 'passport' library into your config file
+require("./config/passport")(passport);
 
 //  Database imports
 const connectMongo = require("./config/connectMongo"); // Mongo
@@ -20,6 +24,7 @@ app.use(
 app.use(cookieParser());
 app.use(express.json());
 app.use(bodyParser.json());
+app.use(passport.initialize());
 
 const port = process.env.PORT || 3000;
 
