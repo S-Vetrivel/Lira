@@ -13,7 +13,7 @@ const server = createServer(app);
 
 app.use(
   cors({
-    origin: "http://localhost:5173", // Allow requests from your frontend
+    origin: process.env.CLIENT_URL || "http://localhost:5173", // Allow requests from your frontend
     credentials: true, // Allow cookies to be sent
   })
 );

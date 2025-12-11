@@ -3,7 +3,7 @@ const router = express.Router();
 
 router.get("/", (req, res) => {
   res.json({
-    message: "host area — access granted",
+    message: "Admin area — access granted",
     admin: req.user.fullname,
     role: req.user.role,
   });
