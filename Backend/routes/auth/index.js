@@ -53,7 +53,7 @@ router.get(
     res.cookie("token", token, options);
 
     // CRITICAL: Redirect to your React App (Dashboard or Home)
-    res.redirect("http://localhost:3000/");
+    res.redirect(process.env.CLIENT_URL || "http://localhost:5173");
   }
 );
 
