@@ -1,7 +1,8 @@
 import React, { useState, useContext } from "react";
 import { ThemeContext } from "../context/ThemeContext";
 import { Link } from "react-router-dom";
-
+import { GOOGLE_AUTH_URL } from "../services/api";
+import { loginUser } from "../services/api";
 const Login = () => {
   const themeContext = useContext(ThemeContext);
   const theme = themeContext?.theme || {
@@ -20,6 +21,7 @@ const Login = () => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    loginUser(formData.email, formData.password);
     console.log("Login Data:", formData);
   };
 
@@ -210,6 +212,7 @@ const Login = () => {
             <div className="flex-grow border-t border-gray-700/50"></div>
           </div>
           <button
+            onClick={() => (window.location.href = GOOGLE_AUTH_URL)}
             type="button"
             className="w-full flex items-center justify-center gap-3 py-3.5 rounded-2xl border border-gray-700/30 bg-white/5 font-medium text-sm transition-all duration-300 hover:bg-white/10 hover:border-gray-500 active:scale-[0.98]"
             style={{ color: theme.text }}
