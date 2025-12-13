@@ -1,17 +1,18 @@
 import "./App.css";
 import { useContext, useEffect } from "react";
-import { Routes, Route } from "react-router-dom"; // Added Outlet
+import { Routes, Route, Navigate } from "react-router-dom";
+import { Toaster } from "react-hot-toast";
 
-// --- CONTEXT ---
+// CONTEXT
 import { ThemeContext } from "./context/ThemeContext";
+import { useApp } from "./context/Appcontext";
 
-// --- COMPONENTS ---
-
+// COMPONENTS
 import ScrollToTop from "./components/ScrollToTop";
 import ProductDisplay from "./components/ProductDisplay";
-import AuthLayout from "./components/layout/AuthLayout"; // Import the AuthLayout created previously
+import AuthLayout from "./components/layout/AuthLayout";
 
-// --- PAGES ---
+// PAGES
 import Home from "./pages/Home";
 import Shop from "./pages/Shop";
 import Gallery from "./pages/Gallery";
@@ -20,10 +21,12 @@ import Contact from "./pages/Contact";
 import Cart from "./pages/Cart";
 import Profile from "./pages/Profile";
 import Login from "./pages/Login";
-import Signup from "./pages/Signup"; // Import the new Signup page
+import Signup from "./pages/Signup";
 import { MainLayout } from "./components/layout/MainLayout";
+import ForgetPassword from "./pages/ForgetPassword";
 
 function App() {
+  const { user } = useApp();
   const { theme } = useContext(ThemeContext);
 
   useEffect(() => {
@@ -34,16 +37,34 @@ function App() {
 
   return (
     <>
-      <ScrollToTop /> {/* Global scroll reset on route change */}
+      <Toaster
+        position="bottom-right"
+        toastOptions={{
+          style: { background: "#333", color: "#fff" },
+          success: { duration: 3000 },
+        }}
+      />
+
+      <ScrollToTop />
+
       <Routes>
-        {/* GROUP 1: Authentication Routes (Full Screen, No Navbar/Footer) */}
-        {/* The AuthLayout holds the background slider state so it doesn't reset */}
+        {/* =============== AUTH ROUTES =============== */}
         <Route element={<AuthLayout />}>
-          <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<Signup />} />
+          <Route
+            path="/login"
+            element={user ? <Navigate to="/" replace /> : <Login />}
+          />
+          <Route
+            path="/signup"
+            element={user ? <Navigate to="/" replace /> : <Signup />}
+          />
+          <Route
+            path="/forgot-password"
+            element={user ? <Navigate to="/" replace /> : <ForgetPassword />}
+          />
         </Route>
 
-        {/* GROUP 2: Main Application Routes (With Navbar & Footer) */}
+        {/* =============== MAIN LAYOUT ROUTES =============== */}
         <Route element={<MainLayout />}>
           <Route path="/" element={<Home />} />
           <Route path="/shop" element={<Shop />} />
@@ -52,7 +73,12 @@ function App() {
           <Route path="/about" element={<About />} />
           <Route path="/contact" element={<Contact />} />
           <Route path="/cart" element={<Cart />} />
-          <Route path="/profile" element={<Profile />} />
+
+          {/* SIMPLE GUARD: If not logged in → go to login */}
+          <Route
+            path="/profile"
+            element={user ? <Profile /> : <Navigate to="/" replace />}
+          />
         </Route>
       </Routes>
     </>

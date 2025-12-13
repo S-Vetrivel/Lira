@@ -1,7 +1,10 @@
 import React, { useContext, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ThemeContext } from "@/context/ThemeContext";
-import { Link } from "react-router-dom"; // Import Link for navigation
+import { Link } from "react-router-dom";
+import Modal from "../components/layout/Modal";
+import { useNavigate } from "react-router-dom";
+import { useApp } from "../context/Appcontext";
 import {
   Package,
   Heart,
@@ -14,14 +17,15 @@ import {
   Edit3,
   Plus,
 } from "lucide-react";
+import { logout } from "../services/api";
 
-// --- MOCK DATA ---
+// ... [MOCK DATA REMAINS THE SAME AS YOUR CODE] ...
 const USER = {
   name: "Alex Doe",
   email: "alex.doe@gmail.com",
   phone: "+1 (555) 019-2834",
   memberSince: "2023",
-  authProvider: "google", // google, email, apple
+  authProvider: "google",
   avatar:
     "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80",
 };
@@ -101,7 +105,6 @@ const ADDRESSES = [
   },
 ];
 
-// Simple Google Icon Component
 const GoogleIcon = () => (
   <svg
     width="16"
@@ -130,9 +133,14 @@ const GoogleIcon = () => (
 );
 
 export default function Profile() {
+  const navigate = useNavigate();
+  const { setUser } = useApp();
   const { theme } = useContext(ThemeContext);
   const [activeTab, setActiveTab] = useState("personal");
   const [isEditing, setIsEditing] = useState(false);
+
+  // 2. New State for Logout Modal
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
 
   const tabs = [
     { id: "personal", label: "Personal Info", icon: User },
@@ -140,6 +148,16 @@ export default function Profile() {
     { id: "addresses", label: "Addresses", icon: MapPin },
     { id: "wishlist", label: "Wishlist", icon: Heart },
   ];
+
+  const handleLogoutConfirm = async () => {
+    // 3. Perform logout
+    const res = await logout();
+    if (res.success) {
+      setIsLogoutModalOpen(false);
+
+      setUser(null);
+    }
+  };
 
   return (
     <div
@@ -153,6 +171,7 @@ export default function Profile() {
           animate={{ opacity: 1, y: 0 }}
           className="flex flex-col md:flex-row items-center md:items-end gap-8 mb-16"
         >
+          {/* Avatar Section */}
           <div className="relative group cursor-pointer">
             <div
               className="w-32 h-32 rounded-full overflow-hidden border-4 transition-transform group-hover:scale-105"
@@ -186,7 +205,9 @@ export default function Profile() {
             </p>
           </div>
 
+          {/* 4. Updated Logout Button to trigger Modal */}
           <button
+            onClick={() => setIsLogoutModalOpen(true)}
             className="flex items-center gap-2 px-6 py-3 rounded-full border hover:bg-red-500/10 hover:text-red-500 hover:border-red-500/50 transition-all text-sm font-bold uppercase tracking-wider group"
             style={{
               borderColor: theme.navbar?.border || "rgba(150,150,150,0.2)",
@@ -246,6 +267,7 @@ export default function Profile() {
                   transition={{ duration: 0.3 }}
                   className="max-w-2xl"
                 >
+                  {/* ... Personal Info Form Content (Same as before) ... */}
                   <div className="flex justify-between items-center mb-8">
                     <h2 className="text-2xl font-bold uppercase tracking-tight">
                       Personal Details
@@ -259,7 +281,6 @@ export default function Profile() {
                   </div>
 
                   <form className="space-y-8">
-                    {/* Name Group */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="space-y-2">
                         <label className="text-[10px] font-bold uppercase tracking-widest opacity-50">
@@ -287,7 +308,6 @@ export default function Profile() {
                       </div>
                     </div>
 
-                    {/* Contact Group */}
                     <div className="space-y-6">
                       <div className="relative space-y-2">
                         <div className="flex justify-between items-center">
@@ -445,7 +465,6 @@ export default function Profile() {
                       }}
                     >
                       <div className="flex gap-4">
-                        {/* Order Images */}
                         <div className="flex -space-x-4">
                           {order.items.map((item) => (
                             <Link
@@ -560,6 +579,39 @@ export default function Profile() {
             </AnimatePresence>
           </div>
         </div>
+
+        {/* 5. LOGOUT CONFIRMATION MODAL */}
+        <Modal
+          isOpen={isLogoutModalOpen}
+          onClose={() => setIsLogoutModalOpen(false)}
+          theme={theme}
+          title="Sign Out"
+          description="Are you sure you want to sign out? You will need to login again to access your account details and order history."
+        >
+          <div className="flex flex-col sm:flex-row gap-3 mt-4">
+            <button
+              onClick={handleLogoutConfirm}
+              className="flex-1 py-3 px-6 rounded-xl font-bold text-sm uppercase tracking-wider transition-transform active:scale-95 text-white"
+              style={{
+                backgroundColor: "#dc2626", // Red for destructive action
+                color: "white",
+              }}
+            >
+              Yes, Sign Out
+            </button>
+
+            <button
+              onClick={() => setIsLogoutModalOpen(false)}
+              className="flex-1 py-3 px-6 rounded-xl font-bold text-sm uppercase tracking-wider transition-colors hover:bg-black/5 dark:hover:bg-white/5"
+              style={{
+                border: `1px solid ${theme.navbar?.border}`,
+                color: theme.navbar?.textIdle || theme.text,
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </Modal>
       </div>
     </div>
   );

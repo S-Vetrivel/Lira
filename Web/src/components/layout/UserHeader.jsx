@@ -2,10 +2,10 @@ import React, { useState } from "react";
 import { ShoppingBag, User, LogIn } from "lucide-react";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
-
+import { useApp } from "../../context/Appcontext";
 const UserHeader = ({ theme }) => {
   // --- MOCK LOGIC (Replace with your Context/Redux) ---
-  const [isLoggedIn, setIsLoggedIn] = useState(true); // Toggle to false to see 'Login' state
+  const { user } = useApp();
   const [cartCount, setCartCount] = useState(2); // Set to 0 to hide badge
   const userProfileImage =
     "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=100&q=80"; // Mock Avatar
@@ -35,7 +35,7 @@ const UserHeader = ({ theme }) => {
       </Link>
 
       {/* --- PROFILE COMPONENT --- */}
-      <Link to={isLoggedIn ? "/profile" : "/login"}>
+      <Link to={user ? "/profile" : "/login"}>
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
@@ -46,7 +46,7 @@ const UserHeader = ({ theme }) => {
             color: theme.navbar.iconColor,
           }}
         >
-          {isLoggedIn ? (
+          {user ? (
             // Authenticated State: User Image
             <img
               src={userProfileImage}

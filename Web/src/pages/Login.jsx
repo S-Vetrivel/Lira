@@ -3,6 +3,8 @@ import { ThemeContext } from "../context/ThemeContext";
 import { Link } from "react-router-dom";
 import { GOOGLE_AUTH_URL } from "../services/api";
 import { loginUser } from "../services/api";
+import { useApp } from "../context/Appcontext";
+import { useNavigate } from "react-router-dom";
 const Login = () => {
   const themeContext = useContext(ThemeContext);
   const theme = themeContext?.theme || {
@@ -11,7 +13,8 @@ const Login = () => {
     navbar: { textIdle: "#94a3b8" },
     card: { btnBg: "#3b82f6", btnText: "#ffffff" },
   };
-
+  const { setUser } = useApp();
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({ email: "", password: "" });
   const [showPassword, setShowPassword] = useState(false);
 
@@ -19,10 +22,17 @@ const Login = () => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    loginUser(formData.email, formData.password);
-    console.log("Login Data:", formData);
+
+    const res = await loginUser(formData.email, formData.password);
+
+    if (res.success) {
+      setUser(res.user);
+      navigate(-1);
+    }
+
+    console.log("Login Data:", res);
   };
 
   // Shared Styles
@@ -184,12 +194,13 @@ const Login = () => {
               Remember me
             </span>
           </label>
-          <a
-            href="#"
+          <Link
+            to="/forgot-password"
+            replace
             className="font-medium text-blue-500 hover:text-blue-400 transition-colors"
           >
             Forgot password?
-          </a>
+          </Link>
         </div>
 
         <button
@@ -232,6 +243,7 @@ const Login = () => {
           Don't have an account?{" "}
           <Link
             to="/signup"
+            replace
             className="font-bold text-blue-500 hover:text-blue-400 transition-colors"
           >
             Sign up

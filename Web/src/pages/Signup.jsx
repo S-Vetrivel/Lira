@@ -1,7 +1,8 @@
-import React, { useState, useContext } from "react";
+import React, { useState, useContext, useEffect } from "react";
 import { ThemeContext } from "../context/ThemeContext";
 import { Link, useNavigate } from "react-router-dom";
-import { GOOGLE_AUTH_URL } from "../services/api";
+import { GOOGLE_AUTH_URL, SignUp } from "../services/api";
+import { useApp } from "../context/Appcontext";
 const Signup = () => {
   const themeContext = useContext(ThemeContext);
   const theme = themeContext?.theme || {
@@ -17,20 +18,101 @@ const Signup = () => {
     password: "",
     confirmPassword: "",
   });
-
+  const { setUser } = useApp();
+  const [passwordStrength, setPasswordStrength] = useState(0); // 0 to 4
+  const [passwordError, setPasswordError] = useState("");
+  const [matchError, setMatchError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const navigate = useNavigate();
 
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+  // --- Password Strength Logic ---
+  const checkStrength = (pass) => {
+    let score = 0;
+    if (!pass) return 0;
+    if (pass.length >= 8) score++;
+    if (/[A-Z]/.test(pass)) score++;
+    if (/[0-9]/.test(pass)) score++;
+    if (/[^A-Za-z0-9]/.test(pass)) score++;
+    return score;
   };
 
-  const handleSubmit = (e) => {
+  const getStrengthColor = () => {
+    switch (passwordStrength) {
+      case 0:
+        return "bg-gray-700";
+      case 1:
+        return "bg-red-500";
+      case 2:
+        return "bg-orange-500";
+      case 3:
+        return "bg-yellow-400";
+      case 4:
+        return "bg-green-500";
+      default:
+        return "bg-gray-700";
+    }
+  };
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData({ ...formData, [name]: value });
+
+    // Real-time Validation
+    if (name === "password") {
+      setPasswordStrength(checkStrength(value));
+      setMatchError(
+        value !== formData.confirmPassword && formData.confirmPassword
+          ? "Passwords do not match"
+          : ""
+      );
+    }
+    if (name === "confirmPassword") {
+      setMatchError(
+        value !== formData.password ? "Passwords do not match" : ""
+      );
+    }
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log("Signup Data:", formData);
-    // navigate("/profile", { replace: true });
+    setPasswordError("");
+    setMatchError("");
+
+    // 1. Frontend Validation Checks
+    if (passwordStrength < 3) {
+      setPasswordError(
+        "Password is too weak. Use uppercase, numbers, and symbols."
+      );
+      return;
+    }
+    if (formData.password !== formData.confirmPassword) {
+      setMatchError("Passwords do not match");
+      return;
+    }
+
+    setLoading(true);
+
+    // Call API (Ensure your SignUp function in api.js passes all these args)
+    // Note: We send confirmPassword to backend too for double-check
+    const result = await SignUp(
+      formData.name,
+      formData.email,
+      formData.password,
+      formData.confirmPassword
+    );
+
+    if (result.success) {
+      setUser(result.user);
+      // Navigate to login or profile
+      navigate(-1);
+    } else {
+      // Show backend error
+      setPasswordError(result.message);
+    }
+    setLoading(false);
   };
 
   // Shared Styles
@@ -67,7 +149,6 @@ const Signup = () => {
     e.target.style.transform = "none";
   };
 
-  // SVG Icons
   const EyeIcon = ({ visible }) => (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -125,7 +206,8 @@ const Signup = () => {
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-5 ">
+      <form onSubmit={handleSubmit} className="space-y-5">
+        {/* Name Input */}
         <div className="space-y-1.5">
           <label
             className="text-[10px] font-bold uppercase tracking-widest opacity-80 ml-3"
@@ -149,6 +231,7 @@ const Signup = () => {
           </div>
         </div>
 
+        {/* Email Input */}
         <div className="space-y-1.5">
           <label
             className="text-[10px] font-bold uppercase tracking-widest opacity-80 ml-3"
@@ -172,6 +255,7 @@ const Signup = () => {
           </div>
         </div>
 
+        {/* Password Input */}
         <div className="space-y-1.5">
           <label
             className="text-[10px] font-bold uppercase tracking-widest opacity-80 ml-3"
@@ -192,16 +276,38 @@ const Signup = () => {
               onFocus={handleFocus}
               onBlur={handleBlur}
             />
-            <button
+            {/* <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
               className="absolute right-4 top-1/2 transform -translate-y-1/2 p-1 cursor-pointer z-10"
             >
               <EyeIcon visible={showPassword} />
-            </button>
+            </button> */}
+          </div>
+
+          {/* ---- Minimal Strength Meter ---- */}
+          <div className="px-1 mt-2">
+            <div className="flex gap-1 h-1">
+              {[1, 2, 3, 4].map((level) => (
+                <div
+                  key={level}
+                  className={`h-full flex-1 rounded-full transition-all duration-500 ${
+                    passwordStrength >= level
+                      ? getStrengthColor()
+                      : "bg-gray-700/50"
+                  }`}
+                ></div>
+              ))}
+            </div>
+            {passwordError && (
+              <p className="text-[10px] text-red-400 mt-1 ml-1 font-medium">
+                {passwordError}
+              </p>
+            )}
           </div>
         </div>
 
+        {/* Confirm Password Input */}
         <div className="space-y-1.5">
           <label
             className="text-[10px] font-bold uppercase tracking-widest opacity-80 ml-3"
@@ -224,32 +330,72 @@ const Signup = () => {
             />
             <button
               type="button"
-              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+              onClick={() => {
+                setShowConfirmPassword(!showConfirmPassword);
+                setShowPassword(!showPassword);
+              }}
               className="absolute right-4 top-1/2 transform -translate-y-1/2 p-1 cursor-pointer z-10"
             >
               <EyeIcon visible={showConfirmPassword} />
             </button>
           </div>
+          {matchError && (
+            <p className="text-[10px] text-red-400 ml-3 font-medium">
+              {matchError}
+            </p>
+          )}
         </div>
 
+        {/*Terms & Conditions*/}
+        <div className="flex items-center justify-between text-xs pt-1 px-1">
+          <label className="flex items-center cursor-pointer group">
+            <input
+              type="checkbox"
+              className="w-3.5 h-3.5 rounded border-gray-600 bg-white/5 text-blue-500 focus:ring-0 transition-transform active:scale-90"
+            />
+            <span
+              className="ml-2 group-hover:text-white transition-colors duration-300"
+              style={{ color: theme.navbar.textIdle }}
+            >
+              Accept the
+              <Link
+                // to="/forgot-password"
+                className="font-medium text-blue-500 hover:text-blue-400 transition-colors"
+              >
+                {" "}
+                Terms & Conditions
+              </Link>
+            </span>
+          </label>
+          <Link
+            // to="/forgot-password"
+            className="font-medium text-blue-500 hover:text-blue-400 transition-colors"
+          >
+            Privacy policy
+          </Link>
+        </div>
+
+        {/* Submit Button */}
         <button
           type="submit"
-          className="w-full py-3.5 mt-2 rounded-2xl font-bold text-xs tracking-widest uppercase transition-all duration-300 transform hover:translate-y-[-2px] active:scale-[0.98] shadow-lg hover:shadow-blue-500/25"
+          disabled={loading}
+          className="w-full py-3.5 mt-2 rounded-2xl font-bold text-xs tracking-widest uppercase transition-all duration-300 transform hover:translate-y-[-2px] active:scale-[0.98] shadow-lg hover:shadow-blue-500/25 disabled:opacity-50 disabled:cursor-not-allowed"
           style={{
             backgroundColor: theme.card.btnBg,
             color: theme.card.btnText,
           }}
         >
-          Sign Up
+          {loading ? "Creating Account..." : "Sign Up"}
         </button>
 
+        {/* Divider & Google */}
         <div className="space-y-4">
           <div className="relative flex py-1 items-center">
-            <div className="flex-grow border-t border-gray-700/50"></div>
-            <span className="flex-shrink-0 mx-3 text-gray-400 text-[10px] uppercase tracking-widest font-semibold">
+            <div className="grow border-t border-gray-700/50"></div>
+            <span className="shrink-0 mx-3 text-gray-400 text-[10px] uppercase tracking-widest font-semibold">
               Or
             </span>
-            <div className="flex-grow border-t border-gray-700/50"></div>
+            <div className="grow border-t border-gray-700/50"></div>
           </div>
           <button
             onClick={() => (window.location.href = GOOGLE_AUTH_URL)}
