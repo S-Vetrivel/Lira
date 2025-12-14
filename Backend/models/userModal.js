@@ -1,15 +1,47 @@
 const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
 
-const UserSchema = new Schema({
-  googleId: { type: String, unique: true, sparse: true }, // Added this
-  username: { type: String },
-  fullname: { type: String },
-  email: { type: String, required: true },
-  password: { type: String },
-  phone: { type: String },
-  role: { type: String, default: "User" },
-  createdAt: { type: Date, default: Date.now },
-});
+const AddressSchema = new Schema(
+  {
+    primary: { type: Boolean, default: false },
+    door: { type: String },
+    street: { type: String },
+    area: { type: String },
+    landmark: { type: String },
+    city: { type: String, required: true },
+    district: { type: String },
+    state: { type: String, required: true },
+    country: { type: String, default: "India" },
+    zip: { type: String, required: true },
+    location: {
+      lat: Number,
+      lng: Number,
+    },
+  },
+  { _id: false }
+);
 
-module.exports = mongoose.model("Users", UserSchema);
+const UserSchema = new Schema(
+  {
+    googleId: { type: String, unique: true, sparse: true },
+    username: { type: String },
+    fullname: { type: String },
+
+    age: Number,
+    gender: { type: String, enum: ["Male", "Female", "Other"] },
+
+    email: { type: String, required: true },
+    password: { type: String },
+    phone: { type: String },
+
+    addresses: [AddressSchema],
+    createdAt: { type: Date, default: Date.now },
+    profilePicture: String,
+    role: { type: String, default: "User" },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+module.exports = mongoose.model("User", UserSchema);
