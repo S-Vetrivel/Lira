@@ -24,6 +24,7 @@ const Signup = () => {
   const [matchError, setMatchError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [accepted, setAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const navigate = useNavigate();
@@ -351,8 +352,12 @@ const Signup = () => {
           <label className="flex items-center cursor-pointer group">
             <input
               type="checkbox"
+              onChange={(e) => {
+                setAccepted(e.target.checked);
+              }}
               className="w-3.5 h-3.5 rounded border-gray-600 bg-white/5 text-blue-500 focus:ring-0 transition-transform active:scale-90"
             />
+
             <span
               className="ml-2 group-hover:text-white transition-colors duration-300"
               style={{ color: theme.navbar.textIdle }}
@@ -378,7 +383,7 @@ const Signup = () => {
         {/* Submit Button */}
         <button
           type="submit"
-          disabled={loading}
+          disabled={loading || !accepted}
           className="w-full py-3.5 mt-2 rounded-2xl font-bold text-xs tracking-widest uppercase transition-all duration-300 transform hover:translate-y-[-2px] active:scale-[0.98] shadow-lg hover:shadow-blue-500/25 disabled:opacity-50 disabled:cursor-not-allowed"
           style={{
             backgroundColor: theme.card.btnBg,

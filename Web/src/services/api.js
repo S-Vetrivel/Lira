@@ -155,4 +155,26 @@ export async function ResetPassword(email) {
   }
 }
 
+// 9. Personal Info Update Function
+export async function UpdatePersonalInfo(data) {
+  try {
+    const res = await api.put("/profile/info", data);
+
+    toast.success(res.data?.message || "Profile updated successfully!");
+
+    return {
+      success: true,
+      user: res.data?.user,
+      message: res.data?.message,
+    };
+  } catch (error) {
+    toast.error(error.response?.data?.message || "Update failed!");
+
+    return {
+      success: false,
+      message: error.response?.data?.message || "Update failed",
+    };
+  }
+}
+
 export default api;

@@ -183,7 +183,7 @@ const Login = () => {
 
         <div className="flex items-center justify-between text-xs pt-1 px-1">
           <label className="flex items-center cursor-pointer group">
-            <input
+            {/* <input
               type="checkbox"
               className="w-3.5 h-3.5 rounded border-gray-600 bg-white/5 text-blue-500 focus:ring-0 transition-transform active:scale-90"
             />
@@ -192,7 +192,7 @@ const Login = () => {
               style={{ color: theme.navbar.textIdle }}
             >
               Remember me
-            </span>
+            </span> */}
           </label>
           <Link
             to="/forgot-password"
