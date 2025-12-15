@@ -1,5 +1,5 @@
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
-const User = require("../models/userModal"); // Verifying path matches your screenshot
+const User = require("../models/userModal");
 
 module.exports = (passport) => {
   passport.use(
@@ -13,19 +13,33 @@ module.exports = (passport) => {
         try {
           console.log("--------------- GOOGLE AUTH START ---------------");
 
-          // 1. Check existing
+          // Helper to get the photo URL safely
+          const googlePhoto =
+            profile.photos && profile.photos[0]
+              ? profile.photos[0].value
+              : null;
+
+          // 1. Check existing user by Google ID
           let user = await User.findOne({ googleId: profile.id });
           if (user) {
             console.log("User found by Google ID:", user.email);
             return done(null, user);
           }
 
-          // 2. Check existing email
+          // 2. Check existing user by Email (Account Linking)
           if (profile.emails && profile.emails.length > 0) {
             user = await User.findOne({ email: profile.emails[0].value });
             if (user) {
               console.log("User found by Email. Linking account...");
+
+              // Link Google ID
               user.googleId = profile.id;
+
+              // OPTIONAL: If user has no profile picture yet, use the Google one
+              if (!user.profilePicture && googlePhoto) {
+                user.profilePicture = googlePhoto;
+              }
+
               await user.save();
               return done(null, user);
             }
@@ -39,20 +53,24 @@ module.exports = (passport) => {
                 ? profile.emails[0].value
                 : "no-email-" + profile.id,
 
-            // FALLBACK CHAIN: Try display name -> Try given name -> Hardcode "Google User"
             fullname:
               profile.displayName || profile.name?.givenName || "Google User",
 
-            // FALLBACK CHAIN: Try email split -> Hardcode "user" + timestamp
             username:
               profile.emails && profile.emails[0]
                 ? profile.emails[0].value.split("@")[0]
                 : "user" + Date.now(),
 
-            password: "google-auth-" + Date.now(), // Dummy password
+            password: "google-auth-" + Date.now(),
+
+            // --- NEW: SAVE PROFILE PICTURE ---
+            profilePicture: googlePhoto,
           };
 
-          console.log("ATTEMPTING TO CREATE USER:", newUserObj); // <--- CHECK THIS LOG IN TERMINAL
+          console.log(
+            "ATTEMPTING TO CREATE USER WITH PHOTO:",
+            newUserObj.profilePicture
+          );
 
           const newUser = await User.create(newUserObj);
           console.log("USER CREATED SUCCESSFULLY:", newUser._id);
