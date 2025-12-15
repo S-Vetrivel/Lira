@@ -123,11 +123,17 @@ export async function checkAuth() {
       user: response.data.user,
     };
   } catch (error) {
-    // Silently fails due to interceptor logic above
-    return {
-      isAuthenticated: false,
-      user: null,
-    };
+    // CASE 1: Server responded, but said "Unauthorized" (401)
+    if (error.response && error.response.status === 401) {
+      return {
+        isAuthenticated: false,
+        user: null,
+      };
+    }
+
+    // CASE 2: Network Error or Server Down (No response or 500s)
+    // We throw the error so the Provider knows to retry
+    throw error;
   }
 }
 
