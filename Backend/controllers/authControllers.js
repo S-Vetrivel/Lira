@@ -1,6 +1,7 @@
-const User = require("../../models/userModal"); // Check your spelling: userModal vs userModel
+const User = require("../models/userModel"); // Check your spelling: userModal vs userModel
 const bcrypt = require("bcryptjs");
-const generateTokenAndSetCookie = require("../../utils/generateToken");
+const generateTokenAndSetCookie = require("../utils/generateToken");
+const userModal = require("../models/userModel");
 
 // ==============================================
 // 1. SIGNUP
@@ -122,17 +123,14 @@ exports.Logout = (req, res) => {
 // ==============================================
 // 4. ME (Check Auth Status)
 // ==============================================
-exports.Me = (req, res) => {
-  // req.user is already populated by the 'protect' middleware
+exports.Me = async (req, res) => {
+  const user = await userModal
+    .findById(req.user._id)
+    .select("-password -__v -updatedAt");
+
   res.status(200).json({
     success: true,
-    user: {
-      id: req.user._id,
-      fullname: req.user.fullname,
-      username: req.user.username,
-      email: req.user.email,
-      phone: req.user.phone,
-    },
+    user,
   });
 };
 

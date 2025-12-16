@@ -18,6 +18,7 @@ import WishlistTab from "../components/profile/tabs/WishlistTab";
 
 // Import Constants
 import { PROFILE_TABS, MOCK_USER_META } from "../components/profile/constants";
+import GalleryTab from "../components/profile/tabs/GalleryTab";
 
 // Map IDs to Component Objects
 const TAB_COMPONENTS = {
@@ -25,6 +26,7 @@ const TAB_COMPONENTS = {
   orders: OrdersTab,
   addresses: AddressesTab,
   wishlist: WishlistTab,
+  gallery: GalleryTab,
 };
 
 export default function Profile() {
@@ -69,6 +71,7 @@ export default function Profile() {
               activeTabId={activeTabId}
               onTabChange={setActiveTabId}
               theme={theme}
+              isAdmin={user.role === "admin"}
             />
           </div>
 

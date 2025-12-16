@@ -2,10 +2,10 @@
 
 const express = require("express");
 const router = require("express").Router();
-
+const { getGallery } = require("../controllers/galleryControllers");
 // Admin Routes
-router.use("/admin", require("./admin/admin"));
-router.use("/auth", require("./auth/auth"));
-router.use("/profile", require("./profile/profile"));
-
+router.use("/admin", require("./adminRoutes"));
+router.use("/auth", require("./authRoutes"));
+router.use("/profile", require("./profileRoutes"));
+router.get("/gallery", getGallery);
 module.exports = router;

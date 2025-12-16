@@ -1,6 +1,7 @@
 const express = require("express");
+const { protect } = require("../middleware/authMiddleware");
 const router = express.Router();
-
+router.use(protect({ admin: true }));
 router.get("/", (req, res) => {
   res.json({
     message: "Admin area — access granted",
@@ -8,5 +9,6 @@ router.get("/", (req, res) => {
     role: req.user.role,
   });
 });
+router.use("/gallery", require("./admin/galleryRoutes"));
 
 module.exports = router;

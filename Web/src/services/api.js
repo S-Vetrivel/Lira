@@ -2,7 +2,7 @@ import axios from "axios";
 import toast from "react-hot-toast";
 
 // 1. Configuration Constants
-const API_URL = "http://localhost:3000/api";
+const API_URL = `${import.meta.env.VITE_API_URL}/api`;
 export const GOOGLE_AUTH_URL = `${API_URL}/auth/google`;
 
 // 2. Create Axios Instance
@@ -201,6 +201,107 @@ export async function googleOneTapLogin(token) {
       success: false,
       message: error.response?.data?.message || "Google Login Failed",
     };
+  }
+}
+
+// ==============================================================
+// 11. GALLERY FUNCTIONS (Admin)
+// ==============================================================
+export async function getallGallery() {
+  try {
+    const response = await api.get("/gallery");
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error.response?.data?.message || "Failed to fetch gallery",
+    };
+  }
+}
+
+// A. Fetch All Images
+export async function getGallery() {
+  try {
+    const response = await api.get("/admin/gallery");
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error.response?.data?.message || "Failed to fetch gallery",
+    };
+  }
+}
+
+// B. Upload Images (Bulk)
+export async function uploadGalleryImages(formData) {
+  try {
+    const response = await api.post("/admin/gallery", formData, {
+      headers: {
+        // Important: Setting this to undefined forces Axios to let the
+        // browser set the Content-Type with the correct 'boundary' string
+        "Content-Type": "multipart/form-data",
+      },
+    });
+
+    // Note: If the above doesn't work in your specific Axios version,
+    // try: "Content-Type": undefined
+
+    // Don't show toast here if your component handles it,
+    // but based on your code, the component relies on the return value.
+    // toast.success(response.data.message || "Upload started!");
+
+    return {
+      success: true,
+      data: response.data.data, // Ensure backend returns { data: [...] }
+    };
+  } catch (error) {
+    console.error("Upload Error:", error);
+    return {
+      success: false,
+      message: error.response?.data?.message || "Upload failed",
+    };
+  }
+}
+
+// C. Delete Images (Bulk)
+export async function deleteGalleryImages(ids) {
+  try {
+    const response = await api.post("/admin/gallery/delete-batch", { ids });
+    toast.success(response.data.message || "Images deleted");
+    return { success: true };
+  } catch (error) {
+    return { success: false };
+  }
+}
+
+// D. Save Order
+export async function reorderGalleryImages(items) {
+  try {
+    // items example: [{ id: "123", order: 0 }, { id: "456", order: 1 }]
+    const response = await api.put("/admin/gallery/reorder", { items });
+
+    // Optional: You might want to suppress this toast if autosaving frequently
+    // toast.success("Order saved");
+    return { success: true };
+  } catch (error) {
+    return { success: false };
+  }
+}
+
+// E. Update Image Details (Title)
+export async function updateGalleryImageDetails(id, title) {
+  try {
+    const response = await api.put(`/admin/gallery/${id}`, { title });
+    toast.success("Image updated");
+    return { success: true, data: response.data };
+  } catch (error) {
+    return { success: false };
   }
 }
 

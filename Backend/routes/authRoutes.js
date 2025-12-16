@@ -2,10 +2,16 @@ const express = require("express");
 const router = express.Router();
 const passport = require("passport");
 const { OAuth2Client } = require("google-auth-library"); // 1. Import Google Library
-const generateTokenAndSetCookie = require("../../utils/generateToken");
-const { protect } = require("../../middleware/authMiddleware");
-const { Login, Signup, Logout, Me, resetPassword } = require("./controllers");
-const { findOrCreateGoogleUser } = require("../../services/authService"); // 2. Import Helper
+const generateTokenAndSetCookie = require("../utils/generateToken");
+const { protect } = require("../middleware/authMiddleware");
+const {
+  Login,
+  Signup,
+  Logout,
+  Me,
+  resetPassword,
+} = require("../controllers/authControllers");
+const { findOrCreateGoogleUser } = require("../services/authService"); // 2. Import Helper
 
 // Initialize Google Client for One Tap verification
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
@@ -16,7 +22,7 @@ const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 router.post("/signup", Signup);
 router.post("/login", Login);
 router.get("/logout", Logout);
-router.get("/me", protect, Me);
+router.get("/me", protect(), Me);
 router.post("/reset-password", resetPassword);
 
 // ==============================================

@@ -1,4 +1,4 @@
-const User = require("../models/userModal");
+const User = require("../models/userModel");
 
 async function findOrCreateGoogleUser(profile) {
   // 1. Check by Google ID

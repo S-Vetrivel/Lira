@@ -1,4 +1,4 @@
-const User = require("../../models/userModal");
+const User = require("../models/userModel");
 const bcrypt = require("bcryptjs");
 
 // --- Configuration: Country Digit Rules ---

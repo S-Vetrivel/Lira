@@ -36,9 +36,12 @@ export default function ProfileHeader({
 
       {/* Info Section */}
       <div className="text-center md:text-left flex-1">
-        <h1 className="text-4xl font-black uppercase tracking-tight">
-          {user?.fullname || "User Name"}
-        </h1>
+        <div>
+          <span className="text-4xl mr-3 font-black uppercase tracking-tight">
+            {user?.fullname}
+          </span>
+          {user?.role == "admin" && <span>(Admin)</span>}
+        </div>
         <div className="flex items-center justify-center md:justify-start gap-2 mt-2">
           <p className="opacity-60 font-mono text-sm">{user?.email}</p>
           {user?.googleId && (
@@ -49,9 +52,9 @@ export default function ProfileHeader({
         </div>
         {(user?.id || user?.createdAt) && (
           <p className="text-xs opacity-40 mt-2 font-mono">
-            {user?.id && <>ID: {user.id}</>}
+            {user?._id && <>ID: {user._id}</>}
 
-            {user?.id && user?.createdAt && " • "}
+            {user?._id && user?.createdAt && " • "}
 
             {user?.createdAt && (
               <>

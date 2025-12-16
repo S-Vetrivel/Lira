@@ -37,7 +37,7 @@ const UserSchema = new Schema(
     addresses: [AddressSchema],
     createdAt: { type: Date, default: Date.now },
     profilePicture: String,
-    role: { type: String, default: "User" },
+    role: { type: String, default: "user", enum: ["admin", "user"] },
   },
   {
     timestamps: true,

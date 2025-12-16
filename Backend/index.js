@@ -4,7 +4,8 @@ const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const bodyParser = require("body-parser");
 const passport = require("passport");
-
+const fs = require("fs");
+const path = require("path");
 // 1. Pass the 'passport' library into your config file
 require("./config/passport")(passport);
 
@@ -25,7 +26,12 @@ app.use(cookieParser());
 app.use(express.json());
 app.use(bodyParser.json());
 app.use(passport.initialize());
-
+const uploadDir = path.join(__dirname, "uploads");
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir);
+  console.log('📂 Created "uploads" directory');
+}
+app.use("/uploads", express.static("uploads"));
 const port = process.env.PORT || 3000;
 
 // Bootstrap app with all DBs

@@ -1,5 +1,5 @@
 // src/components/profile/constants.js
-import { User, Package, MapPin, Heart } from "lucide-react";
+import { User, Package, MapPin, Heart, GalleryHorizontal } from "lucide-react";
 
 // --- TAB CONFIGURATION ---
 export const PROFILE_TABS = [
@@ -7,6 +7,7 @@ export const PROFILE_TABS = [
   { id: "orders", label: "My Orders", icon: Package },
   { id: "addresses", label: "Addresses", icon: MapPin },
   { id: "wishlist", label: "Wishlist", icon: Heart },
+  { id: "gallery", label: "Gallery", icon: GalleryHorizontal },
 ];
 
 // --- MOCK DATA ---
