@@ -1,37 +1,6 @@
 import { useEffect, useMemo, useRef, useCallback } from "react";
 import { useGesture } from "@use-gesture/react";
 
-const DEFAULT_IMAGES = [
-  {
-    src: "https://images.unsplash.com/photo-1755331039789-7e5680e26e8f?q=80&w=774&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
-    alt: "Abstract art",
-  },
-  {
-    src: "https://images.unsplash.com/photo-1755569309049-98410b94f66d?q=80&w=772&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
-    alt: "Modern sculpture",
-  },
-  {
-    src: "https://images.unsplash.com/photo-1755497595318-7e5e3523854f?q=80&w=774&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
-    alt: "Digital artwork",
-  },
-  {
-    src: "https://images.unsplash.com/photo-1755353985163-c2a0fe5ac3d8?q=80&w=774&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
-    alt: "Contemporary art",
-  },
-  {
-    src: "https://images.unsplash.com/photo-1745965976680-d00be7dc0377?q=80&w=774&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
-    alt: "Geometric pattern",
-  },
-  {
-    src: "https://images.unsplash.com/photo-1752588975228-21f44630bb3c?q=80&w=774&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
-    alt: "Textured surface",
-  },
-  {
-    src: "https://pbs.twimg.com/media/Gyla7NnXMAAXSo_?format=jpg&name=large",
-    alt: "Social media image",
-  },
-];
-
 const DEFAULTS = {
   maxVerticalRotationDeg: 5,
   dragSensitivity: 20,
@@ -51,7 +20,8 @@ const getDataNumber = (el, name, fallback) => {
   return Number.isFinite(n) ? n : fallback;
 };
 
-function buildItems(pool, seg) {
+// Modified to handle Skeleton generation
+function buildItems(pool, seg, isSkeletonMode) {
   const xCols = Array.from({ length: seg }, (_, i) => -37 + i * 2);
   const evenYs = [-4, -2, 0, 2, 4];
   const oddYs = [-3, -1, 1, 3, 5];
@@ -62,12 +32,25 @@ function buildItems(pool, seg) {
   });
 
   const totalSlots = coords.length;
-  if (pool.length === 0) {
+
+  // SKELETON MODE: Return items with coordinates but marked as skeletons
+  if (isSkeletonMode) {
+    return coords.map((c) => ({
+      ...c,
+      src: "",
+      alt: "Loading...",
+      isSkeleton: true,
+    }));
+  }
+
+  // STANDARD MODE
+  if (!pool || pool.length === 0) {
     return coords.map((c) => ({ ...c, src: "", alt: "" }));
   }
+
   if (pool.length > totalSlots) {
     console.warn(
-      `[DomeGallery] Provided image count (${pool.length}) exceeds available tiles (${totalSlots}). Some images will not be shown.`
+      `[DomeGallery] Provided image count (${pool.length}) exceeds available tiles (${totalSlots}).`
     );
   }
 
@@ -83,6 +66,7 @@ function buildItems(pool, seg) {
     (_, i) => normalizedImages[i % normalizedImages.length]
   );
 
+  // Shuffle logic to prevent adjacent duplicates
   for (let i = 1; i < usedImages.length; i++) {
     if (usedImages[i].src === usedImages[i - 1].src) {
       for (let j = i + 1; j < usedImages.length; j++) {
@@ -100,6 +84,7 @@ function buildItems(pool, seg) {
     ...c,
     src: usedImages[i].src,
     alt: usedImages[i].alt,
+    isSkeleton: false,
   }));
 }
 
@@ -111,7 +96,7 @@ function computeItemBaseRotation(offsetX, offsetY, sizeX, sizeY, segments) {
 }
 
 export default function DomeGallery({
-  images = DEFAULT_IMAGES,
+  images, // If null/undefined, we show skeletons
   fit = 0.5,
   fitBasis = "auto",
   minRadius = 600,
@@ -164,7 +149,14 @@ export default function DomeGallery({
     document.body.classList.remove("dg-scroll-lock");
   }, []);
 
-  const items = useMemo(() => buildItems(images, segments), [images, segments]);
+  // Determine Loading State
+  const isLoading = !images;
+
+  // Build items (real or skeleton)
+  const items = useMemo(
+    () => buildItems(images || [], segments, isLoading),
+    [images, segments, isLoading]
+  );
 
   const applyTransform = (xDeg, yDeg) => {
     const el = sphereRef.current;
@@ -220,6 +212,7 @@ export default function DomeGallery({
       );
       applyTransform(rotationRef.current.x, rotationRef.current.y);
 
+      // Handle resize for the enlarged overlay if it exists
       const enlargedOverlay = viewerRef.current?.querySelector(".enlarge");
       if (enlargedOverlay && frameRef.current && mainRef.current) {
         const frameR = frameRef.current.getBoundingClientRect();
@@ -327,7 +320,15 @@ export default function DomeGallery({
         startRotRef.current = { ...rotationRef.current };
         startPosRef.current = { x: event.clientX, y: event.clientY };
         const potential = event.target.closest?.(".item__image");
-        tapTargetRef.current = potential || null;
+        // Don't open if it's a skeleton or we are dragging
+        if (
+          potential &&
+          !potential.classList.contains("item__image--skeleton")
+        ) {
+          tapTargetRef.current = potential;
+        } else {
+          tapTargetRef.current = null;
+        }
       },
       onDrag: ({
         event,
@@ -559,6 +560,8 @@ export default function DomeGallery({
   }, [enlargeTransitionMs, openedImageBorderRadius, grayscale]);
 
   const openItemFromElement = (el) => {
+    // Prevent opening if it's a skeleton
+    if (el.classList.contains("item__image--skeleton")) return;
     if (openingRef.current) return;
     openingRef.current = true;
     openStartedAtRef.current = performance.now();
@@ -769,16 +772,6 @@ export default function DomeGallery({
       }
     }
     
-    // body.dg-scroll-lock {
-    //   position: fixed !important;
-    //   top: 0;
-    //   left: 0;
-    //   width: 100% !important;
-    //   height: 100% !important;
-    //   overflow: hidden !important;
-    //   touch-action: none !important;
-    //   overscroll-behavior: contain !important;
-    // }
     .item__image {
       position: absolute;
       inset: 10px;
@@ -796,6 +789,19 @@ export default function DomeGallery({
       position: absolute;
       inset: 10px;
       pointer-events: none;
+    }
+
+    /* SKELETON ANIMATION */
+    @keyframes skeleton-shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+    
+    .item__image--skeleton {
+      cursor: default;
+      background: linear-gradient(90deg, #1a1a1a 25%, #2a2a2a 50%, #1a1a1a 75%);
+      background-size: 200% 100%;
+      animation: skeleton-shimmer 2s infinite linear;
     }
   `;
 
@@ -846,11 +852,14 @@ export default function DomeGallery({
                   }}
                 >
                   <div
-                    className="item__image absolute block overflow-hidden cursor-pointer bg-gray-200 transition-transform duration-300"
+                    className={`item__image absolute block overflow-hidden bg-gray-200 transition-transform duration-300 ${
+                      it.isSkeleton ? "item__image--skeleton" : ""
+                    }`}
                     role="button"
                     tabIndex={0}
                     aria-label={it.alt || "Open image"}
                     onClick={(e) => {
+                      if (it.isSkeleton) return; // Ignore click on skeleton
                       if (draggingRef.current) return;
                       if (movedRef.current) return;
                       if (performance.now() - lastDragEndAt.current < 80)
@@ -860,6 +869,7 @@ export default function DomeGallery({
                     }}
                     onPointerUp={(e) => {
                       if (e.pointerType !== "touch") return;
+                      if (it.isSkeleton) return; // Ignore touch on skeleton
                       if (draggingRef.current) return;
                       if (movedRef.current) return;
                       if (performance.now() - lastDragEndAt.current < 80)
@@ -873,18 +883,20 @@ export default function DomeGallery({
                       backfaceVisibility: "hidden",
                     }}
                   >
-                    <img
-                      src={it.src}
-                      draggable={false}
-                      alt={it.alt}
-                      className="w-full h-full object-cover pointer-events-none"
-                      style={{
-                        backfaceVisibility: "hidden",
-                        filter: `var(--image-filter, ${
-                          grayscale ? "grayscale(1)" : "none"
-                        })`,
-                      }}
-                    />
+                    {!it.isSkeleton && (
+                      <img
+                        src={it.src}
+                        draggable={false}
+                        alt={it.alt}
+                        className="w-full h-full object-cover pointer-events-none"
+                        style={{
+                          backfaceVisibility: "hidden",
+                          filter: `var(--image-filter, ${
+                            grayscale ? "grayscale(1)" : "none"
+                          })`,
+                        }}
+                      />
+                    )}
                   </div>
                 </div>
               ))}

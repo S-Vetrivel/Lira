@@ -23,7 +23,7 @@ api.interceptors.response.use(
     // ==============================================================
     // 🛑 SILENT ROUTES: Don't show popups for these endpoints
     // ==============================================================
-    const silentRoutes = ["/auth/me"];
+    const silentRoutes = ["/auth/me", "/gallery"];
 
     // Check if the current request URL matches any silent route
     if (

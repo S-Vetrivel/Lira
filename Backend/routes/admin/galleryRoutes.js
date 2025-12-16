@@ -2,8 +2,7 @@ const express = require("express");
 const router = express.Router();
 const multer = require("multer");
 const path = require("path");
-
-// Note: Auth Middleware import removed
+// const { protect } = require("../middleware/authMiddleware"); // removed as per your setup
 
 const {
   getGallery,
@@ -19,7 +18,9 @@ const storage = multer.diskStorage({
     cb(null, "uploads/");
   },
   filename: (req, file, cb) => {
-    cb(null, `raw-${Date.now()}${path.extname(file.originalname)}`);
+    // FIX: Add a random number to prevent duplicate names in the same millisecond
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    cb(null, `raw-${uniqueSuffix}${path.extname(file.originalname)}`);
   },
 });
 
@@ -40,19 +41,13 @@ const upload = multer({
 
 // --- 3. Route Definitions ---
 
-// Base Route: /api/gallery
 router
   .route("/")
-  .get(getGallery) // GET: Fetch all images (No Auth)
-  .post(upload.array("images", 20), uploadImages); // POST: Bulk Upload (No Auth)
+  .get(getGallery)
+  .post(upload.array("images", 20), uploadImages);
 
-// Reorder Route
 router.put("/reorder", reorderImages);
-
-// Delete Route
 router.post("/delete-batch", deleteImages);
-
-// Single Item Route
 router.put("/:id", updateImageDetails);
 
 module.exports = router;
