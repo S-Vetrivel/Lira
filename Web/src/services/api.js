@@ -49,6 +49,7 @@ api.interceptors.response.use(
       toast.error(backendMessage);
 
       setTimeout(() => {
+        // Prevent redirect loop if already on login page
         if (window.location.pathname !== "/login") {
           window.location.href = "/login";
         }
@@ -174,21 +175,47 @@ export async function UpdatePersonalInfo(data) {
       message: res.data?.message,
     };
   } catch (error) {
-    toast.error(error.response?.data?.message || "Update failed!");
-
+    // Error toast handled by interceptor usually, but safe to return logic here
     return {
       success: false,
       message: error.response?.data?.message || "Update failed",
     };
   }
 }
-// 10. Google One Tap Login Function
+
+// 10. Upload Profile Picture Function (NEW)
+export async function uploadProfileImage(file) {
+  try {
+    const formData = new FormData();
+    formData.append("image", file);
+
+    const res = await api.post("/profile/profile-image", formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
+
+    toast.success(res.data?.message || "Upload started! Updating soon...");
+
+    return {
+      success: true,
+      message: res.data?.message,
+    };
+  } catch (error) {
+    console.error("Profile Upload Error:", error);
+    // Error is typically shown by interceptor, but we return false to handle loading states
+    return {
+      success: false,
+      message: error.response?.data?.message || "Upload failed",
+    };
+  }
+}
+
+// 11. Google One Tap Login Function
 export async function googleOneTapLogin(token) {
   try {
     const response = await api.post("/auth/google/onetap", { token });
 
-    // Toast is optional here since interceptor might show errors,
-    // but success toast is good UX.
     toast.success(response.data.message || "Google Login Successful!");
 
     return {
@@ -196,7 +223,6 @@ export async function googleOneTapLogin(token) {
       user: response.data.user,
     };
   } catch (error) {
-    // Return standard failure object so component can log it if needed
     return {
       success: false,
       message: error.response?.data?.message || "Google Login Failed",
@@ -205,7 +231,7 @@ export async function googleOneTapLogin(token) {
 }
 
 // ==============================================================
-// 11. GALLERY FUNCTIONS (Admin)
+// 12. GALLERY FUNCTIONS (Admin)
 // ==============================================================
 export async function getallGallery() {
   try {
@@ -243,22 +269,13 @@ export async function uploadGalleryImages(formData) {
   try {
     const response = await api.post("/admin/gallery", formData, {
       headers: {
-        // Important: Setting this to undefined forces Axios to let the
-        // browser set the Content-Type with the correct 'boundary' string
         "Content-Type": "multipart/form-data",
       },
     });
 
-    // Note: If the above doesn't work in your specific Axios version,
-    // try: "Content-Type": undefined
-
-    // Don't show toast here if your component handles it,
-    // but based on your code, the component relies on the return value.
-    // toast.success(response.data.message || "Upload started!");
-
     return {
       success: true,
-      data: response.data.data, // Ensure backend returns { data: [...] }
+      data: response.data.data,
     };
   } catch (error) {
     console.error("Upload Error:", error);
@@ -283,11 +300,7 @@ export async function deleteGalleryImages(ids) {
 // D. Save Order
 export async function reorderGalleryImages(items) {
   try {
-    // items example: [{ id: "123", order: 0 }, { id: "456", order: 1 }]
     const response = await api.put("/admin/gallery/reorder", { items });
-
-    // Optional: You might want to suppress this toast if autosaving frequently
-    // toast.success("Order saved");
     return { success: true };
   } catch (error) {
     return { success: false };

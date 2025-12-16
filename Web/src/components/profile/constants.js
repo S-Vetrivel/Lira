@@ -3,13 +3,42 @@ import { User, Package, MapPin, Heart, GalleryHorizontal } from "lucide-react";
 
 // --- TAB CONFIGURATION ---
 export const PROFILE_TABS = [
-  { id: "personal", label: "Personal Info", icon: User },
-  { id: "orders", label: "My Orders", icon: Package },
-  { id: "addresses", label: "Addresses", icon: MapPin },
-  { id: "wishlist", label: "Wishlist", icon: Heart },
-  { id: "gallery", label: "Gallery", icon: GalleryHorizontal },
+  {
+    id: "personal",
+    label: "Personal Info",
+    icon: User,
+    showForUser: true, // ✅ User sees this
+    showForAdmin: true, // ✅ Admin sees this
+  },
+  {
+    id: "orders",
+    label: "My Orders",
+    icon: Package,
+    showForUser: true, // ✅ User sees this
+    showForAdmin: false, // ❌ Admin DOES NOT see this
+  },
+  {
+    id: "addresses",
+    label: "Addresses",
+    icon: MapPin,
+    showForUser: true,
+    showForAdmin: false,
+  },
+  {
+    id: "wishlist",
+    label: "Wishlist",
+    icon: Heart,
+    showForUser: true,
+    showForAdmin: false,
+  },
+  {
+    id: "gallery",
+    label: "Gallery",
+    icon: GalleryHorizontal,
+    showForUser: false, // ❌ User DOES NOT see this
+    showForAdmin: true, // ✅ Admin sees this
+  },
 ];
-
 // --- MOCK DATA ---
 export const MOCK_USER_META = {
   memberSince: "2023",

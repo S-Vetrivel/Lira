@@ -1,14 +1,35 @@
-import React, { useState } from "react";
-import { ShoppingBag, User, LogIn } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { ShoppingBag, User } from "lucide-react";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { useApp } from "../../context/Appcontext";
+
+// Get API URL from env (Same as in ProfileHeader)
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+
 const UserHeader = ({ theme }) => {
-  // --- MOCK LOGIC (Replace with your Context/Redux) ---
   const { user } = useApp();
-  const [cartCount, setCartCount] = useState(2); // Set to 0 to hide badge
-  const userProfileImage =
-    "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=100&q=80"; // Mock Avatar
+  const [cartCount, setCartCount] = useState(2); // Mock Cart Count
+  const [imgError, setImgError] = useState(false); // State to track image load errors
+
+  // Reset error state if the user's picture url changes
+  useEffect(() => {
+    setImgError(false);
+  }, [user?.profilePicture]);
+
+  // --- LOGIC: Resolve Image URL ---
+  const getImageUrl = (path) => {
+    if (!path) return null;
+    // Check for "http" (External/Google) or "blob:" (Local Preview/Optimistic Update)
+    if (path.startsWith("http") || path.startsWith("blob:")) {
+      return path;
+    }
+    // Otherwise, append API URL (for backend uploads)
+    return `${API_BASE_URL}${path}`;
+  };
+
+  const profileSrc = getImageUrl(user?.profilePicture);
+  const hasValidImage = user && profileSrc && !imgError;
 
   return (
     <div className="flex items-center gap-2 mr-2">
@@ -46,16 +67,18 @@ const UserHeader = ({ theme }) => {
             color: theme.navbar.iconColor,
           }}
         >
-          {user ? (
-            // Authenticated State: User Image
+          {hasValidImage ? (
+            // Authenticated & Valid Image
             <img
-              src={userProfileImage}
+              key={profileSrc} // Force re-render on URL change
+              src={profileSrc} // Use resolved URL
               alt="Profile"
               className="w-full h-full object-cover"
+              onError={() => setImgError(true)} // Handle broken links
             />
           ) : (
-            // Guest State: User Vector / Login Icon
-            <User size={20} />
+            // Guest OR Logged-in Fallback (User Icon)
+            <User size={20} className={user ? "opacity-100" : "opacity-80"} />
           )}
         </motion.button>
       </Link>

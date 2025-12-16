@@ -1,10 +1,11 @@
-// src/pages/Profile.jsx
 import React, { useContext, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { ThemeContext } from "@/context/ThemeContext";
 import { useApp } from "../context/Appcontext";
-import { logout } from "../services/api";
+import { logout, uploadProfileImage, checkAuth } from "../services/api";
 import { motion, AnimatePresence } from "framer-motion";
 import Modal from "../components/layout/Modal";
+import toast from "react-hot-toast";
 
 // Import Components
 import ProfileHeader from "../components/profile/ProfileHeader";
@@ -15,10 +16,10 @@ import PersonalInfoTab from "../components/profile/tabs/PersonalInfoTab";
 import OrdersTab from "../components/profile/tabs/OrdersTab";
 import AddressesTab from "../components/profile/tabs/AddressesTab";
 import WishlistTab from "../components/profile/tabs/WishlistTab";
+import GalleryTab from "../components/profile/tabs/GalleryTab";
 
 // Import Constants
-import { PROFILE_TABS, MOCK_USER_META } from "../components/profile/constants";
-import GalleryTab from "../components/profile/tabs/GalleryTab";
+import { PROFILE_TABS } from "../components/profile/constants";
 
 // Map IDs to Component Objects
 const TAB_COMPONENTS = {
@@ -30,26 +31,71 @@ const TAB_COMPONENTS = {
 };
 
 export default function Profile() {
+  const navigate = useNavigate();
   const { theme } = useContext(ThemeContext);
   const { setUser, user } = useApp();
 
   const [activeTabId, setActiveTabId] = useState("personal");
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
 
-  // Determine which component to render
-  const ActiveComponent = TAB_COMPONENTS[activeTabId];
+  // 1. Handle Profile Image Upload
+  const handleProfileImageUpdate = async (file) => {
+    if (!file) return;
 
+    // A. Optimistic Update (Immediate Feedback)
+    const localImageUrl = URL.createObjectURL(file);
+    setUser((prev) => ({ ...prev, profilePicture: localImageUrl }));
+
+    try {
+      setIsUploading(true);
+      // B. Upload to Server
+      const res = await uploadProfileImage(file);
+
+      if (res.success) {
+        // C. Poll/Sync for Background Processing
+        // Wait 3s for worker to resize image, then fetch fresh data
+        setTimeout(async () => {
+          try {
+            const authRes = await checkAuth();
+            if (authRes.isAuthenticated) {
+              setUser(authRes.user); // Sync with server
+            }
+          } catch (err) {
+            console.error("Failed to sync profile", err);
+          } finally {
+            setIsUploading(false);
+          }
+        }, 3000);
+      } else {
+        setIsUploading(false);
+      }
+    } catch (error) {
+      console.error("Upload failed", error);
+      toast.error("Failed to upload image");
+      setIsUploading(false);
+    }
+  };
+
+  // 2. Handle Logout
   const handleLogoutConfirm = async () => {
     const res = await logout();
     if (res.success) {
       setIsLogoutModalOpen(false);
       setUser(null);
+      navigate("/login");
     }
   };
 
+  // Determine which component to render
+  const ActiveComponent = TAB_COMPONENTS[activeTabId];
+
+  // Prevent rendering if user context isn't ready yet
+  if (!user) return null;
+
   return (
     <div
-      className="min-h-screen w-full pt-12 pb-24 px-6 md:px-12 transition-colors duration-500"
+      className="min-h-screen w-full pt-28 pb-24 px-6 md:px-12 transition-colors duration-500"
       style={{ backgroundColor: theme.bg, color: theme.text }}
     >
       <div className="max-w-[1400px] mx-auto">
@@ -58,8 +104,8 @@ export default function Profile() {
           user={user}
           theme={theme}
           onLogoutClick={() => setIsLogoutModalOpen(true)}
-          memberSince={MOCK_USER_META.memberSince}
-          email={MOCK_USER_META.email}
+          onUpdateProfileImage={handleProfileImageUpdate} // Pass the handler
+          isLoading={isUploading}
         />
 
         {/* --- MAIN LAYOUT --- */}
@@ -71,7 +117,7 @@ export default function Profile() {
               activeTabId={activeTabId}
               onTabChange={setActiveTabId}
               theme={theme}
-              isAdmin={user.role === "admin"}
+              isAdmin={user?.role === "admin"}
             />
           </div>
 
