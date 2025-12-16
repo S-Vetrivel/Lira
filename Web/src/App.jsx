@@ -24,6 +24,7 @@ import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import { MainLayout } from "./components/layout/MainLayout";
 import ForgetPassword from "./pages/ForgetPassword";
+// import GoogleOneTap from "./components/GoogleOneTap";
 
 function App() {
   const { user } = useApp();
@@ -34,6 +35,7 @@ function App() {
     document.body.style.backgroundColor = theme.bg;
     document.documentElement.style.color = theme.text;
   }, [theme]);
+  // console.log(import.meta.env.VITE_GOOGLE_CLIENT_ID);
 
   return (
     <>
@@ -46,7 +48,7 @@ function App() {
       />
 
       <ScrollToTop />
-
+      {/* {!user && <GoogleOneTap />} */}
       <Routes>
         {/* =============== AUTH ROUTES =============== */}
         <Route element={<AuthLayout />}>

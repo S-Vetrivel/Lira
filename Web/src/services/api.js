@@ -182,5 +182,26 @@ export async function UpdatePersonalInfo(data) {
     };
   }
 }
+// 10. Google One Tap Login Function
+export async function googleOneTapLogin(token) {
+  try {
+    const response = await api.post("/auth/google/onetap", { token });
+
+    // Toast is optional here since interceptor might show errors,
+    // but success toast is good UX.
+    toast.success(response.data.message || "Google Login Successful!");
+
+    return {
+      success: true,
+      user: response.data.user,
+    };
+  } catch (error) {
+    // Return standard failure object so component can log it if needed
+    return {
+      success: false,
+      message: error.response?.data?.message || "Google Login Failed",
+    };
+  }
+}
 
 export default api;
