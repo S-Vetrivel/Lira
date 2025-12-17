@@ -11,7 +11,7 @@ const generateTokenAndSetCookie = (res, userId) => {
     expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
     httpOnly: true, // Security: JS cannot read this
     secure: true,
-    samesite: "none",
+    sameSite: "none",
   };
 
   // 3. Set Cookie
