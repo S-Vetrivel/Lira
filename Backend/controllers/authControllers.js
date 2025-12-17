@@ -112,7 +112,7 @@ exports.Login = async (req, res) => {
 // ==============================================
 exports.Logout = (req, res) => {
   // Clear the cookie by setting it to expire immediately
-  res.cookie("token", token, {
+  res.cookie("token", "", {
     httpOnly: true,
     secure: true,
     sameSite: "none",
