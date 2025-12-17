@@ -318,4 +318,123 @@ export async function updateGalleryImageDetails(id, title) {
   }
 }
 
+// ==============================================================
+// 13. PRODUCT FUNCTIONS (Public)
+// ==============================================================
+
+// A. Fetch All Products (With Filters)
+export async function getAllProducts(filters = {}) {
+  // filters expected: { category, search, minPrice, maxPrice, sort }
+  try {
+    const response = await api.get("/products", { params: filters });
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error.response?.data?.message || "Failed to load products",
+    };
+  }
+}
+
+// B. Fetch Single Product by ID
+export async function getProductById(id) {
+  try {
+    const response = await api.get(`/products/${id}`);
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error.response?.data?.message || "Product not found",
+    };
+  }
+}
+
+// C. Get Recommendations
+export async function getProductRecommendations(currentId, category) {
+  try {
+    const response = await api.get("/products/recommendations", {
+      params: { currentId, category },
+    });
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    // Fail silently for recommendations (don't break the page)
+    console.error("Recommendation Error:", error);
+    return { success: false, data: [] };
+  }
+}
+// ==============================================================
+// PRODUCT MANAGEMENT (Admin)
+// ==============================================================
+
+export async function getAlladminProducts() {
+  try {
+    const response = await api.get("/admin/products");
+    return { success: true, data: response.data };
+  } catch (error) {
+    return {
+      success: false,
+      message: error.response?.data?.message || "Error",
+    };
+  }
+}
+
+// ==============================================================
+// ADMIN FUNCTIONS (Fixed Uploads)
+// ==============================================================
+
+// 1. Create Product
+export async function createProduct(formData) {
+  try {
+    // Let Axios/Browser handle the boundary
+    const response = await api.post("/admin/products", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    return { success: true, data: response.data };
+  } catch (error) {
+    console.error("Create Error:", error.response?.data);
+    return {
+      success: false,
+      message: error.response?.data?.error || "Creation failed",
+    };
+  }
+}
+
+// 2. Update Product
+export async function updateProduct(id, formData) {
+  try {
+    const response = await api.put(`/admin/products/${id}`, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    return { success: true, data: response.data };
+  } catch (error) {
+    console.error("Update Error:", error.response?.data);
+    return {
+      success: false,
+      message: error.response?.data?.error || "Update failed",
+    };
+  }
+}
+
+// 3. Delete Product
+export async function deleteProduct(id) {
+  try {
+    await api.delete(`/admin/products/${id}`);
+    return { success: true };
+  } catch (error) {
+    return {
+      success: false,
+      message: error.response?.data?.message || "Delete failed",
+    };
+  }
+}
+
 export default api;

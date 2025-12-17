@@ -1,5 +1,6 @@
 // src/components/profile/constants.js
 import { User, Package, MapPin, Heart, GalleryHorizontal } from "lucide-react";
+import { FiBox } from "react-icons/fi";
 
 // --- TAB CONFIGURATION ---
 export const PROFILE_TABS = [
@@ -37,6 +38,13 @@ export const PROFILE_TABS = [
     icon: GalleryHorizontal,
     showForUser: false, // ❌ User DOES NOT see this
     showForAdmin: true, // ✅ Admin sees this
+  },
+  {
+    id: "products",
+    label: "Products",
+    icon: FiBox,
+    showForUser: false,
+    showForAdmin: true,
   },
 ];
 // --- MOCK DATA ---

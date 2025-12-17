@@ -1,7 +1,6 @@
 import React, {
   useState,
   useContext,
-  useMemo,
   useEffect,
   useCallback,
   useRef,
@@ -14,12 +13,14 @@ import {
   ChevronLeft,
   ChevronRight,
   DollarSign,
+  Loader2,
 } from "lucide-react";
 import { ThemeContext } from "../context/ThemeContext";
 import ProductCard from "../components/ProductCard";
 import { Link, useLocation } from "react-router-dom";
+import { getAllProducts } from "@/services/api"; // Ensure this matches your alias
 
-// --- 1. CONFIGURATION & MOCK DATA ---
+// --- 1. CONFIGURATION & STATIC ASSETS ---
 
 const HERO_SLIDES = [
   {
@@ -57,97 +58,6 @@ const HERO_SLIDES = [
     mobileSrc:
       "https://images.unsplash.com/photo-1556906781-9a412961d289?q=80&w=600&auto=format&fit=crop",
     altText: "Court Classics",
-  },
-];
-
-const PRODUCTS_DATA = [
-  {
-    id: 1,
-    title: "Nike Air Max Pulse",
-    price: 150.0,
-    category: "Running",
-    badge: "New",
-    image1:
-      "https://images.unsplash.com/photo-1542291026-7eec264c27ff?q=80&w=800&auto=format&fit=crop",
-    image2:
-      "https://images.unsplash.com/photo-1606107557195-0e29a4b5b4aa?q=80&w=800&auto=format&fit=crop",
-  },
-  {
-    id: 2,
-    title: "Air Jordan 1 Mid",
-    price: 125.0,
-    category: "Lifestyle",
-    badge: null,
-    image1:
-      "https://images.unsplash.com/photo-1549298916-b41d501d3772?q=80&w=800&auto=format&fit=crop",
-    image2:
-      "https://images.unsplash.com/photo-1525966222134-fcfa99b8ae77?q=80&w=800&auto=format&fit=crop",
-  },
-  {
-    id: 3,
-    title: "Dunk Low Retro",
-    price: 115.0,
-    category: "Basketball",
-    badge: "Sale",
-    image1:
-      "https://images.unsplash.com/photo-1560769629-975ec94e6a86?q=80&w=800&auto=format&fit=crop",
-    image2:
-      "https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?q=80&w=800&auto=format&fit=crop",
-  },
-  {
-    id: 4,
-    title: "Yeezy Boost 350",
-    price: 220.0,
-    category: "Exclusive",
-    badge: "Hot",
-    image1:
-      "https://images.unsplash.com/photo-1584735175315-9d5816093171?q=80&w=800&auto=format&fit=crop",
-    image2:
-      "https://images.unsplash.com/photo-1584735174965-48c48d7edfde?q=80&w=800&auto=format&fit=crop",
-  },
-  {
-    id: 5,
-    title: "New Balance 550",
-    price: 110.0,
-    category: "Vintage",
-    badge: null,
-    image1:
-      "https://images.unsplash.com/photo-1539185441755-769473a23570?q=80&w=800&auto=format&fit=crop",
-    image2:
-      "https://images.unsplash.com/photo-1512374382149-233c42b6a83b?q=80&w=800&auto=format&fit=crop",
-  },
-  {
-    id: 6,
-    title: "Adidas Forum Low",
-    price: 100.0,
-    category: "Street",
-    badge: "New",
-    image1:
-      "https://images.unsplash.com/photo-1587563871167-1ee9c731aef4?q=80&w=800&auto=format&fit=crop",
-    image2:
-      "https://images.unsplash.com/photo-1608231387042-66d1773070a5?q=80&w=800&auto=format&fit=crop",
-  },
-  {
-    id: 7,
-    title: "Puma RS-X",
-    price: 110.0,
-    category: "Running",
-    badge: "Sale",
-    image1:
-      "https://images.unsplash.com/photo-1608231387042-66d1773070a5?q=80&w=800&auto=format&fit=crop",
-    image2:
-      "https://images.unsplash.com/photo-1542291026-7eec264c27ff?q=80&w=800&auto=format&fit=crop",
-  },
-  {
-    id: 8,
-    title: "Vans Old Skool",
-    price: 65.0,
-    category: "Street",
-    badge: null,
-    image1:
-      "https://images.unsplash.com/photo-1525966222134-fcfa99b8ae77?q=80&w=800&auto=format&fit=crop",
-    image2:
-      "https://images.unsplash.com/photo-1560769629-975ec94e6a86?q=80&w=800&auto=format&fit=crop",
   },
 ];
 
@@ -191,7 +101,6 @@ const swipePower = (offset, velocity) => {
   return Math.abs(offset) * velocity;
 };
 
-// Updated to accept delay props for staggered reveal
 const HeroCarousel = ({
   slides,
   autoPlayInterval = 5000,
@@ -223,7 +132,6 @@ const HeroCarousel = ({
   }, [page, isPaused, isHovered, autoPlayInterval, paginate]);
 
   // Sync Text Logic EXACTLY with Arrows
-  // If we are in Intro, wait for controlsDelay. If normal, wait 0.2s.
   const currentTextDelay = isIntro ? controlsDelay : 0.2;
   const currentDuration = isIntro ? 0.8 : 0.5;
 
@@ -279,12 +187,12 @@ const HeroCarousel = ({
             />
           </picture>
 
-          {/* Dynamic Slide Text - Hidden initially in Intro, revealed WITH arrows */}
+          {/* Dynamic Slide Text */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{
-              delay: currentTextDelay, // SYNCED with arrows
+              delay: currentTextDelay,
               duration: currentDuration,
               ease: "easeOut",
             }}
@@ -320,14 +228,13 @@ const HeroCarousel = ({
         </motion.div>
       </AnimatePresence>
 
-      {/* Controls & Indicators - Revealed with delay in Intro */}
+      {/* Controls & Indicators */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: controlsDelay, duration: 0.8 }}
         className="absolute inset-0 pointer-events-none"
       >
-        {/* Arrows */}
         <div className="absolute inset-0 flex items-center justify-between p-4 z-20">
           <button
             className={`pointer-events-auto p-3 rounded-full bg-black/20 hover:bg-white/20 backdrop-blur-md text-white transition-all ${
@@ -355,7 +262,6 @@ const HeroCarousel = ({
           </button>
         </div>
 
-        {/* Dots */}
         <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 flex space-x-3 z-20 pointer-events-none">
           {slides.map((_, index) => (
             <button
@@ -403,13 +309,19 @@ const Shop = () => {
 
   const [isIntroSequence, setIsIntroSequence] = useState(fromZoom);
 
+  // --- API DATA STATE ---
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // --- FILTER STATE ---
   const [isMobile, setIsMobile] = useState(false);
   const [activeCategory, setActiveCategory] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
   const [isSortOpen, setIsSortOpen] = useState(false);
   const [isPriceOpen, setIsPriceOpen] = useState(false);
   const [sortOption, setSortOption] = useState("Newest");
-  const [priceRange, setPriceRange] = useState({ min: 0, max: 1000 });
+  const [priceRange, setPriceRange] = useState({ min: 0, max: 100000 });
 
   const productSectionRef = useRef(null);
   const scrollContainerRef = useRef(null);
@@ -417,6 +329,7 @@ const Shop = () => {
   const [startX, setStartX] = useState(0);
   const [scrollLeft, setScrollLeft] = useState(0);
 
+  // --- INIT MOBILE CHECK ---
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
     checkMobile();
@@ -424,9 +337,9 @@ const Shop = () => {
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
+  // --- INTRO SEQUENCE ---
   useEffect(() => {
     if (isIntroSequence) {
-      // Sequence: 0.5s hold + 1.2s shrink + buffer
       const timer = setTimeout(() => {
         setIsIntroSequence(false);
       }, 1800);
@@ -434,19 +347,56 @@ const Shop = () => {
     }
   }, [isIntroSequence]);
 
+  // --- DATA FETCHING (SERVER-SIDE FILTERING) ---
+  useEffect(() => {
+    const fetchProducts = async () => {
+      setLoading(true);
+      setError(null);
+
+      try {
+        // Build filters object
+        const filters = {
+          category: activeCategory,
+          search: searchQuery,
+          minPrice: priceRange.min,
+          maxPrice: priceRange.max,
+          sort: sortOption,
+        };
+
+        const res = await getAllProducts(filters);
+
+        if (res.success) {
+          setProducts(res.data);
+        } else {
+          // If search returns 404/no data, just set empty array rather than error
+          setProducts([]);
+        }
+      } catch (err) {
+        console.error("Fetch Error:", err);
+        setError("Failed to load products.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    // Debounce Search to prevent too many API calls
+    const debounceTimer = setTimeout(() => {
+      fetchProducts();
+    }, 400); // 400ms delay after typing stops
+
+    return () => clearTimeout(debounceTimer);
+  }, [activeCategory, searchQuery, priceRange, sortOption]);
+
+  // --- HANDLERS ---
+
   const handleMouseDown = (e) => {
     setIsDragging(true);
     setStartX(e.pageX - scrollContainerRef.current.offsetLeft);
     setScrollLeft(scrollContainerRef.current.scrollLeft);
   };
 
-  const handleMouseLeave = () => {
-    setIsDragging(false);
-  };
-
-  const handleMouseUp = () => {
-    setIsDragging(false);
-  };
+  const handleMouseLeave = () => setIsDragging(false);
+  const handleMouseUp = () => setIsDragging(false);
 
   const handleMouseMove = (e) => {
     if (!isDragging) return;
@@ -455,26 +405,6 @@ const Shop = () => {
     const walk = (x - startX) * 2;
     scrollContainerRef.current.scrollLeft = scrollLeft - walk;
   };
-
-  const scrollToProducts = useCallback(() => {
-    if (productSectionRef.current) {
-      const yOffset = -100;
-      const element = productSectionRef.current;
-      const y =
-        element.getBoundingClientRect().top + window.pageYOffset + yOffset;
-      window.scrollTo({ top: y, behavior: "smooth" });
-    }
-  }, []);
-
-  useEffect(() => {
-    const handleWheel = (e) => {
-      if (window.scrollY < 10 && e.deltaY > 0) {
-        // scrollToProducts();
-      }
-    };
-    window.addEventListener("wheel", handleWheel, { passive: false });
-    return () => window.removeEventListener("wheel", handleWheel);
-  }, [scrollToProducts]);
 
   const handlePriceChange = (e, type) => {
     const value = Math.min(Math.max(Number(e.target.value), 0), 1000);
@@ -489,39 +419,10 @@ const Shop = () => {
     }
   };
 
-  const filteredProducts = useMemo(() => {
-    let result = [...PRODUCTS_DATA];
-    if (activeCategory !== "All") {
-      result = result.filter((p) => p.category === activeCategory);
-    }
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter(
-        (p) =>
-          p.title.toLowerCase().includes(q) ||
-          p.category.toLowerCase().includes(q)
-      );
-    }
-    result = result.filter(
-      (p) => p.price >= priceRange.min && p.price <= priceRange.max
-    );
-    if (sortOption === "Price: Low to High") {
-      result.sort((a, b) => a.price - b.price);
-    } else if (sortOption === "Price: High to Low") {
-      result.sort((a, b) => b.price - a.price);
-    } else {
-      result.sort((a, b) => b.id - a.id);
-    }
-    return result;
-  }, [activeCategory, searchQuery, sortOption, priceRange]);
-
-  // --- OPTIMIZED TIMING FOR ILLUSION ---
-  // 1. Hold Fullscreen for 0.5s
+  // --- ANIMATION TIMING ---
   const SHRINK_DELAY = fromZoom ? 0.5 : 0;
-  // 2. Reveal Text & Arrows at 1.2s (synchronized)
   const TEXT_DELAY = fromZoom ? 1.2 : 0;
   const CONTROLS_DELAY = fromZoom ? 1.2 : 0;
-  // 3. Reveal Content after shrink
   const CONTENT_DELAY = fromZoom ? 1.5 : 0.2;
 
   return (
@@ -541,12 +442,11 @@ const Shop = () => {
 
       {/* --- CAROUSEL WITH SHRINK ANIMATION --- */}
       <motion.div
-        // REMOVED opacity transition so image shows immediately
         initial={fromZoom ? { height: "100vh" } : false}
         animate={{ height: isMobile ? "60vh" : "70vh" }}
         transition={{
-          delay: SHRINK_DELAY, // Holds at 100vh for 0.5s
-          duration: 1.2, // Then smooth quick shrink
+          delay: SHRINK_DELAY,
+          duration: 1.2,
           ease: [0.22, 1, 0.36, 1],
         }}
         className="w-full overflow-hidden -mt-[90px]"
@@ -555,8 +455,8 @@ const Shop = () => {
         <div className="w-full h-full">
           <HeroCarousel
             slides={HERO_SLIDES}
-            textDelay={TEXT_DELAY} // Pass 1.2s delay for text
-            controlsDelay={CONTROLS_DELAY} // Pass 1.2s delay for arrows
+            textDelay={TEXT_DELAY}
+            controlsDelay={CONTROLS_DELAY}
             isIntro={isIntroSequence}
           />
         </div>
@@ -581,7 +481,6 @@ const Shop = () => {
             borderColor: theme.navbar.border,
           }}
         >
-          {/* ... (Filter Bar Content - same as before) ... */}
           <div className="max-w-[1600px] mx-auto flex flex-col xl:flex-row gap-6 items-center justify-between">
             {/* LEFT: Categories */}
             <div className="flex-1 min-w-0 w-full xl:w-auto relative">
@@ -834,43 +733,68 @@ const Shop = () => {
         </div>
 
         {/* 3. PRODUCT GRID */}
-        <div className="max-w-[1600px] mx-auto px-6 md:px-12 py-12">
+        <div className="max-w-[1600px] mx-auto px-6 md:px-12 py-12 min-h-[500px]">
           <AnimatePresence mode="popLayout">
-            {filteredProducts.length > 0 ? (
+            {loading ? (
+              // --- LOADING STATE ---
               <motion.div
+                key="loader"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="flex flex-col items-center justify-center py-20"
+              >
+                <Loader2
+                  size={48}
+                  className="animate-spin text-current opacity-50 mb-4"
+                />
+                <p className="font-bold uppercase tracking-widest text-sm opacity-60">
+                  Loading Collection...
+                </p>
+              </motion.div>
+            ) : products.length > 0 ? (
+              // --- PRODUCTS GRID ---
+              <motion.div
+                key="grid"
                 layout
                 variants={containerVariants}
                 initial="hidden"
                 animate="visible"
                 className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-8 gap-y-12"
               >
-                {filteredProducts.map((product) => (
+                {products.map((product) => (
                   <motion.div
                     layout
-                    key={product.id}
+                    key={product._id || product.id} // Handle MongoDB _id
                     variants={itemVariants}
                     exit="exit"
                     className="w-full"
                   >
-                    {/* PREVENT GHOST DRAG ON LINKS */}
                     <Link
-                      to={`/shop/${product.id}`}
+                      to={`/shop/${product._id || product.id}`}
                       onDragStart={(e) => e.preventDefault()}
                     >
                       <ProductCard
                         title={product.title}
                         price={product.price}
                         category={product.category}
-                        image1={product.image1}
-                        image2={product.image2}
+                        // Robust image handling: Check nested visuals first, then root level fallback
+                        image1={
+                          product.visuals?.[0]?.images?.[0] || product.image1
+                        }
+                        image2={
+                          product.visuals?.[0]?.images?.[1] || product.image2
+                        }
                         badge={product.badge}
-                      />{" "}
+                      />
                     </Link>
                   </motion.div>
                 ))}
               </motion.div>
             ) : (
+              // --- EMPTY STATE ---
               <motion.div
+                key="empty"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
@@ -890,7 +814,7 @@ const Shop = () => {
                   onClick={() => {
                     setActiveCategory("All");
                     setSearchQuery("");
-                    setPriceRange({ min: 0, max: 1000 });
+                    setPriceRange({ min: 0, max: 10000 });
                   }}
                   className="mt-6 px-6 py-2 rounded-full font-bold border transition-all hover:scale-105"
                   style={{ borderColor: theme.navbar.border }}

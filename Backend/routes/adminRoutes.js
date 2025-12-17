@@ -10,5 +10,5 @@ router.get("/", (req, res) => {
   });
 });
 router.use("/gallery", require("./admin/galleryRoutes"));
-
+router.use("/products", require("./admin/productRoutes"));
 module.exports = router;

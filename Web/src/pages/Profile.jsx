@@ -20,6 +20,7 @@ import GalleryTab from "../components/profile/tabs/GalleryTab";
 
 // Import Constants
 import { PROFILE_TABS } from "../components/profile/constants";
+import ProductsTab from "../components/profile/tabs/ProductsTab";
 
 // Map IDs to Component Objects
 const TAB_COMPONENTS = {
@@ -28,6 +29,7 @@ const TAB_COMPONENTS = {
   addresses: AddressesTab,
   wishlist: WishlistTab,
   gallery: GalleryTab,
+  products: ProductsTab,
 };
 
 export default function Profile() {

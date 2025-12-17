@@ -5,111 +5,129 @@ const sharp = require("sharp");
 const path = require("path");
 const fs = require("fs");
 
-// Disable Sharp cache to allow file deletion on Windows/Linux
+// Disable Sharp cache to prevent file lock issues (Critical for deletion)
 sharp.cache(false);
 
 // Import Models
 require("../models/galleryModel");
 require("../models/userModel");
+require("../models/productModel");
 
 const worker = new Worker(
   "media-processing",
   async (job) => {
-    const { fileId, filePath, mimeType, outputDir, modelName, fieldName } =
-      job.data;
+    const {
+      fileId,
+      filePath,
+      mimeType,
+      outputDir,
+      modelName,
+      fieldName,
+      operation,
+    } = job.data;
 
-    console.log(`[Worker] Processing ${modelName} ID: ${fileId}`);
+    console.log(`[Worker] Job: ${modelName} (${fileId})`);
 
     const absoluteFilePath = path.resolve(filePath);
 
-    // 1. Safety Check: Ensure Input File Exists
-    if (!fs.existsSync(absoluteFilePath)) {
-      console.error(`[Job Failed] Input file missing: ${absoluteFilePath}`);
-      return;
+    // --- FIX: WAIT FOR FILE TO EXIST (Handle FS Latency) ---
+    let fileExists = false;
+    for (let i = 0; i < 6; i++) {
+      // Try for 3 seconds (6 * 500ms)
+      if (fs.existsSync(absoluteFilePath)) {
+        fileExists = true;
+        break;
+      }
+      console.log(`[Worker] Waiting for file... Attempt ${i + 1}`);
+      await new Promise((r) => setTimeout(r, 500));
     }
 
-    const originalName = path.parse(filePath).name;
+    if (!fileExists) {
+      console.error(`[Worker Error] File never appeared: ${absoluteFilePath}`);
+      // Mark gallery as failed if applicable
+      if (modelName === "Gallery") {
+        await mongoose
+          .model("Gallery")
+          .findByIdAndUpdate(fileId, { status: "failed" });
+      }
+      return; // Stop here, don't throw (avoids infinite retries of bad jobs)
+    }
+
+    // --- ENSURE OUTPUT DIR ---
+    if (!fs.existsSync(outputDir)) {
+      fs.mkdirSync(outputDir, { recursive: true });
+    }
+
     const timestamp = Date.now();
     let finalPath = "";
     let relativeUrl = "";
 
     try {
-      // 2. --- PROCESSING (Resize & Compress) ---
+      // --- IMAGE PROCESSING ---
       if (mimeType.startsWith("image/")) {
-        // Create new filename (e.g. profile-12345.webp)
-        const finalFilename = `${originalName}-${timestamp}.webp`;
+        const finalFilename = `${modelName.toLowerCase()}-${fileId}-${timestamp}.webp`;
         finalPath = path.join(outputDir, finalFilename);
 
         let pipeline = sharp(absoluteFilePath);
 
-        // Specific Logic for User Avatars (Resize to 500x500)
         if (modelName === "User") {
-          pipeline = pipeline.resize(500, 500, {
-            fit: "cover",
-            position: "center",
+          pipeline = pipeline.resize(500, 500, { fit: "cover" });
+        } else if (modelName === "Product") {
+          pipeline = pipeline.resize(1200, 1200, {
+            fit: "inside",
+            withoutEnlargement: true,
+          });
+        } else if (modelName === "Gallery") {
+          pipeline = pipeline.resize(1920, 1080, {
+            fit: "inside",
+            withoutEnlargement: true,
           });
         }
 
-        // Convert to WebP
         await pipeline.webp({ quality: 80 }).toFile(finalPath);
       }
 
-      // 3. --- DELETE OLD AVATAR (Cleanup Logic) ---
+      // --- DB UPDATE ---
+      // URL relative to server root (e.g. /uploads/file.webp)
       relativeUrl = `/uploads/${path.basename(finalPath)}`;
       const Model = mongoose.model(modelName);
 
-      // Fetch the document to see if there is an OLD image
-      const document = await Model.findById(fileId);
-
-      if (document) {
-        // Check if field exists (e.g. user.profilePicture)
-        const oldRelativePath = document[fieldName];
-
-        // Only delete if it's a local file in /uploads/ (ignore Google/External URLs)
-        if (oldRelativePath && oldRelativePath.startsWith("/uploads/")) {
-          const oldAbsolutePath = path.join(__dirname, "..", oldRelativePath);
-
-          if (fs.existsSync(oldAbsolutePath)) {
-            try {
-              fs.unlinkSync(oldAbsolutePath);
-              console.log(`[Cleanup] Deleted old file: ${oldAbsolutePath}`);
-            } catch (err) {
-              console.error(
-                `[Cleanup Error] Could not delete ${oldAbsolutePath}`,
-                err
-              );
-            }
+      if (operation === "push") {
+        // Array Push (Product Visuals)
+        await Model.findByIdAndUpdate(fileId, {
+          $push: { [fieldName]: relativeUrl },
+        });
+      } else {
+        // Single Field Set (Gallery/User) + Cleanup Old
+        const doc = await Model.findById(fileId);
+        if (doc) {
+          // If replacing an existing image, delete the old one
+          const oldUrl = doc[fieldName];
+          if (oldUrl && oldUrl.startsWith("/uploads/")) {
+            // Resolve path relative to where worker is running (assuming /workers/..)
+            // Adjust "../public" based on your actual folder structure relative to worker file
+            const oldPath = path.join(outputDir, path.basename(oldUrl));
+            if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
           }
         }
+
+        const updateData = { [fieldName]: relativeUrl };
+        if (modelName === "Gallery") updateData.status = "completed";
+        await Model.findByIdAndUpdate(fileId, updateData);
       }
 
-      // 4. --- UPDATE DATABASE ---
-      const updateData = {};
-      updateData[fieldName] = relativeUrl;
-
-      // If it's a Gallery item, mark as completed
-      if (modelName === "Gallery") {
-        updateData.status = "completed";
-      }
-
-      await Model.findByIdAndUpdate(fileId, updateData);
-      console.log(`[Success] Updated ${modelName} ${fileId}`);
-
-      // 5. --- DELETE RAW UPLOADED FILE ---
-      // We are done with the raw file Multer created
-      if (fs.existsSync(absoluteFilePath)) {
+      // --- CLEANUP RAW UPLOAD ---
+      // We are done with the raw Multer file
+      try {
         fs.unlinkSync(absoluteFilePath);
+      } catch (e) {
+        console.error("Cleanup warning:", e.message);
       }
 
+      console.log(`✅ [Success] ${relativeUrl}`);
       return relativeUrl;
     } catch (error) {
-      console.error(`[Job Failed] ${error.message}`);
-
-      // Mark as failed if Gallery
-      if (modelName === "Gallery") {
-        const Model = mongoose.model("Gallery");
-        await Model.findByIdAndUpdate(fileId, { status: "failed" });
-      }
+      console.error(`❌ [Worker Failed] ${error.message}`);
       throw error;
     }
   },

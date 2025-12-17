@@ -26,12 +26,12 @@ app.use(cookieParser());
 app.use(express.json());
 app.use(bodyParser.json());
 app.use(passport.initialize());
-const uploadDir = path.join(__dirname, "uploads");
+const uploadDir = path.join(__dirname, "public/uploads");
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir);
   console.log('📂 Created "uploads" directory');
 }
-app.use("/uploads", express.static("uploads"));
+app.use("/uploads", express.static(path.join(__dirname, "public/uploads")));
 const port = process.env.PORT || 3000;
 
 // Bootstrap app with all DBs
