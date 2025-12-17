@@ -12,7 +12,6 @@ const generateTokenAndSetCookie = (res, userId) => {
     httpOnly: true, // Security: JS cannot read this
     secure: true,
     samesite: "none",
-    path: "/",
   };
 
   // 3. Set Cookie
