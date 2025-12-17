@@ -18,7 +18,7 @@ export const Theme = {
     shadow: "0 4px 20px -5px rgba(0, 0, 0, 0.2)",
 
     // Text Colors
-    textIdle: "#8e9aaaff", // Slate-200
+    textIdle: "#7f9fcaff", // Slate-200
     textHover: "#FFFFFF", // White
     activePill: "#354f87ce", // Golden White Pill (Replaces Peach)
 
