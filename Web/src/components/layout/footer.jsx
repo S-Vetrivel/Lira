@@ -214,7 +214,7 @@ const Footer = () => {
           }}
         >
           <div className="flex flex-col md:flex-row items-center gap-2 md:gap-6">
-            <p>© 2024 ihyaet. All rights reserved.</p>
+            <p>© 2025 ihyaet. All rights reserved.</p>
 
             {/* POWERED BY BADGE */}
             <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/5 dark:bg-white/5 border border-transparent hover:border-current transition-colors cursor-default">
@@ -245,7 +245,7 @@ const Footer = () => {
               opacity: 0.03,
             }}
           >
-            IHYAET
+            4A
           </motion.h1>
         </div>
       </div>

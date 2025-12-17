@@ -191,7 +191,6 @@ const swipePower = (offset, velocity) => {
   return Math.abs(offset) * velocity;
 };
 
-// Updated to accept delay props for staggered reveal
 const HeroCarousel = ({
   slides,
   autoPlayInterval = 5000,
@@ -203,7 +202,6 @@ const HeroCarousel = ({
   const [isPaused, setIsPaused] = useState(isIntro);
   const [isHovered, setIsHovered] = useState(false);
 
-  // Wrap around logic using modulus
   const imageIndex = Math.abs(page % slides.length);
 
   const paginate = useCallback((newDirection) => {
@@ -222,8 +220,6 @@ const HeroCarousel = ({
     return () => clearInterval(timer);
   }, [page, isPaused, isHovered, autoPlayInterval, paginate]);
 
-  // Sync Text Logic EXACTLY with Arrows
-  // If we are in Intro, wait for controlsDelay. If normal, wait 0.2s.
   const currentTextDelay = isIntro ? controlsDelay : 0.2;
   const currentDuration = isIntro ? 0.8 : 0.5;
 
@@ -262,7 +258,6 @@ const HeroCarousel = ({
             isIntro ? "cursor-auto" : "cursor-grab active:cursor-grabbing"
           }`}
         >
-          {/* Responsive Picture */}
           <picture>
             <source
               media="(min-width: 1024px)"
@@ -279,12 +274,11 @@ const HeroCarousel = ({
             />
           </picture>
 
-          {/* Dynamic Slide Text - Hidden initially in Intro, revealed WITH arrows */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{
-              delay: currentTextDelay, // SYNCED with arrows
+              delay: currentTextDelay,
               duration: currentDuration,
               ease: "easeOut",
             }}
@@ -320,14 +314,12 @@ const HeroCarousel = ({
         </motion.div>
       </AnimatePresence>
 
-      {/* Controls & Indicators - Revealed with delay in Intro */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: controlsDelay, duration: 0.8 }}
         className="absolute inset-0 pointer-events-none"
       >
-        {/* Arrows */}
         <div className="absolute inset-0 flex items-center justify-between p-4 z-20">
           <button
             className={`pointer-events-auto p-3 rounded-full bg-black/20 hover:bg-white/20 backdrop-blur-md text-white transition-all ${
@@ -337,7 +329,6 @@ const HeroCarousel = ({
               if (isIntro) return;
               paginate(-1);
             }}
-            aria-disabled={isIntro}
           >
             <ChevronLeft size={32} />
           </button>
@@ -349,13 +340,11 @@ const HeroCarousel = ({
               if (isIntro) return;
               paginate(1);
             }}
-            aria-disabled={isIntro}
           >
             <ChevronRight size={32} />
           </button>
         </div>
 
-        {/* Dots */}
         <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 flex space-x-3 z-20 pointer-events-none">
           {slides.map((_, index) => (
             <button
@@ -402,7 +391,6 @@ const Shop = () => {
   const fromZoom = location.state?.fromZoom ?? true;
 
   const [isIntroSequence, setIsIntroSequence] = useState(fromZoom);
-
   const [isMobile, setIsMobile] = useState(false);
   const [activeCategory, setActiveCategory] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
@@ -426,7 +414,6 @@ const Shop = () => {
 
   useEffect(() => {
     if (isIntroSequence) {
-      // Sequence: 0.5s hold + 1.2s shrink + buffer
       const timer = setTimeout(() => {
         setIsIntroSequence(false);
       }, 1800);
@@ -439,15 +426,8 @@ const Shop = () => {
     setStartX(e.pageX - scrollContainerRef.current.offsetLeft);
     setScrollLeft(scrollContainerRef.current.scrollLeft);
   };
-
-  const handleMouseLeave = () => {
-    setIsDragging(false);
-  };
-
-  const handleMouseUp = () => {
-    setIsDragging(false);
-  };
-
+  const handleMouseLeave = () => setIsDragging(false);
+  const handleMouseUp = () => setIsDragging(false);
   const handleMouseMove = (e) => {
     if (!isDragging) return;
     e.preventDefault();
@@ -456,36 +436,14 @@ const Shop = () => {
     scrollContainerRef.current.scrollLeft = scrollLeft - walk;
   };
 
-  const scrollToProducts = useCallback(() => {
-    if (productSectionRef.current) {
-      const yOffset = -100;
-      const element = productSectionRef.current;
-      const y =
-        element.getBoundingClientRect().top + window.pageYOffset + yOffset;
-      window.scrollTo({ top: y, behavior: "smooth" });
-    }
-  }, []);
-
-  useEffect(() => {
-    const handleWheel = (e) => {
-      if (window.scrollY < 10 && e.deltaY > 0) {
-        // scrollToProducts();
-      }
-    };
-    window.addEventListener("wheel", handleWheel, { passive: false });
-    return () => window.removeEventListener("wheel", handleWheel);
-  }, [scrollToProducts]);
-
   const handlePriceChange = (e, type) => {
     const value = Math.min(Math.max(Number(e.target.value), 0), 1000);
     if (type === "min") {
-      if (value <= priceRange.max) {
+      if (value <= priceRange.max)
         setPriceRange((prev) => ({ ...prev, min: value }));
-      }
     } else {
-      if (value >= priceRange.min) {
+      if (value >= priceRange.min)
         setPriceRange((prev) => ({ ...prev, max: value }));
-      }
     }
   };
 
@@ -515,14 +473,15 @@ const Shop = () => {
     return result;
   }, [activeCategory, searchQuery, sortOption, priceRange]);
 
-  // --- OPTIMIZED TIMING FOR ILLUSION ---
-  // 1. Hold Fullscreen for 0.5s
   const SHRINK_DELAY = fromZoom ? 0.5 : 0;
-  // 2. Reveal Text & Arrows at 1.2s (synchronized)
   const TEXT_DELAY = fromZoom ? 1.2 : 0;
   const CONTROLS_DELAY = fromZoom ? 1.2 : 0;
-  // 3. Reveal Content after shrink
   const CONTENT_DELAY = fromZoom ? 1.5 : 0.2;
+
+  // VISUAL STRATEGY:
+  // We use the theme.ui.barBg (Slate Blue) for the Filter Bar to create contrast
+  // against the theme.bg (White/Light Slate) page.
+  // The text inside the filter bar is forced to White for legibility.
 
   return (
     <div
@@ -532,21 +491,20 @@ const Shop = () => {
       <style>{`
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-        .range-slider { position: relative; height: 6px; border-radius: 10px; background: ${theme.navbar.border}; }
-        .range-progress { position: absolute; height: 100%; border-radius: 10px; background: ${theme.text}; }
+        .range-slider { position: relative; height: 6px; border-radius: 10px; background: rgba(255,255,255,0.1); }
+        .range-progress { position: absolute; height: 100%; border-radius: 10px; background: ${theme.arrowBg}; }
         .range-input { position: absolute; top: -7px; height: 20px; width: 100%; background: none; pointer-events: none; -webkit-appearance: none; appearance: none; }
-        .range-input::-webkit-slider-thumb { height: 20px; width: 20px; border-radius: 50%; background: ${theme.text}; border: 2px solid ${theme.bg}; pointer-events: auto; -webkit-appearance: none; box-shadow: 0 0 6px rgba(0,0,0,0.2); cursor: pointer; }
-        .range-input::-moz-range-thumb { height: 20px; width: 20px; border: none; border-radius: 50%; background: ${theme.text}; pointer-events: auto; -moz-appearance: none; box-shadow: 0 0 6px rgba(0,0,0,0.2); cursor: pointer; }
+        .range-input::-webkit-slider-thumb { height: 20px; width: 20px; border-radius: 50%; background: ${theme.arrowBg}; border: 2px solid #FFF; pointer-events: auto; -webkit-appearance: none; box-shadow: 0 0 6px rgba(0,0,0,0.5); cursor: pointer; }
+        .range-input::-moz-range-thumb { height: 20px; width: 20px; border: none; border-radius: 50%; background: ${theme.arrowBg}; pointer-events: auto; -moz-appearance: none; box-shadow: 0 0 6px rgba(0,0,0,0.5); cursor: pointer; }
       `}</style>
 
-      {/* --- CAROUSEL WITH SHRINK ANIMATION --- */}
+      {/* --- CAROUSEL --- */}
       <motion.div
-        // REMOVED opacity transition so image shows immediately
         initial={fromZoom ? { height: "100vh" } : false}
         animate={{ height: isMobile ? "60vh" : "70vh" }}
         transition={{
-          delay: SHRINK_DELAY, // Holds at 100vh for 0.5s
-          duration: 1.2, // Then smooth quick shrink
+          delay: SHRINK_DELAY,
+          duration: 1.2,
           ease: [0.22, 1, 0.36, 1],
         }}
         className="w-full overflow-hidden -mt-[90px]"
@@ -555,14 +513,14 @@ const Shop = () => {
         <div className="w-full h-full">
           <HeroCarousel
             slides={HERO_SLIDES}
-            textDelay={TEXT_DELAY} // Pass 1.2s delay for text
-            controlsDelay={CONTROLS_DELAY} // Pass 1.2s delay for arrows
+            textDelay={TEXT_DELAY}
+            controlsDelay={CONTROLS_DELAY}
             isIntro={isIntroSequence}
           />
         </div>
       </motion.div>
 
-      {/* --- REST OF PAGE FADE IN --- */}
+      {/* --- FILTER BAR & PRODUCTS --- */}
       <motion.div
         initial={{ opacity: 0, y: 40 }}
         animate={{ opacity: 1, y: 0 }}
@@ -572,16 +530,16 @@ const Shop = () => {
           ease: "easeOut",
         }}
       >
-        {/* 2. FILTER BAR */}
+        {/* 2. FILTER BAR (High Contrast Slate Blue) */}
         <div
           ref={productSectionRef}
-          className="w-full px-6 md:px-12 py-6 border-y transition-colors duration-300"
+          className="w-full px-6 md:px-12 py-6 border-y transition-colors duration-300 shadow-xl relative z-20"
           style={{
-            backgroundColor: theme.navbar.bg.replace("0.85", "0.7"),
-            borderColor: theme.navbar.border,
+            backgroundColor: theme.ui.barBg, // Slate Blue
+            borderColor: "rgba(255,255,255,0.1)",
+            color: theme.ui.barText, // White
           }}
         >
-          {/* ... (Filter Bar Content - same as before) ... */}
           <div className="max-w-[1600px] mx-auto flex flex-col xl:flex-row gap-6 items-center justify-between">
             {/* LEFT: Categories */}
             <div className="flex-1 min-w-0 w-full xl:w-auto relative">
@@ -608,14 +566,19 @@ const Shop = () => {
                     className={`px-6 py-2.5 rounded-full text-sm font-bold uppercase tracking-wide transition-all duration-300 whitespace-nowrap ${
                       activeCategory === cat
                         ? "scale-105 shadow-lg"
-                        : "hover:opacity-60"
+                        : "hover:bg-white/10"
                     }`}
                     style={{
                       backgroundColor:
                         activeCategory === cat
-                          ? theme.text
-                          : theme.navbar.activePill,
-                      color: activeCategory === cat ? theme.bg : theme.text,
+                          ? theme.arrowBg // Peach
+                          : "transparent",
+                      color:
+                        activeCategory === cat ? theme.textPrimary : "#FFFFFF",
+                      border:
+                        activeCategory === cat
+                          ? "none"
+                          : "1px solid rgba(255,255,255,0.2)",
                     }}
                   >
                     {cat}
@@ -630,17 +593,17 @@ const Shop = () => {
               <div className="relative group w-full sm:w-auto flex-1 md:w-72">
                 <Search
                   size={18}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 opacity-50"
+                  className="absolute left-3 top-1/2 -translate-y-1/2 opacity-70 text-white"
                 />
                 <input
                   type="text"
                   placeholder="Search products..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl outline-none border transition-all duration-300"
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl outline-none border transition-all duration-300 placeholder-white/50"
                   style={{
-                    backgroundColor: theme.navbar.searchBg,
-                    color: theme.text,
+                    backgroundColor: "rgba(255,255,255,0.1)",
+                    color: "#FFFFFF",
                     borderColor: "transparent",
                   }}
                 />
@@ -654,10 +617,11 @@ const Shop = () => {
                       setIsPriceOpen(!isPriceOpen);
                       setIsSortOpen(false);
                     }}
-                    className="w-full flex items-center justify-between gap-2 px-5 py-2.5 rounded-xl font-medium text-sm border transition-all hover:opacity-80 whitespace-nowrap"
+                    className="w-full flex items-center justify-between gap-2 px-5 py-2.5 rounded-xl font-medium text-sm border transition-all hover:bg-white/10 whitespace-nowrap"
                     style={{
-                      backgroundColor: theme.navbar.searchBg,
-                      borderColor: theme.navbar.border,
+                      backgroundColor: "rgba(255,255,255,0.1)",
+                      borderColor: "rgba(255,255,255,0.1)",
+                      color: "#FFFFFF",
                     }}
                   >
                     <div className="flex items-center gap-2">
@@ -680,15 +644,13 @@ const Shop = () => {
                         exit={{ opacity: 0, y: 10, scale: 0.95 }}
                         className="absolute right-0 top-full mt-2 w-72 rounded-2xl shadow-2xl overflow-hidden border p-5 z-50"
                         style={{
-                          backgroundColor: theme.navbar.modalBg,
+                          backgroundColor: "#FFFFFF", // White dropdown for clarity
                           borderColor: theme.navbar.border,
+                          color: theme.text,
                         }}
                       >
                         <div className="flex flex-col gap-6">
-                          <div
-                            className="flex justify-between items-center border-b pb-3"
-                            style={{ borderColor: theme.navbar.border }}
-                          >
+                          <div className="flex justify-between items-center border-b pb-3 border-gray-100">
                             <span className="font-bold text-sm">
                               Price Range
                             </span>
@@ -696,7 +658,8 @@ const Shop = () => {
                               onClick={() =>
                                 setPriceRange({ min: 0, max: 1000 })
                               }
-                              className="text-xs font-semibold opacity-50 hover:opacity-100 transition-opacity"
+                              className="text-xs font-semibold hover:opacity-100 transition-opacity"
+                              style={{ color: theme.ui.barBg }}
                             >
                               Reset
                             </button>
@@ -733,10 +696,7 @@ const Shop = () => {
                           </div>
 
                           <div className="flex items-center gap-3">
-                            <div
-                              className="flex-1 p-2 rounded-lg border text-center"
-                              style={{ borderColor: theme.navbar.border }}
-                            >
+                            <div className="flex-1 p-2 rounded-lg border border-gray-200 text-center">
                               <span className="text-[10px] uppercase opacity-50 block mb-1">
                                 Min Price
                               </span>
@@ -745,10 +705,7 @@ const Shop = () => {
                               </span>
                             </div>
                             <span className="opacity-30">-</span>
-                            <div
-                              className="flex-1 p-2 rounded-lg border text-center"
-                              style={{ borderColor: theme.navbar.border }}
-                            >
+                            <div className="flex-1 p-2 rounded-lg border border-gray-200 text-center">
                               <span className="text-[10px] uppercase opacity-50 block mb-1">
                                 Max Price
                               </span>
@@ -770,10 +727,11 @@ const Shop = () => {
                       setIsSortOpen(!isSortOpen);
                       setIsPriceOpen(false);
                     }}
-                    className="w-full flex items-center justify-between gap-2 px-5 py-2.5 rounded-xl font-medium text-sm border transition-all hover:opacity-80 whitespace-nowrap"
+                    className="w-full flex items-center justify-between gap-2 px-5 py-2.5 rounded-xl font-medium text-sm border transition-all hover:bg-white/10 whitespace-nowrap"
                     style={{
-                      backgroundColor: theme.navbar.searchBg,
-                      borderColor: theme.navbar.border,
+                      backgroundColor: "rgba(255,255,255,0.1)",
+                      borderColor: "rgba(255,255,255,0.1)",
+                      color: "#FFFFFF",
                     }}
                   >
                     <div className="flex items-center gap-2">
@@ -797,8 +755,9 @@ const Shop = () => {
                         exit={{ opacity: 0, y: 10, scale: 0.95 }}
                         className="absolute right-0 top-full mt-2 w-56 rounded-2xl shadow-2xl overflow-hidden border p-2 z-50"
                         style={{
-                          backgroundColor: theme.navbar.modalBg,
+                          backgroundColor: "#FFFFFF",
                           borderColor: theme.navbar.border,
+                          color: theme.text,
                         }}
                       >
                         {[
@@ -816,9 +775,10 @@ const Shop = () => {
                             style={{
                               backgroundColor:
                                 sortOption === opt
-                                  ? theme.navbar.activePill
+                                  ? theme.arrowBg
                                   : "transparent",
-                              color: theme.text,
+                              color:
+                                sortOption === opt ? "#1E293B" : theme.text,
                             }}
                           >
                             {opt}
@@ -852,7 +812,6 @@ const Shop = () => {
                     exit="exit"
                     className="w-full"
                   >
-                    {/* PREVENT GHOST DRAG ON LINKS */}
                     <Link
                       to={`/shop/${product.id}`}
                       onDragStart={(e) => e.preventDefault()}
@@ -878,7 +837,10 @@ const Shop = () => {
               >
                 <div
                   className="p-6 rounded-full mb-4 opacity-50"
-                  style={{ backgroundColor: theme.navbar.activePill }}
+                  style={{
+                    backgroundColor: theme.arrowBg,
+                    color: theme.textPrimary,
+                  }}
                 >
                   <Search size={48} />
                 </div>
@@ -893,7 +855,11 @@ const Shop = () => {
                     setPriceRange({ min: 0, max: 1000 });
                   }}
                   className="mt-6 px-6 py-2 rounded-full font-bold border transition-all hover:scale-105"
-                  style={{ borderColor: theme.navbar.border }}
+                  style={{
+                    borderColor: theme.ui.barBg,
+                    backgroundColor: theme.ui.barBg,
+                    color: "#FFFFFF",
+                  }}
                 >
                   Clear Filters
                 </button>
