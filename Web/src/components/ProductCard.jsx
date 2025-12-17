@@ -2,6 +2,13 @@ import React, { useContext } from "react";
 import { ShoppingBag, Heart, Eye } from "lucide-react";
 import { ThemeContext } from "@/context/ThemeContext";
 
+// Helper: Prepend API_URL only if it's a relative path (from DB)
+const getImageUrl = (path) => {
+  if (!path) return "";
+  if (path.startsWith("http") || path.startsWith("blob")) return path;
+  return `${import.meta.env.VITE_API_URL}${path}`;
+};
+
 const ProductCard = ({ title, price, category, image1, image2, badge }) => {
   const { theme } = useContext(ThemeContext);
 
@@ -63,19 +70,19 @@ const ProductCard = ({ title, price, category, image1, image2, badge }) => {
         <div className="w-full h-full cursor-pointer">
           {/* Primary Image */}
           <img
-            src={image1}
+            src={getImageUrl(image1)}
             alt={title}
             draggable={false}
             onDragStart={(e) => e.preventDefault()}
-            className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 hover:opacity-0 group-hover:scale-110  opacity-90"
+            className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 hover:opacity-0 group-hover:scale-110 opacity-90"
           />
           {/* Secondary Image */}
           <img
-            src={image2}
+            src={getImageUrl(image2)}
             alt={title}
             draggable={false}
             onDragStart={(e) => e.preventDefault()}
-            className="absolute inset-0 w-full h-full object-cover transition-all duration-700 opacity-0 group-hover:opacity-90 group-hover:scale-110 "
+            className="absolute inset-0 w-full h-full object-cover transition-all duration-700 opacity-0 group-hover:opacity-90 group-hover:scale-110"
           />
         </div>
 
