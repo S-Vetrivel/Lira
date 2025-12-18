@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Camera,
@@ -157,9 +157,11 @@ export default function ProfileHeader({
   onUpdateProfileImage,
   isLoading = false,
 }) {
-  const [imgError, setImgError] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
   const fileInputRef = useRef(null);
+
+  // Image Loading State: 'loading' | 'loaded' | 'error'
+  const [imgStatus, setImgStatus] = useState("loading");
 
   const handleCameraClick = () => fileInputRef.current?.click();
 
@@ -182,31 +184,25 @@ export default function ProfileHeader({
   // --- LOGIC: Resolve Image URL ---
   const getImageUrl = (path) => {
     if (!path) return null;
-    // Check for "http" (External/Google) or "blob:" (Local Preview/Optimistic Update)
     if (path.startsWith("http") || path.startsWith("blob:")) {
       return path;
     }
-    // Otherwise, append API URL
     return `${API_BASE_URL}${path}`;
   };
 
   const profileSrc = getImageUrl(user?.profilePicture);
-  const hasValidImage = !imgError && profileSrc;
 
-  // --- SKELETON LOADING ---
-  if (isLoading) {
-    return (
-      <div className="flex flex-col md:flex-row items-center md:items-end gap-8 mb-16 animate-pulse">
-        <div className="w-32 h-32 rounded-full bg-gray-200 dark:bg-zinc-800 border-4 border-transparent" />
-        <div className="flex-1 w-full flex flex-col items-center md:items-start space-y-3">
-          <div className="h-8 w-48 bg-gray-200 dark:bg-zinc-800 rounded-lg" />
-          <div className="h-4 w-32 bg-gray-200 dark:bg-zinc-800 rounded-lg" />
-          <div className="h-3 w-24 bg-gray-200 dark:bg-zinc-800 rounded-lg mt-1" />
-        </div>
-        <div className="h-12 w-32 bg-gray-200 dark:bg-zinc-800 rounded-full" />
-      </div>
-    );
-  }
+  // Effect: Reset to loading whenever the source changes
+  useEffect(() => {
+    if (profileSrc) {
+      setImgStatus("loading");
+    } else {
+      setImgStatus("error");
+    }
+  }, [profileSrc]);
+
+  // Note: Removed the global "if (isLoading)" return block.
+  // Skeleton is now localized to the image container.
 
   return (
     <>
@@ -226,7 +222,7 @@ export default function ProfileHeader({
         {/* Avatar Section */}
         <div className="relative group">
           <div
-            className="w-32 h-32 rounded-full overflow-hidden border-2 transition-transform group-hover:scale-105 flex items-center justify-center"
+            className="w-32 h-32 rounded-full overflow-hidden border-2 transition-transform group-hover:scale-105 flex items-center justify-center relative"
             style={{
               borderColor: theme.scrollbar.teeth || "rgba(255,255,255,0.1)",
               backgroundColor:
@@ -234,33 +230,59 @@ export default function ProfileHeader({
                 (theme.bg === "#000000" ? "#18181b" : "#f3f4f6"),
             }}
           >
-            {hasValidImage ? (
-              <img
-                key={profileSrc} // Use resolved URL for key
-                src={profileSrc} // Use resolved URL for src
-                alt="Profile"
-                onError={() => setImgError(true)}
-                className="w-full h-full object-cover"
-                loading="eager"
-              />
-            ) : (
-              <UserIcon
-                className="w-12 h-12 opacity-50"
-                style={{ color: theme.text }}
-              />
-            )}
+            <AnimatePresence mode="wait">
+              {/* 1. GLASSMORPHIC SKELETON */}
+              {/* Shows if global isLoading is true OR local image is downloading */}
+              {(isLoading || imgStatus === "loading") && (
+                <motion.div
+                  key="skeleton"
+                  initial={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="absolute inset-0 z-20 flex items-center justify-center"
+                >
+                  {/* The Glass Effect Layer */}
+                  <div className="w-full h-full bg-gray-200/20 dark:bg-white/10 backdrop-blur-md animate-pulse" />
+                </motion.div>
+              )}
+
+              {/* 2. ACTUAL IMAGE */}
+              {/* Shows only if NOT global loading AND we have a valid image source */}
+              {!isLoading && profileSrc && imgStatus !== "error" ? (
+                <motion.img
+                  key={profileSrc}
+                  src={profileSrc}
+                  alt="Profile"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: imgStatus === "loaded" ? 1 : 0 }}
+                  transition={{ duration: 0.3 }}
+                  className="w-full h-full object-cover absolute inset-0 z-10"
+                  onLoad={() => setImgStatus("loaded")}
+                  onError={() => setImgStatus("error")}
+                  loading="eager"
+                />
+              ) : (
+                // 3. FALLBACK ICON
+                // Shows if not loading and no image available/error
+                !isLoading && (
+                  <UserIcon
+                    className="w-12 h-12 opacity-50 z-0"
+                    style={{ color: theme.text }}
+                  />
+                )
+              )}
+            </AnimatePresence>
           </div>
 
           <button
             onClick={handleCameraClick}
-            className="absolute inset-0 bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white cursor-pointer backdrop-blur-[2px]"
+            className="absolute inset-0 bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white cursor-pointer backdrop-blur-[2px] z-30"
             title="Change Profile Picture"
           >
             <Camera size={24} strokeWidth={2.5} />
           </button>
         </div>
 
-        {/* Info Section */}
+        {/* Info Section - Always Visible */}
         <div className="text-center md:text-left flex-1 min-w-0">
           <div className="flex items-center justify-center md:justify-start gap-3 flex-wrap">
             <span className="text-3xl sm:text-4xl font-black uppercase tracking-tight truncate max-w-full">

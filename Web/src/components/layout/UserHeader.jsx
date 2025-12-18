@@ -1,35 +1,38 @@
 import React, { useState, useEffect } from "react";
 import { ShoppingBag, User } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Link } from "react-router-dom";
 import { useApp } from "../../context/Appcontext";
 
-// Get API URL from env (Same as in ProfileHeader)
+// Get API URL from env
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
 const UserHeader = ({ theme }) => {
   const { user } = useApp();
   const [cartCount, setCartCount] = useState(2); // Mock Cart Count
-  const [imgError, setImgError] = useState(false); // State to track image load errors
 
-  // Reset error state if the user's picture url changes
-  useEffect(() => {
-    setImgError(false);
-  }, [user?.profilePicture]);
+  // Image State: 'loading' | 'loaded' | 'error'
+  const [imgStatus, setImgStatus] = useState("loading");
 
   // --- LOGIC: Resolve Image URL ---
   const getImageUrl = (path) => {
     if (!path) return null;
-    // Check for "http" (External/Google) or "blob:" (Local Preview/Optimistic Update)
     if (path.startsWith("http") || path.startsWith("blob:")) {
       return path;
     }
-    // Otherwise, append API URL (for backend uploads)
     return `${API_BASE_URL}${path}`;
   };
 
   const profileSrc = getImageUrl(user?.profilePicture);
-  const hasValidImage = user && profileSrc && !imgError;
+
+  // Reset state when the image source changes (e.g., Blob -> URL, or User A -> User B)
+  useEffect(() => {
+    if (profileSrc) {
+      setImgStatus("loading");
+    } else {
+      setImgStatus("error"); // No image source = fallback to icon
+    }
+  }, [profileSrc]);
 
   return (
     <div className="flex items-center gap-2 mr-2">
@@ -45,8 +48,6 @@ const UserHeader = ({ theme }) => {
           className="relative w-10 h-10 flex items-center justify-center rounded-full transition-colors hover:opacity-80"
         >
           <ShoppingBag size={20} />
-
-          {/* Cart Badge Logic */}
           {cartCount > 0 && (
             <span className="absolute top-0 right-0 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow-sm ring-2 ring-white dark:ring-black">
               {cartCount}
@@ -60,26 +61,48 @@ const UserHeader = ({ theme }) => {
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
-          className="relative w-10 h-10 flex items-center justify-center rounded-full overflow-hidden border transition-colors hover:opacity-80"
+          className="relative w-10 h-10 flex items-center justify-center rounded-full overflow-hidden border transition-colors group"
           style={{
             backgroundColor: theme.navbar.searchBg,
             borderColor: theme.navbar.border,
             color: theme.navbar.iconColor,
           }}
         >
-          {hasValidImage ? (
-            // Authenticated & Valid Image
-            <img
-              key={profileSrc} // Force re-render on URL change
-              src={profileSrc} // Use resolved URL
-              alt="Profile"
-              className="w-full h-full object-cover"
-              onError={() => setImgError(true)} // Handle broken links
-            />
-          ) : (
-            // Guest OR Logged-in Fallback (User Icon)
-            <User size={20} className={user ? "opacity-100" : "opacity-80"} />
-          )}
+          <AnimatePresence mode="wait">
+            {/* 1. GLASSMORPHIC SKELETON (Shows while loading) */}
+            {imgStatus === "loading" && user && (
+              <motion.div
+                key="skeleton"
+                initial={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 z-20 flex items-center justify-center"
+              >
+                {/* The Glass Effect Layer */}
+                <div className="w-full h-full bg-gray-200/20 dark:bg-white/10 backdrop-blur-md animate-pulse" />
+              </motion.div>
+            )}
+
+            {/* 2. ACTUAL IMAGE (Hidden until loaded) */}
+            {profileSrc && imgStatus !== "error" ? (
+              <motion.img
+                key={profileSrc}
+                src={profileSrc}
+                alt="Profile"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: imgStatus === "loaded" ? 1 : 0 }}
+                transition={{ duration: 0.3 }}
+                className="w-full h-full object-cover absolute inset-0 z-10"
+                onLoad={() => setImgStatus("loaded")}
+                onError={() => setImgStatus("error")}
+              />
+            ) : (
+              // 3. FALLBACK ICON (Guest or Error)
+              <User
+                size={20}
+                className={`z-0 ${user ? "opacity-100" : "opacity-80"}`}
+              />
+            )}
+          </AnimatePresence>
         </motion.button>
       </Link>
     </div>

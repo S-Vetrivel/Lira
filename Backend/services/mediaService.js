@@ -12,7 +12,7 @@ const enqueueMedia = async (file, fileId, modelName, fieldName) => {
     fileId,
     filePath: file.path,
     mimeType: file.mimetype,
-    outputDir: "uploads/",
+    outputDir: "public/uploads/",
     modelName,
     fieldName,
   });
