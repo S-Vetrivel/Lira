@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useEffect } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Camera,
@@ -14,20 +14,16 @@ import GoogleIcon from "../GoogleIcon";
 // Get API URL from env
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
-// --- 1. Helper: Generate Cropped Image ---
+// --- Helper: Generate Cropped Image ---
 const getCroppedImg = async (imageSrc, pixelCrop) => {
   const image = new Image();
   image.src = imageSrc;
-  await new Promise((resolve) => {
-    image.onload = resolve;
-  });
-
+  image.crossOrigin = "anonymous"; // Helps with CORS issues
+  await new Promise((resolve) => (image.onload = resolve));
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d");
-
   canvas.width = pixelCrop.width;
   canvas.height = pixelCrop.height;
-
   ctx.drawImage(
     image,
     pixelCrop.x,
@@ -39,28 +35,17 @@ const getCroppedImg = async (imageSrc, pixelCrop) => {
     pixelCrop.width,
     pixelCrop.height
   );
-
   return new Promise((resolve) => {
-    canvas.toBlob(
-      (blob) => {
-        resolve(blob);
-      },
-      "image/jpeg",
-      0.95
-    );
+    canvas.toBlob((blob) => resolve(blob), "image/jpeg", 0.95);
   });
 };
 
-// --- 2. Crop Modal ---
+// --- Crop Modal ---
 const CropModal = ({ imageSrc, onCancel, onSave, theme }) => {
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
-
-  const onCropComplete = useCallback((_, croppedAreaPixels) => {
-    setCroppedAreaPixels(croppedAreaPixels);
-  }, []);
 
   const handleSave = async () => {
     try {
@@ -91,7 +76,6 @@ const CropModal = ({ imageSrc, onCancel, onSave, theme }) => {
             <X size={20} />
           </button>
         </div>
-
         <div className="relative h-64 sm:h-80 w-full bg-black">
           <Cropper
             image={imageSrc}
@@ -99,13 +83,12 @@ const CropModal = ({ imageSrc, onCancel, onSave, theme }) => {
             zoom={zoom}
             aspect={1}
             onCropChange={setCrop}
-            onCropComplete={onCropComplete}
+            onCropComplete={(_, pixels) => setCroppedAreaPixels(pixels)}
             onZoomChange={setZoom}
             cropShape="round"
             showGrid={false}
           />
         </div>
-
         <div className="p-6 space-y-6 bg-inherit z-10">
           <div className="space-y-2">
             <label className="text-xs font-bold uppercase opacity-50 ml-1">
@@ -117,12 +100,10 @@ const CropModal = ({ imageSrc, onCancel, onSave, theme }) => {
               min={1}
               max={3}
               step={0.1}
-              aria-labelledby="Zoom"
               onChange={(e) => setZoom(Number(e.target.value))}
               className="w-full accent-current h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer"
             />
           </div>
-
           <div className="flex gap-3">
             <button
               onClick={onCancel}
@@ -149,7 +130,7 @@ const CropModal = ({ imageSrc, onCancel, onSave, theme }) => {
   );
 };
 
-// --- 3. Main ProfileHeader ---
+// --- Main ProfileHeader ---
 export default function ProfileHeader({
   user,
   theme,
@@ -160,17 +141,16 @@ export default function ProfileHeader({
   const [selectedFile, setSelectedFile] = useState(null);
   const fileInputRef = useRef(null);
 
-  // Image Loading State: 'loading' | 'loaded' | 'error'
-  const [imgStatus, setImgStatus] = useState("loading");
-
-  const handleCameraClick = () => fileInputRef.current?.click();
+  // State to track if image failed to load (e.g. 429 error)
+  const [imgError, setImgError] = useState(false);
+  // State to track if blob image has finished loading
+  const [blobLoaded, setBlobLoaded] = useState(false);
 
   const handleFileChange = (e) => {
-    if (e.target.files && e.target.files.length > 0) {
-      const file = e.target.files[0];
+    if (e.target.files?.[0]) {
       const reader = new FileReader();
       reader.addEventListener("load", () => setSelectedFile(reader.result));
-      reader.readAsDataURL(file);
+      reader.readAsDataURL(e.target.files[0]);
     }
   };
 
@@ -181,28 +161,20 @@ export default function ProfileHeader({
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  // --- LOGIC: Resolve Image URL ---
   const getImageUrl = (path) => {
     if (!path) return null;
-    if (path.startsWith("http") || path.startsWith("blob:")) {
-      return path;
-    }
+    if (path.startsWith("http") || path.startsWith("blob:")) return path;
     return `${API_BASE_URL}${path}`;
   };
 
   const profileSrc = getImageUrl(user?.profilePicture);
+  const isDirectUrl = profileSrc?.startsWith("http");
 
-  // Effect: Reset to loading whenever the source changes
+  // Reset states when source changes
   useEffect(() => {
-    if (profileSrc) {
-      setImgStatus("loading");
-    } else {
-      setImgStatus("error");
-    }
-  }, [profileSrc]);
-
-  // Note: Removed the global "if (isLoading)" return block.
-  // Skeleton is now localized to the image container.
+    setImgError(false);
+    if (!isDirectUrl) setBlobLoaded(false);
+  }, [profileSrc, isDirectUrl]);
 
   return (
     <>
@@ -230,51 +202,42 @@ export default function ProfileHeader({
                 (theme.bg === "#000000" ? "#18181b" : "#f3f4f6"),
             }}
           >
-            <AnimatePresence mode="wait">
-              {/* 1. GLASSMORPHIC SKELETON */}
-              {/* Shows if global isLoading is true OR local image is downloading */}
-              {(isLoading || imgStatus === "loading") && (
-                <motion.div
-                  key="skeleton"
-                  initial={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="absolute inset-0 z-20 flex items-center justify-center"
-                >
-                  {/* The Glass Effect Layer */}
-                  <div className="w-full h-full bg-gray-200/20 dark:bg-white/10 backdrop-blur-md animate-pulse" />
-                </motion.div>
-              )}
+            {/* 1. SKELETON: Show only if local blob loading OR global loading */}
+            {(isLoading ||
+              (!isDirectUrl && !blobLoaded && !imgError && profileSrc)) && (
+              <div className="absolute inset-0 z-20 flex items-center justify-center bg-gray-200/20 dark:bg-white/10 backdrop-blur-md animate-pulse" />
+            )}
 
-              {/* 2. ACTUAL IMAGE */}
-              {/* Shows only if NOT global loading AND we have a valid image source */}
-              {!isLoading && profileSrc && imgStatus !== "error" ? (
-                <motion.img
-                  key={profileSrc}
-                  src={profileSrc}
-                  alt="Profile"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: imgStatus === "loaded" ? 1 : 0 }}
-                  transition={{ duration: 0.3 }}
-                  className="w-full h-full object-cover absolute inset-0 z-10"
-                  onLoad={() => setImgStatus("loaded")}
-                  onError={() => setImgStatus("error")}
-                  loading="eager"
-                />
-              ) : (
-                // 3. FALLBACK ICON
-                // Shows if not loading and no image available/error
-                !isLoading && (
-                  <UserIcon
-                    className="w-12 h-12 opacity-50 z-0"
-                    style={{ color: theme.text }}
-                  />
-                )
-              )}
-            </AnimatePresence>
+            {/* 2. IMAGE or FALLBACK */}
+            {profileSrc && !imgError ? (
+              <img
+                key={profileSrc}
+                src={profileSrc}
+                alt="Profile"
+                // referrerPolicy="no-referrer" helps avoid 403/429 errors from Google
+                referrerPolicy="no-referrer"
+                className={`w-full h-full object-cover absolute inset-0 z-10 transition-opacity duration-300 ${
+                  // If direct URL: show immediately. If blob: wait for load.
+                  isDirectUrl || blobLoaded ? "opacity-100" : "opacity-0"
+                }`}
+                onLoad={() => setBlobLoaded(true)}
+                onError={() => {
+                  // If error (like 429), set error state to trigger fallback
+                  setImgError(true);
+                  setBlobLoaded(true);
+                }}
+              />
+            ) : (
+              // 3. FALLBACK ICON (Shows if no src OR if imgError is true)
+              <UserIcon
+                className="w-12 h-12 opacity-50 z-0"
+                style={{ color: theme.text }}
+              />
+            )}
           </div>
 
           <button
-            onClick={handleCameraClick}
+            onClick={() => fileInputRef.current?.click()}
             className="absolute inset-0 bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white cursor-pointer backdrop-blur-[2px] z-30"
             title="Change Profile Picture"
           >
@@ -282,7 +245,7 @@ export default function ProfileHeader({
           </button>
         </div>
 
-        {/* Info Section - Always Visible */}
+        {/* Info Section */}
         <div className="text-center md:text-left flex-1 min-w-0">
           <div className="flex items-center justify-center md:justify-start gap-3 flex-wrap">
             <span className="text-3xl sm:text-4xl font-black uppercase tracking-tight truncate max-w-full">
@@ -294,7 +257,6 @@ export default function ProfileHeader({
               </span>
             )}
           </div>
-
           <div className="flex items-center justify-center md:justify-start gap-2 mt-2">
             <p className="opacity-60 font-mono text-sm truncate">
               {user?.email}
@@ -308,7 +270,6 @@ export default function ProfileHeader({
               </div>
             )}
           </div>
-
           {(user?.id || user?._id || user?.createdAt) && (
             <p className="text-[10px] uppercase font-bold tracking-wider opacity-40 mt-3 flex items-center justify-center md:justify-start gap-2">
               {user?._id && (
@@ -330,7 +291,7 @@ export default function ProfileHeader({
           )}
         </div>
 
-        {/* Logout Button */}
+        {/* Logout */}
         <button
           onClick={onLogoutClick}
           className="flex items-center gap-2 px-6 py-3 rounded-full border hover:bg-red-500/10 hover:text-red-500 hover:border-red-500/50 transition-all text-sm font-bold uppercase tracking-wider group shrink-0"

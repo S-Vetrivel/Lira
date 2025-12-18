@@ -5,7 +5,7 @@ const sharp = require("sharp");
 const path = require("path");
 const fs = require("fs");
 
-// Disable Sharp cache to prevent file lock issues (Critical for deletion)
+// Disable Sharp cache to ensure file handles are released immediately
 sharp.cache(false);
 
 // Import Models
@@ -20,56 +20,66 @@ const worker = new Worker(
       fileId,
       filePath,
       mimeType,
-      outputDir,
+      outputDir, // Expected to be 'public/uploads' or similar
       modelName,
       fieldName,
       operation,
     } = job.data;
 
-    console.log(`[Worker] Job: ${modelName} (${fileId})`);
+    console.log(`[Worker] 🟢 Job started: ${modelName} (${fileId})`);
 
-    const absoluteFilePath = path.resolve(filePath);
+    // --- 1. RESOLVE INPUT PATH (BULLETPROOF) ---
+    // Try to find the file in multiple common locations
+    let absoluteInputPath = path.resolve(filePath);
 
-    // --- FIX: WAIT FOR FILE TO EXIST (Handle FS Latency) ---
-    let fileExists = false;
-    for (let i = 0; i < 6; i++) {
-      // Try for 3 seconds (6 * 500ms)
-      if (fs.existsSync(absoluteFilePath)) {
-        fileExists = true;
-        break;
+    // Fix: If running from root but file is in Backend/, check there
+    if (!fs.existsSync(absoluteInputPath)) {
+      const potentialPath = path.join(process.cwd(), "Backend", filePath);
+      if (fs.existsSync(potentialPath)) {
+        absoluteInputPath = potentialPath;
       }
-      console.log(`[Worker] Waiting for file... Attempt ${i + 1}`);
-      await new Promise((r) => setTimeout(r, 500));
     }
 
-    if (!fileExists) {
-      console.error(`[Worker Error] File never appeared: ${absoluteFilePath}`);
-      // Mark gallery as failed if applicable
-      if (modelName === "Gallery") {
-        await mongoose
-          .model("Gallery")
-          .findByIdAndUpdate(fileId, { status: "failed" });
-      }
-      return; // Stop here, don't throw (avoids infinite retries of bad jobs)
+    // Final Input Check
+    if (!fs.existsSync(absoluteInputPath)) {
+      const errorMsg = `❌ Input file missing at: ${absoluteInputPath}`;
+      console.error(errorMsg);
+      throw new Error(errorMsg); // Triggers retry
     }
 
-    // --- ENSURE OUTPUT DIR ---
-    if (!fs.existsSync(outputDir)) {
-      fs.mkdirSync(outputDir, { recursive: true });
+    // --- 2. RESOLVE OUTPUT PATH (ABSOLUTE) ---
+    // We resolve outputDir relative to CWD or Backend to ensure we know EXACTLY where it goes
+    let absoluteOutputDir = path.resolve(outputDir);
+
+    // Fix: Ensure we are writing to Backend/public/uploads if that's where the app expects it
+    if (
+      !absoluteOutputDir.includes("Backend") &&
+      fs.existsSync(path.join(process.cwd(), "Backend"))
+    ) {
+      absoluteOutputDir = path.join(process.cwd(), "Backend", outputDir);
+    }
+
+    if (!fs.existsSync(absoluteOutputDir)) {
+      console.log(`[Worker] Creating output dir: ${absoluteOutputDir}`);
+      fs.mkdirSync(absoluteOutputDir, { recursive: true });
     }
 
     const timestamp = Date.now();
-    let finalPath = "";
+    let finalFilename = "";
+    let absoluteFinalPath = "";
     let relativeUrl = "";
 
     try {
-      // --- IMAGE PROCESSING ---
+      // --- 3. PROCESSING (CONVERSION) ---
       if (mimeType.startsWith("image/")) {
-        const finalFilename = `${modelName.toLowerCase()}-${fileId}-${timestamp}.webp`;
-        finalPath = path.join(outputDir, finalFilename);
+        finalFilename = `${modelName.toLowerCase()}-${fileId}-${timestamp}.webp`;
+        absoluteFinalPath = path.join(absoluteOutputDir, finalFilename);
 
-        let pipeline = sharp(absoluteFilePath);
+        console.log(`[Worker] ⚙️ Converting to: ${absoluteFinalPath}`);
 
+        let pipeline = sharp(absoluteInputPath);
+
+        // Apply Resizing Logic
         if (modelName === "User") {
           pipeline = pipeline.resize(500, 500, { fit: "cover" });
         } else if (modelName === "Product") {
@@ -84,30 +94,71 @@ const worker = new Worker(
           });
         }
 
-        await pipeline.webp({ quality: 80 }).toFile(finalPath);
+        // Write to file
+        await pipeline.webp({ quality: 80 }).toFile(absoluteFinalPath);
+      } else {
+        throw new Error("Unsupported MIME type for this worker");
       }
 
-      // --- DB UPDATE ---
-      // URL relative to server root (e.g. /uploads/file.webp)
-      relativeUrl = `/uploads/${path.basename(finalPath)}`;
+      // --- 4. BULLETPROOF VERIFICATION (THE FIX) ---
+      // Check 1: Does file exist?
+      if (!fs.existsSync(absoluteFinalPath)) {
+        throw new Error(
+          `Conversion failed: File not found at ${absoluteFinalPath}`
+        );
+      }
+
+      // Check 2: Is file size > 0? (catches empty file corruptions)
+      const stats = fs.statSync(absoluteFinalPath);
+      if (stats.size === 0) {
+        // Delete the empty file to clean up
+        fs.unlinkSync(absoluteFinalPath);
+        throw new Error(`Conversion failed: Generated file is empty (0 bytes)`);
+      }
+
+      console.log(
+        `[Worker] ✅ Verification Passed: File exists (${(
+          stats.size / 1024
+        ).toFixed(2)} KB)`
+      );
+
+      // --- 5. DATABASE UPDATE ---
+      // Only now do we generate the URL and touch the DB
+      // relativeUrl = /uploads/filename.webp
+      relativeUrl = `/${path
+        .relative(path.join(process.cwd(), "Backend/public"), absoluteFinalPath)
+        .replace(/\\/g, "/")}`;
+
+      // Fallback if the logic above gets messy with paths:
+      if (!relativeUrl.startsWith("/"))
+        relativeUrl = `/uploads/${finalFilename}`;
+
       const Model = mongoose.model(modelName);
 
       if (operation === "push") {
-        // Array Push (Product Visuals)
         await Model.findByIdAndUpdate(fileId, {
           $push: { [fieldName]: relativeUrl },
         });
       } else {
-        // Single Field Set (Gallery/User) + Cleanup Old
+        // --- 6. OLD FILE CLEANUP (SAFE) ---
+        // Fetch old doc to find old image
         const doc = await Model.findById(fileId);
-        if (doc) {
-          // If replacing an existing image, delete the old one
+        if (doc && doc[fieldName]) {
           const oldUrl = doc[fieldName];
-          if (oldUrl && oldUrl.startsWith("/uploads/")) {
-            // Resolve path relative to where worker is running (assuming /workers/..)
-            // Adjust "../public" based on your actual folder structure relative to worker file
-            const oldPath = path.join(outputDir, path.basename(oldUrl));
-            if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+          // Construct absolute path of old file
+          const oldFileName = path.basename(oldUrl);
+          const oldAbsolutePath = path.join(absoluteOutputDir, oldFileName);
+
+          // Only delete if it's a different file and it actually exists
+          if (oldFileName !== finalFilename && fs.existsSync(oldAbsolutePath)) {
+            try {
+              fs.unlinkSync(oldAbsolutePath);
+              console.log(`[Worker] 🗑️ Deleted old image: ${oldFileName}`);
+            } catch (err) {
+              console.error(
+                `[Worker Warning] Failed to delete old image: ${err.message}`
+              );
+            }
           }
         }
 
@@ -116,22 +167,36 @@ const worker = new Worker(
         await Model.findByIdAndUpdate(fileId, updateData);
       }
 
-      // --- CLEANUP RAW UPLOAD ---
-      // We are done with the raw Multer file
+      // --- 7. CLEANUP INPUT FILE ---
       try {
-        fs.unlinkSync(absoluteFilePath);
+        if (fs.existsSync(absoluteInputPath)) {
+          fs.unlinkSync(absoluteInputPath);
+          console.log(`[Worker] 🧹 Cleaned up input file`);
+        }
       } catch (e) {
         console.error("Cleanup warning:", e.message);
       }
 
-      console.log(`✅ [Success] ${relativeUrl}`);
+      console.log(`[Worker] 🎉 JOB COMPLETE. URL: ${relativeUrl}`);
       return relativeUrl;
     } catch (error) {
       console.error(`❌ [Worker Failed] ${error.message}`);
-      throw error;
+
+      // Emergency Cleanup: If we created a file but failed DB update, delete the orphan file
+      if (absoluteFinalPath && fs.existsSync(absoluteFinalPath)) {
+        try {
+          fs.unlinkSync(absoluteFinalPath);
+        } catch (e) {}
+      }
+
+      throw error; // Trigger Retry
     }
   },
-  { connection }
+  {
+    connection,
+    attempts: 3,
+    backoff: { type: "exponential", delay: 1000 },
+  }
 );
 
-console.log("Media Worker started...");
+console.log("Media Worker started (Bulletproof Mode)...");
