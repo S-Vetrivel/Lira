@@ -135,7 +135,7 @@ const Navbar = () => {
                   }}
                   className="px-6 py-2.5 rounded-full text-sm font-bold transition-colors shrink-0 z-20 cursor-pointer block"
                 >
-                  ihyaet
+                  4A
                 </motion.div>
               </Link>
 
@@ -250,7 +250,7 @@ const Navbar = () => {
               className="hidden md:flex items-center gap-2"
             >
               {/* 1. Theme Toggle */}
-              <button
+              {/* <button
                 onClick={toggleTheme}
                 style={{
                   backgroundColor: theme.navbar.searchBg,
@@ -259,7 +259,7 @@ const Navbar = () => {
                 className="w-10 h-10 flex items-center justify-center rounded-full transition-colors hover:opacity-80"
               >
                 {theme.name === "dark" ? <SunIcon /> : <MoonIcon />}
-              </button>
+              </button> */}
 
               {/* 2. UserHeader (Cart + Profile) */}
               <UserHeader theme={theme} />
@@ -330,10 +330,10 @@ const Navbar = () => {
                   </ul>
 
                   {/* Divider */}
-                  <div className="h-px w-full bg-current opacity-10"></div>
+                  {/* <div className="h-px w-full bg-current opacity-10"></div> */}
 
                   {/* Theme Toggle (Mobile Overview) */}
-                  <div className="flex justify-center">
+                  {/* <div className="flex justify-center">
                     <button
                       onClick={toggleTheme}
                       style={{
@@ -347,7 +347,7 @@ const Navbar = () => {
                         {theme.name === "dark" ? "Light Mode" : "Dark Mode"}
                       </span>
                     </button>
-                  </div>
+                  </div> */}
                 </div>
               </motion.div>
             )}

@@ -1,104 +1,74 @@
-export const lightTheme = {
+export const Theme = {
   name: "light",
-  bg: "#ffffff",
-  text: "#000000",
-  arrowBg: "#ffffff",
-  rememberMe: "black",
-  navbar: {
-    bg: "rgba(255, 255, 255, 0.85)",
-    border: "rgba(0, 0, 0, 0.1)",
-    shadow:
-      "0 35px 60px -15px rgba(0, 0, 0, 0.3), 0 20px 25px -5px rgba(0, 0, 0, 0.15)",
-    textIdle: "#6b7280",
-    textHover: "#000000",
-    activePill: "rgba(0, 0, 0, 0.08)",
-    logoBg: "#0000007a",
-    logoText: "#ffffff",
-    searchBg: "rgba(0, 0, 0, 0.06)",
-    searchHoverBg: "rgba(0, 0, 0, 0.1)",
-    searchText: "#374151",
-    searchBorder: "rgba(0, 0, 0, 0.05)",
-    iconColor: "#1f2937",
-    modalBg: "#ffffff",
-    modalOverlay: "rgba(255, 255, 255, 0.8)",
-  },
-  card: {
-    imgBg: "rgba(243, 244, 246, 0)",
-    bg: "rgba(255, 255, 255, 0.03)",
-    border: "rgba(0, 0, 0, 0.08)",
-    textPrimary: "#111827",
-    textSecondary: "#6b7280",
-    btnBg: "#000000",
-    btnText: "#ffffff",
-    iconBtnBg: "rgba(255, 255, 255, 0.6)",
-    iconBtnColor: "#000000",
-  },
-  badges: {
-    new: { bg: "#2563eb", text: "#ffffff" },
-    sale: { bg: "#dc2626", text: "#ffffff" },
-    hot: { bg: "#ea580c", text: "#ffffff" },
-    default: { bg: "#000000", text: "#ffffff" },
-  },
-  scrollbar: {
-    track: "#f3f4f6",
-    border: "#e5e7eb",
-    teeth: "#374151",
-    handleBody: "#ffffff",
-    handleStroke: "#111827",
-    handleGradientStart: "#e5e7eb",
-    handleGradientEnd: "#ffffff",
-  },
-};
+  bg: "#EFF6FF", // Blue-50: Modern, airy light blue
+  text: "#334155", // Slate-700: High contrast text
+  arrowBg: "#354f87ce", // Soft Golden White (Champagne) accent
+  rememberMe: "#94A3B8", // Slate-400
 
-export const darkTheme = {
-  name: "dark",
-  bg: "#050505",
-  text: "#ffffff",
-  arrowBg: "#000000",
-  rememberMe: "white",
+  // UI elements
+  ui: {
+    barBg: "#1E293B", // Deep Slate for Filter Bar
+    barText: "#FFFFFF", // White text
+  },
 
   navbar: {
-    bg: "rgba(26, 26, 26, 0.85)",
+    // Dark Slate Glass (Inverted)
+    bg: "rgba(30, 41, 59, 0.95)",
     border: "rgba(255, 255, 255, 0.1)",
-    shadow:
-      "0 35px 60px -15px rgba(255, 255, 255, 0.18), 0 20px 25px -5px rgba(255, 255, 255, 0.12)",
-    textIdle: "#d1d5db",
-    textHover: "#ffffff",
-    activePill: "rgba(255, 255, 255, 0.1)",
-    logoBg: "#ffffff",
-    logoText: "#000000",
-    searchBg: "rgba(255, 255, 255, 0.1)",
-    searchHoverBg: "rgba(255, 255, 255, 0.2)",
-    searchText: "#9ca3af",
-    searchBorder: "rgba(255, 255, 255, 0.05)",
-    iconColor: "#ffffff",
-    modalBg: "#1a1a1a",
-    modalOverlay: "rgba(0, 0, 0, 0.8)",
+    shadow: "0 4px 20px -5px rgba(0, 0, 0, 0.2)",
+
+    // Text Colors
+    textIdle: "#7f9fcaff", // Slate-200
+    textHover: "#FFFFFF", // White
+    activePill: "#354f87ce", // Golden White Pill (Replaces Peach)
+
+    // Logo
+    logoBg: "#FFFFFF", // White Box
+    logoText: "#1E293B", // Dark Slate Text
+
+    // Search Bar
+    searchBg: "#334155", // Slate-700
+    searchHoverBg: "#475569", // Slate-600
+    searchText: "#FFFFFF",
+    searchBorder: "rgba(255, 255, 255, 0.1)",
+
+    iconColor: "#FFFFFF",
+    modalBg: "#1E293B",
+    modalOverlay: "rgba(0, 0, 0, 0.5)",
   },
+
   card: {
-    imgBg: "rgba(17, 24, 39, 0)",
-    bg: "rgba(255, 255, 255, 0.03)",
-    border: "rgba(255, 255, 255, 0.1)",
-    textPrimary: "#f3f4f6",
-    textSecondary: "#9ca3af",
-    btnBg: "#ffffff",
-    btnText: "#000000",
-    iconBtnBg: "rgba(0, 0, 0, 0.5)",
-    iconBtnColor: "#ffffff",
+    imgBg: "#DBEAFE", // Blue-100
+
+    // White/Blue Glass Card
+    bg: "rgba(255, 255, 255, 0.6)",
+    border: "rgba(191, 219, 254, 0.6)", // Blue-200
+
+    textPrimary: "#1E293B", // Dark Slate
+    textSecondary: "#64748B", // Light Slate
+
+    // Buttons
+    btnBg: "#475569", // Slate Blue
+    btnText: "#EFF6FF", // Light Blue Text
+
+    iconBtnBg: "#FFFFFF",
+    iconBtnColor: "#475569",
   },
+
   badges: {
-    new: { bg: "#3b82f6", text: "#ffffff" },
-    sale: { bg: "#ef4444", text: "#ffffff" },
-    hot: { bg: "#fbbf24", text: "#000000" },
-    default: { bg: "#ffffff", text: "#000000" },
+    new: { bg: "#475569", text: "#EFF6FF" },
+    sale: { bg: "#FF9F80", text: "#FFFFFF" }, // Coral is standard for sale, kept as pop
+    hot: { bg: "#FEF08A", text: "#1E293B" }, // Golden White with Dark Text
+    default: { bg: "#DBEAFE", text: "#1E3A8A" },
   },
+
   scrollbar: {
-    track: "#111111",
-    border: "#333333",
-    teeth: "#d1d5db",
-    handleBody: "#262626",
-    handleStroke: "#ffffff",
-    handleGradientStart: "#404040",
-    handleGradientEnd: "#171717",
+    track: "#EFF6FF",
+    border: "#DBEAFE",
+    teeth: "#FEF08A", // Golden White details
+    handleBody: "#93C5FD",
+    handleStroke: "#FFFFFF",
+    handleGradientStart: "#FEF08A", // Golden White Gradient
+    handleGradientEnd: "#FCD34D", // Slightly deeper gold
   },
 };
