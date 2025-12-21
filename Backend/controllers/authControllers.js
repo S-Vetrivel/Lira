@@ -114,9 +114,7 @@ exports.Logout = (req, res) => {
   // Clear the cookie by setting it to expire immediately
   res.cookie("token", "", {
     httpOnly: true,
-    secure: true,
-    sameSite: "none",
-    path: "/",
+    expires: new Date(0),
   });
 
   res.status(200).json({ message: "Logged out successfully" });

@@ -1,71 +1,62 @@
-import React, {
-  createContext,
-  useContext,
-  useState,
-  useEffect,
-  useRef,
-} from "react";
+import React, { createContext, useContext, useState, useEffect } from "react";
 import { checkAuth } from "../services/api";
 
-const AppContext = createContext({});
+const AppContext = createContext();
 
 export const AppProvider = ({ children }) => {
+  // 1. OPTIMISTIC INITIALIZATION
+  // We initialize immediately from LocalStorage so the user can use the app offline.
   const [user, setUser] = useState(() => {
-    try {
-      const stored = localStorage.getItem("app_user");
-      return stored ? JSON.parse(stored) : null;
-    } catch {
-      try {
-        localStorage.removeItem("app_user");
-      } catch {}
-      return null;
-    }
+    const storedUser = localStorage.getItem("app_user");
+    return storedUser ? JSON.parse(storedUser) : null;
   });
 
+  // This loading state now just means "Background validation is running"
+  // It does NOT block the UI anymore.
   const [isValidating, setIsValidating] = useState(true);
-  const mounted = useRef(true);
 
   useEffect(() => {
-    mounted.current = true;
     const verifyUser = async () => {
-      let attempt = 0;
-      while (mounted.current) {
+      let isChecked = false;
+
+      // 2. BACKGROUND VALIDATION LOOP
+      // This runs silently. If offline, it retries forever.
+      // If online, it updates the user state to the "source of truth" from the server.
+      while (!isChecked) {
         try {
           const result = await checkAuth();
-          if (!mounted.current) break;
-          if (result && result.isAuthenticated) setUser(result.user ?? null);
-          else setUser(null);
-          break;
-        } catch (err) {
-          attempt++;
-          const delay = Math.min(
-            Math.round(3000 * Math.pow(1.5, attempt)),
-            30000
-          );
-          await new Promise((res) => setTimeout(res, delay));
+
+          if (result.isAuthenticated) {
+            // Server confirms user: Update state (in case details changed)
+            setUser(result.user);
+          } else {
+            // Server says invalid session (e.g., token expired): Force logout
+            setUser(null);
+          }
+
+          isChecked = true; // Connection successful, stop loop
+        } catch (error) {
+          // Network Error: Keep using LocalStorage data, retry in 3s
+          console.warn("Network unreachable. Retrying in background...");
+          await new Promise((resolve) => setTimeout(resolve, 3000));
         }
       }
-      if (mounted.current) setIsValidating(false);
+
+      setIsValidating(false);
     };
 
     verifyUser();
-    return () => {
-      mounted.current = false;
-    };
   }, []);
 
+  // 3. SYNC LOCAL STORAGE
   useEffect(() => {
-    try {
-      if (user) localStorage.setItem("app_user", JSON.stringify(user));
-      else localStorage.removeItem("app_user");
-    } catch {
-      try {
-        localStorage.removeItem("app_user");
-      } catch {}
-    }
+    if (user) localStorage.setItem("app_user", JSON.stringify(user));
+    else localStorage.removeItem("app_user");
   }, [user]);
 
   return (
+    // We expose 'isValidating' in case you want to show a small "Connecting..."
+    // badge in a corner, but the main app renders immediately.
     <AppContext.Provider value={{ user, setUser, isValidating }}>
       {children}
     </AppContext.Provider>

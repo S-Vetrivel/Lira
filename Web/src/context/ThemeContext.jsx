@@ -1,14 +1,25 @@
-import { createContext } from "react";
-import { Theme } from "../theme";
+// src/context/ThemeContext.js
+import { createContext, useState, useEffect } from "react";
+import { lightTheme, darkTheme } from "../theme";
 
 export const ThemeContext = createContext();
 
 export const ThemeProvider = ({ children }) => {
-  // 1. Lock theme to Light Theme directly
-  const theme = Theme;
+  // Check localStorage first, default to dark
+  const [theme, setTheme] = useState(() => {
+    const savedTheme = localStorage.getItem("theme");
+    return savedTheme === "light" ? lightTheme : darkTheme;
+  });
 
-  // 2. Disable toggle (empty function prevents errors if called)
-  const toggleTheme = () => {};
+  const toggleTheme = () => {
+    setTheme((prevTheme) =>
+      prevTheme.name === "dark" ? lightTheme : darkTheme
+    );
+  };
+
+  useEffect(() => {
+    localStorage.setItem("theme", theme.name);
+  }, [theme]);
 
   return (
     <ThemeContext.Provider value={{ theme, toggleTheme }}>
@@ -17,8 +28,6 @@ export const ThemeProvider = ({ children }) => {
           background: theme.bg,
           color: theme.text,
           minHeight: "100vh",
-          // You can remove transition if the theme never changes,
-          // but keeping it is harmless.
           transition: "background 0.3s ease, color 0.3s ease",
         }}
       >

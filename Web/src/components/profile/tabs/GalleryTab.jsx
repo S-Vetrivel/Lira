@@ -18,7 +18,6 @@ import {
   CheckSquare,
   Square,
 } from "lucide-react";
-import Modal from "@/components/layout/Modal";
 
 // Import API functions
 import {
@@ -55,6 +54,77 @@ const CloseIcon = () => (
     <line x1="6" y1="6" x2="18" y2="18" />
   </svg>
 );
+
+const Modal = ({ isOpen, onClose, title, description, children, theme }) => {
+  useEffect(() => {
+    if (isOpen) {
+      const handleKeyDown = (e) => {
+        if (e.key === "Escape") onClose();
+      };
+      window.addEventListener("keydown", handleKeyDown);
+      return () => window.removeEventListener("keydown", handleKeyDown);
+    }
+  }, [isOpen, onClose]);
+
+  if (!isOpen) return null;
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          style={{
+            backgroundColor: theme.navbar?.modalOverlay || "rgba(0,0,0,0.5)",
+          }}
+          className="fixed inset-0 z-[60] backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={onClose}
+        >
+          <motion.div
+            initial={{ scale: 0.9, y: 20, opacity: 0 }}
+            animate={{ scale: 1, y: 0, opacity: 1 }}
+            exit={{ scale: 0.9, y: 20, opacity: 0 }}
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              backgroundColor: theme.navbar?.modalBg || "#fff",
+              borderColor: theme.navbar?.border || "#eee",
+              boxShadow: theme.navbar?.shadow || "0 10px 30px rgba(0,0,0,0.1)",
+              color: theme.text || "inherit",
+            }}
+            className="w-full max-w-lg border rounded-3xl overflow-hidden relative flex flex-col max-h-[90vh]"
+          >
+            <div className="p-6 pb-2 shrink-0">
+              <div className="flex justify-between items-start mb-2">
+                <h2 className="text-2xl font-bold leading-tight pr-8">
+                  {title}
+                </h2>
+                <button
+                  onClick={onClose}
+                  style={{
+                    backgroundColor:
+                      theme.navbar?.searchBg || "rgba(0,0,0,0.05)",
+                  }}
+                  className="p-2 rounded-full transition-opacity hover:opacity-70 absolute top-5 right-5"
+                >
+                  <CloseIcon />
+                </button>
+              </div>
+              {description && (
+                <p className="text-sm opacity-70 leading-relaxed">
+                  {description}
+                </p>
+              )}
+            </div>
+            <div className="p-6 pt-4 overflow-y-auto custom-scrollbar">
+              {children}
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+};
 
 export default function GalleryTab({ theme }) {
   // --- State ---
@@ -601,10 +671,10 @@ export default function GalleryTab({ theme }) {
             <button
               onClick={cancelAdd}
               disabled={isSubmitting}
-              className="flex-1 py-3  rounded-xl text-sm font-bold uppercase tracking-wide opacity-70 hover:opacity-100 transition-opacity disabled:opacity-40"
+              className="flex-1 py-3 rounded-xl text-sm font-bold uppercase tracking-wide opacity-70 hover:opacity-100 transition-opacity disabled:opacity-40"
               style={{ backgroundColor: theme?.navbar?.searchBg }}
             >
-              <p className="text-white">Cancel</p>
+              Cancel
             </button>
             <button
               onClick={confirmAddImages}
@@ -651,7 +721,7 @@ export default function GalleryTab({ theme }) {
               className="flex-1 py-3 rounded-xl text-sm font-bold uppercase tracking-wide opacity-70 hover:opacity-100 transition-opacity disabled:opacity-40"
               style={{ backgroundColor: theme?.navbar?.searchBg }}
             >
-              <p className="text-white">Cancel</p>
+              Cancel
             </button>
             <button
               onClick={confirmDelete}

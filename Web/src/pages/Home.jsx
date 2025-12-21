@@ -581,7 +581,7 @@ export default function Home() {
                       borderWidth: "2px",
                     }
               }
-              className={`relative flex items-center justify-center bg-gray-300/20 backdrop-blur-sm overflow-hidden group border-dashed border-gray-700/50 ${
+              className={`relative flex items-center justify-center bg-white/5 backdrop-blur-sm overflow-hidden group border-dashed border-gray-700/50 ${
                 isZooming ? "z-50" : ""
               }`}
             >
@@ -608,7 +608,7 @@ export default function Home() {
                 transition={{ duration: 0.3 }}
                 className="text-center relative z-10"
               >
-                <h2 className="text-5xl md:text-8xl text-blue-200/60 font-black uppercase mb-4 drop-shadow-2xl">
+                <h2 className="text-5xl md:text-8xl font-black uppercase mb-4 drop-shadow-2xl">
                   Featured
                   <br />
                   Collection

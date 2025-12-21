@@ -1,19 +1,15 @@
-const Redis = require("ioredis");
 const { Queue } = require("bullmq");
+const Redis = require("ioredis");
 
+// 1. Setup Redis Connection
 const connection = new Redis({
-  host: process.env.REDIS_HOST,
-  port: Number(process.env.REDIS_PORT),
-  username: process.env.REDIS_USERNAME,
-  password: process.env.REDIS_PASSWORD,
+  host: "127.0.0.1", // Your Redis Host
+  port: 6379, // Your Redis Port
   maxRetriesPerRequest: null,
 });
 
-const mediaQueue = new Queue("media-processing", {
-  connection,
-  settings: {
-    skipCheckRedisVersion: true,
-  },
-});
+// 2. Create the Queue
+// We call this queue 'media-processing'
+const mediaQueue = new Queue("media-processing", { connection });
 
 module.exports = { mediaQueue, connection };
