@@ -7,18 +7,19 @@ import {
   Check,
   Loader2,
   User as UserIcon,
+  RefreshCw, // Added for the retry button icon
 } from "lucide-react";
 import Cropper from "react-easy-crop";
 import GoogleIcon from "../GoogleIcon";
 
-// Get API URL from env
+// Get API URL from env (Kept your original logic)
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
 // --- Helper: Generate Cropped Image ---
 const getCroppedImg = async (imageSrc, pixelCrop) => {
   const image = new Image();
   image.src = imageSrc;
-  image.crossOrigin = "anonymous"; // Helps with CORS issues
+  image.crossOrigin = "anonymous";
   await new Promise((resolve) => (image.onload = resolve));
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d");
@@ -140,10 +141,9 @@ export default function ProfileHeader({
 }) {
   const [selectedFile, setSelectedFile] = useState(null);
   const fileInputRef = useRef(null);
+  const [retryKey, setRetryKey] = useState(0); // Added for image retry logic
 
-  // State to track if image failed to load (e.g. 429 error)
   const [imgError, setImgError] = useState(false);
-  // State to track if blob image has finished loading
   const [blobLoaded, setBlobLoaded] = useState(false);
 
   const handleFileChange = (e) => {
@@ -167,10 +167,16 @@ export default function ProfileHeader({
     return `${API_BASE_URL}${path}`;
   };
 
+  const handleRetryImage = (e) => {
+    e.stopPropagation();
+    setImgError(false);
+    setBlobLoaded(false);
+    setRetryKey((prev) => prev + 1);
+  };
+
   const profileSrc = getImageUrl(user?.profilePicture);
   const isDirectUrl = profileSrc?.startsWith("http");
 
-  // Reset states when source changes
   useEffect(() => {
     setImgError(false);
     if (!isDirectUrl) setBlobLoaded(false);
@@ -181,7 +187,11 @@ export default function ProfileHeader({
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col md:flex-row items-center md:items-end gap-8 mb-16"
+        className="flex flex-col md:flex-row items-center md:items-end gap-8 p-6 md:p-8 shrink-0 border-b transition-all relative overflow-visible"
+        style={{
+          backgroundColor: theme.bg || "#000",
+          borderColor: theme.navbar?.border || "rgba(255,255,255,0.1)",
+        }}
       >
         <input
           type="file"
@@ -191,61 +201,74 @@ export default function ProfileHeader({
           className="hidden"
         />
 
-        {/* Avatar Section */}
-        <div className="relative group">
+        {/* --- Avatar Section (Updated Layout) --- */}
+        <div className="relative group shrink-0 flex items-center justify-center w-32 h-32">
+          {/* Actual Image Container (128x128) */}
           <div
-            className="w-32 h-32 rounded-full overflow-hidden border-2 transition-transform group-hover:scale-105 flex items-center justify-center relative"
+            className="w-full h-full rounded-full overflow-hidden border-2 transition-transform group-hover:scale-105 flex items-center justify-center relative z-10"
             style={{
-              borderColor: theme.scrollbar.teeth || "rgba(255,255,255,0.1)",
+              borderColor: imgError
+                ? "#ef4444"
+                : theme.scrollbar.teeth || "rgba(255,255,255,0.1)",
               backgroundColor:
                 theme.scrollbar.handleGradientStart ||
                 (theme.bg === "#000000" ? "#18181b" : "#f3f4f6"),
             }}
           >
-            {/* 1. SKELETON: Show only if local blob loading OR global loading */}
             {(isLoading ||
               (!isDirectUrl && !blobLoaded && !imgError && profileSrc)) && (
               <div className="absolute inset-0 z-20 flex items-center justify-center bg-gray-200/20 dark:bg-white/10 backdrop-blur-md animate-pulse" />
             )}
 
-            {/* 2. IMAGE or FALLBACK */}
             {profileSrc && !imgError ? (
               <img
-                key={profileSrc}
+                key={`${profileSrc}-${retryKey}`}
                 src={profileSrc}
                 alt="Profile"
-                // referrerPolicy="no-referrer" helps avoid 403/429 errors from Google
                 referrerPolicy="no-referrer"
                 className={`w-full h-full object-cover absolute inset-0 z-10 transition-opacity duration-300 ${
-                  // If direct URL: show immediately. If blob: wait for load.
                   isDirectUrl || blobLoaded ? "opacity-100" : "opacity-0"
                 }`}
                 onLoad={() => setBlobLoaded(true)}
                 onError={() => {
-                  // If error (like 429), set error state to trigger fallback
                   setImgError(true);
                   setBlobLoaded(true);
                 }}
               />
             ) : (
-              // 3. FALLBACK ICON (Shows if no src OR if imgError is true)
               <UserIcon
                 className="w-12 h-12 opacity-50 z-0"
                 style={{ color: theme.text }}
               />
             )}
+
+            {imgError && (
+              <div className="absolute inset-0 bg-black/60 z-20 flex flex-col items-center justify-center text-red-400">
+                <X size={24} className="mb-1" />
+              </div>
+            )}
           </div>
 
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="absolute inset-0 bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white cursor-pointer backdrop-blur-[2px] z-30"
-            title="Change Profile Picture"
-          >
-            <Camera size={24} strokeWidth={2.5} />
-          </button>
+          {/* Action Buttons Overlay */}
+          {imgError ? (
+            <button
+              onClick={handleRetryImage}
+              className="absolute -bottom-2 z-30 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-full bg-red-500/10 border border-red-500 text-red-500 text-[10px] font-bold uppercase tracking-wider hover:bg-red-500 hover:text-white transition-all flex items-center gap-1.5 backdrop-blur-md shadow-lg cursor-pointer"
+            >
+              <RefreshCw size={10} className="animate-spin-slow" /> Retry
+            </button>
+          ) : (
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="absolute inset-0 z-30 bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white cursor-pointer backdrop-blur-[2px]"
+              title="Change Profile Picture"
+            >
+              <Camera size={24} strokeWidth={2.5} />
+            </button>
+          )}
         </div>
 
-        {/* Info Section */}
+        {/* --- Info Section (Updated Layout) --- */}
         <div className="text-center md:text-left flex-1 min-w-0">
           <div className="flex items-center justify-center md:justify-start gap-3 flex-wrap">
             <span className="text-3xl sm:text-4xl font-black uppercase tracking-tight truncate max-w-full">
@@ -257,6 +280,7 @@ export default function ProfileHeader({
               </span>
             )}
           </div>
+
           <div className="flex items-center justify-center md:justify-start gap-2 mt-2">
             <p className="opacity-60 font-mono text-sm truncate">
               {user?.email}
@@ -270,10 +294,19 @@ export default function ProfileHeader({
               </div>
             )}
           </div>
+
           {(user?.id || user?._id || user?.createdAt) && (
             <p className="text-[10px] uppercase font-bold tracking-wider opacity-40 mt-3 flex items-center justify-center md:justify-start gap-2">
               {user?._id && (
-                <span className="font-mono">ID: {user._id.slice(-6)}</span>
+                <span
+                  className="font-mono cursor-pointer hover:bg-slate-100/10 px-1 rounded transition-all active:scale-95"
+                  onClick={() => {
+                    navigator.clipboard.writeText(user._id);
+                  }}
+                  title="Click to copy ID"
+                >
+                  ID: {user._id.slice(-6)}
+                </span>
               )}
               {user?.createdAt && (
                 <>
@@ -291,21 +324,24 @@ export default function ProfileHeader({
           )}
         </div>
 
-        {/* Logout */}
-        <button
-          onClick={onLogoutClick}
-          className="flex items-center gap-2 px-6 py-3 rounded-full border hover:bg-red-500/10 hover:text-red-500 hover:border-red-500/50 transition-all text-sm font-bold uppercase tracking-wider group shrink-0"
-          style={{
-            borderColor: theme.navbar?.border || "rgba(150,150,150,0.2)",
-            color: theme.text,
-          }}
-        >
-          <LogOut
-            size={16}
-            className="group-hover:-translate-x-1 transition-transform"
-          />{" "}
-          Sign Out
-        </button>
+        {/* --- Action Buttons Section (Updated Layout) --- */}
+        <div className="flex flex-col sm:flex-row items-center gap-3 shrink-0">
+          {/* Logout Button (Updated Style) */}
+          <button
+            onClick={onLogoutClick}
+            className="flex items-center gap-2 px-6 py-3 rounded-full border hover:bg-red-500/10 hover:text-red-500 hover:border-red-500/50 transition-all text-sm font-bold uppercase tracking-wider group shrink-0"
+            style={{
+              borderColor: theme.navbar?.border || "rgba(150,150,150,0.2)",
+              color: theme.text,
+            }}
+          >
+            <LogOut
+              size={16}
+              className="group-hover:-translate-x-1 transition-transform"
+            />
+            Sign Out
+          </button>
+        </div>
       </motion.div>
 
       <AnimatePresence>
