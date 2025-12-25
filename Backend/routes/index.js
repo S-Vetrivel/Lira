@@ -9,4 +9,7 @@ router.use("/auth", require("./authRoutes"));
 router.use("/profile", require("./profileRoutes"));
 router.get("/gallery", getGallery);
 router.use("/products", require("./productRoutes"));
+router.use("/cart", require("./cartRoutes"));
+router.use("/orders", require("./orderRoutes"));
+router.use("/address", require("./addressRoutes"));
 module.exports = router;

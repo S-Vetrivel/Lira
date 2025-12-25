@@ -437,4 +437,282 @@ export async function deleteProduct(id) {
   }
 }
 
+// ==============================================================
+// 14. CART FUNCTIONS
+// ==============================================================
+
+// A. Get Cart
+export async function getCart() {
+  try {
+    // Ensure your backend has router.get("/", ...) mounted at /api/cart
+    const response = await api.get("/cart");
+    return {
+      success: true,
+      cart: response.data.cart,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error.response?.data?.message || "Failed to load cart",
+    };
+  }
+}
+
+// B. Add Item to Cart (Toasts handled here)
+export async function addToCart(productId, color, size, quantity = 1) {
+  try {
+    const response = await api.post("/cart/add", {
+      productId,
+      color,
+      size,
+      quantity,
+    });
+
+    // ✅ API handles the success toast directly
+    toast.success(response.data.message || "Added to cart successfully");
+
+    return {
+      success: true,
+      cart: response.data.cart,
+    };
+  } catch (error) {
+    // Error toasts are handled by your global axios interceptor
+    return {
+      success: false,
+      message: error.response?.data?.message || "Failed to add item",
+    };
+  }
+}
+
+// C. Update Item Quantity
+export async function updateCartItem(itemId, quantity) {
+  try {
+    const response = await api.put("/cart/update", { itemId, quantity });
+    return {
+      success: true,
+      cart: response.data.cart,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error.response?.data?.message || "Failed to update cart",
+    };
+  }
+}
+
+// D. Remove Item
+export async function removeFromCart(itemId) {
+  try {
+    const response = await api.delete(`/cart/item/${itemId}`);
+    toast.success("Item removed");
+    return {
+      success: true,
+      cart: response.data.cart,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error.response?.data?.message || "Failed to remove item",
+    };
+  }
+}
+
+// E. Clear Cart
+export async function clearCart() {
+  try {
+    await api.delete("/cart");
+    return { success: true };
+  } catch (error) {
+    return { success: false };
+  }
+}
+
+// ==============================================================
+// 15. ADDRESS FUNCTIONS
+// ==============================================================
+
+// A. Get All Addresses
+export async function getAddresses() {
+  try {
+    const response = await api.get("/address");
+    return {
+      success: true,
+      addresses: response.data.addresses,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error.response?.data?.message || "Failed to load addresses",
+    };
+  }
+}
+
+// B. Add Address
+export async function addAddress(addressData) {
+  try {
+    const response = await api.post("/address", addressData);
+    toast.success("Address added successfully");
+    return {
+      success: true,
+      addresses: response.data.addresses,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error.response?.data?.message || "Failed to add address",
+    };
+  }
+}
+
+// C. Update Address
+export async function updateAddress(id, addressData) {
+  try {
+    const response = await api.put(`/address/${id}`, addressData);
+    toast.success("Address updated");
+    return {
+      success: true,
+      addresses: response.data.addresses,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error.response?.data?.message || "Failed to update address",
+    };
+  }
+}
+
+// D. Set Primary Address
+export async function setPrimaryAddress(id) {
+  try {
+    const response = await api.put(`/address/${id}/primary`);
+    toast.success("Primary address updated");
+    return {
+      success: true,
+      addresses: response.data.addresses,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error.response?.data?.message || "Failed to set primary",
+    };
+  }
+}
+
+// E. Delete Address
+export async function deleteAddress(id) {
+  try {
+    const response = await api.delete(`/address/${id}`);
+    toast.success("Address deleted");
+    return {
+      success: true,
+      addresses: response.data.addresses,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error.response?.data?.message || "Failed to delete address",
+    };
+  }
+}
+
+// ==============================================================
+// 16. ORDER FUNCTIONS
+// ==============================================================
+
+// --- USER ORDER OPERATIONS ---
+
+// A. Create Order
+export async function createOrder(orderData) {
+  try {
+    // orderData should include: items, addressId, paymentMethod, totalAmount
+    const response = await api.post("/orders", orderData);
+    toast.success("Order placed successfully!");
+    return {
+      success: true,
+      orderId: response.data.orderId,
+      order: response.data.order,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error.response?.data?.message || "Failed to place order",
+    };
+  }
+}
+
+// B. Get My Orders
+export async function getMyOrders() {
+  try {
+    const response = await api.get("/orders/my-orders");
+    return {
+      success: true,
+      orders: response.data.orders,
+      count: response.data.count,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error.response?.data?.message || "Failed to fetch orders",
+    };
+  }
+}
+
+// C. Get Single Order Details
+export async function getOrderById(id) {
+  try {
+    const response = await api.get(`/orders/${id}`);
+    return {
+      success: true,
+      order: response.data.order,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error.response?.data?.message || "Order not found",
+    };
+  }
+}
+
+// D. Cancel Order (User)
+export async function cancelOrder(id, reason) {
+  try {
+    const response = await api.put(`/orders/${id}/cancel`, { reason });
+    toast.success(response.data.message || "Order cancelled");
+    return {
+      success: true,
+      status: response.data.status,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error.response?.data?.message || "Cancellation failed",
+    };
+  }
+}
+
+// --- ADMIN ORDER OPERATIONS ---
+
+// E. Admin Update Order Status
+export async function adminUpdateOrderStatus(
+  id,
+  status,
+  trackingNumber = null
+) {
+  try {
+    const payload = { status };
+    if (trackingNumber) payload.trackingNumber = trackingNumber;
+
+    const response = await api.put(`/admin/order/${id}`, payload);
+    toast.success("Order status updated");
+    return {
+      success: true,
+      order: response.data.order,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error.response?.data?.message || "Update failed",
+    };
+  }
+}
 export default api;

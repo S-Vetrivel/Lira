@@ -18,7 +18,6 @@ const AddressSchema = new Schema(
       lng: Number,
     },
   },
-  { _id: false }
 );
 
 const UserSchema = new Schema(

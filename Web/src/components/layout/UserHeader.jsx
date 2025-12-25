@@ -2,13 +2,17 @@ import React, { useState, useEffect } from "react";
 import { ShoppingBag, User } from "lucide-react";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
-import { useApp } from "../../context/Appcontext";
+import { useApp } from "../../context/Appcontext"; // Correct path to context
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
 const UserHeader = ({ theme }) => {
-  const { user } = useApp();
-  const [cartCount, setCartCount] = useState(2);
+  const { user, cart } = useApp(); // Get cart from global context
+
+  // Calculate total items (sum of quantities)
+  const cartCount =
+    cart?.items?.reduce((acc, item) => acc + item.quantity, 0) || 0;
+
   const [imgError, setImgError] = useState(false);
   const [blobLoaded, setBlobLoaded] = useState(false);
 
@@ -41,7 +45,7 @@ const UserHeader = ({ theme }) => {
           <ShoppingBag size={20} />
           {cartCount > 0 && (
             <span className="absolute top-0 right-0 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow-sm ring-2 ring-white dark:ring-black">
-              {cartCount}
+              {cartCount > 99 ? "99+" : cartCount}
             </span>
           )}
         </motion.button>

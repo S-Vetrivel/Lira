@@ -198,7 +198,16 @@ const CarouselItem = ({ product, index, x, isClickBlockedRef }) => {
             }
           }}
         >
-          <ProductCard {...product} />
+          <ProductCard
+            _id={product._id || product.id}
+            title={product.title}
+            price={product.price}
+            category={product.category}
+            image1={product.visuals?.[0]?.images?.[0] || product.image1}
+            image2={product.visuals?.[0]?.images?.[1] || product.image2}
+            badge={product.badge}
+            visuals={product.visuals} // VITAL: Pass visuals prop!
+          />{" "}
         </Link>
       </motion.div>
     </motion.div>

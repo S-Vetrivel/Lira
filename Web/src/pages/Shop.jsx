@@ -775,10 +775,10 @@ const Shop = () => {
                       onDragStart={(e) => e.preventDefault()}
                     >
                       <ProductCard
+                        _id={product._id || product.id}
                         title={product.title}
                         price={product.price}
                         category={product.category}
-                        // Robust image handling: Check nested visuals first, then root level fallback
                         image1={
                           product.visuals?.[0]?.images?.[0] || product.image1
                         }
@@ -786,6 +786,7 @@ const Shop = () => {
                           product.visuals?.[0]?.images?.[1] || product.image2
                         }
                         badge={product.badge}
+                        visuals={product.visuals} // VITAL: Pass visuals prop!
                       />
                     </Link>
                   </motion.div>

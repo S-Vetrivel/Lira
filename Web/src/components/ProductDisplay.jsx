@@ -1,11 +1,8 @@
-import React, { useState, useContext, useEffect, useRef } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import React, { useState, useContext, useEffect } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Star,
-  ShoppingBag,
-  Heart,
-  ChevronDown,
   Truck,
   ShieldCheck,
   Minus,
@@ -14,9 +11,13 @@ import {
   ArrowLeft,
   Loader2,
   Info,
+  ChevronDown,
+  ShoppingBag,
 } from "lucide-react";
 import { ThemeContext } from "@/context/ThemeContext";
-import { getProductById, getProductRecommendations } from "@/services/api";
+import { useApp } from "@/context/Appcontext"; // Global Context
+import { getProductById, addToCart, updateCartItem } from "@/services/api"; // Added updateCartItem
+import toast from "react-hot-toast";
 
 const getImageUrl = (path) => {
   if (!path) return "";
@@ -33,6 +34,7 @@ const formatINR = (amount) =>
 
 const ProductDisplay = () => {
   const { theme } = useContext(ThemeContext);
+  const { refreshCart, cart } = useApp(); // Get global cart state
   const { id } = useParams();
   const navigate = useNavigate();
 
@@ -42,8 +44,14 @@ const ProductDisplay = () => {
   const [currentImages, setCurrentImages] = useState([]);
   const [activeImage, setActiveImage] = useState(0);
   const [expandedSection, setExpandedSection] = useState("desc");
-  const [quantity, setQuantity] = useState(1);
 
+  const [quantity, setQuantity] = useState(1);
+  const [addingToCart, setAddingToCart] = useState(false);
+
+  // Track if this item (Product + Color) is already in the cart
+  const [cartItemMatch, setCartItemMatch] = useState(null);
+
+  // --- 1. Load Product Data ---
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
@@ -51,6 +59,7 @@ const ProductDisplay = () => {
       if (res.success) {
         setProduct(res.data);
         if (res.data.visuals?.length > 0) {
+          // Default to first visual to match ProductCard logic
           setSelectedColor(res.data.visuals[0]);
           setCurrentImages(res.data.visuals[0].images || []);
         }
@@ -60,12 +69,88 @@ const ProductDisplay = () => {
     if (id) loadData();
   }, [id]);
 
+  // --- 2. Update Images when Color Changes ---
   useEffect(() => {
     if (selectedColor) {
       setCurrentImages(selectedColor.images || []);
       setActiveImage(0);
     }
   }, [selectedColor]);
+
+  // --- 3. SYNC WITH CART STATE ---
+  // This logic finds if the current selection exists in the cart and updates the button/counter
+  useEffect(() => {
+    if (cart && product) {
+      const match = cart.items.find((item) => {
+        const itemProdId =
+          typeof item.product === "object" ? item.product._id : item.product;
+        // Check ID
+        const idMatch = itemProdId === product._id;
+        // Check Color (if visuals exist, strict match; else lax match)
+        const colorMatch =
+          product.visuals?.length > 0
+            ? item.color === selectedColor?.colorName
+            : true;
+
+        return idMatch && colorMatch;
+      });
+
+      setCartItemMatch(match);
+
+      // If matched, sync the counter to what is currently in the cart
+      if (match) {
+        setQuantity(match.quantity);
+      } else {
+        // Only reset to 1 if we switched to a variant NOT in the cart
+        setQuantity(1);
+      }
+    }
+  }, [cart, product, selectedColor]);
+
+  // --- 4. HANDLE ACTION (ADD or UPDATE) ---
+  const handleCartAction = async () => {
+    if (!product) return;
+
+    if (product.visuals?.length > 0 && !selectedColor) {
+      toast.error("Please select a color");
+      return;
+    }
+
+    setAddingToCart(true);
+    try {
+      console.log("Cart Action Triggered. Match found?", !!cartItemMatch);
+
+      if (cartItemMatch) {
+        // --- MODE: UPDATE EXISTING ---
+        console.log("Updating Item:", cartItemMatch._id, "Quantity:", quantity);
+        const res = await updateCartItem(cartItemMatch._id, quantity);
+
+        if (res.success) {
+          await refreshCart();
+          toast.success("Cart updated");
+        } else {
+          toast.error(res.message || "Update failed");
+        }
+      } else {
+        // --- MODE: ADD NEW ---
+        console.log("Adding New Item");
+        const res = await addToCart(
+          product._id,
+          selectedColor?.colorName,
+          "M", // Hardcoded size for now
+          quantity
+        );
+        if (res.success) {
+          await refreshCart();
+        }
+      }
+    } catch (error) {
+      console.error("Cart Action Error:", error);
+      toast.error("Operation failed");
+    } finally {
+      setAddingToCart(false);
+    }
+  };
 
   if (loading)
     return (
@@ -95,6 +180,7 @@ const ProductDisplay = () => {
         </button>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-20 mb-24">
+          {/* --- LEFT: IMAGES --- */}
           <div className="lg:col-span-7 flex flex-col gap-4">
             <div
               className="relative aspect-square w-full overflow-hidden rounded-3xl"
@@ -134,6 +220,7 @@ const ProductDisplay = () => {
             </div>
           </div>
 
+          {/* --- RIGHT: INFO & ACTIONS --- */}
           <div className="lg:col-span-5 relative">
             <div className="sticky top-32 flex flex-col gap-8">
               <div className="space-y-4">
@@ -163,6 +250,7 @@ const ProductDisplay = () => {
 
               <div className="h-px w-full bg-current opacity-10" />
 
+              {/* Color Selection */}
               {product.visuals?.length > 0 && (
                 <div>
                   <label className="text-sm font-bold uppercase mb-3 block opacity-80">
@@ -195,6 +283,7 @@ const ProductDisplay = () => {
                 </div>
               )}
 
+              {/* Quantity & Action Button */}
               <div className="flex gap-4 pt-4">
                 <div
                   className="flex items-center border rounded-full px-4 py-3"
@@ -202,22 +291,50 @@ const ProductDisplay = () => {
                 >
                   <button
                     onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                    disabled={addingToCart}
+                    className="disabled:opacity-50"
                   >
                     <Minus size={16} />
                   </button>
-                  <span className="mx-4 font-bold">{quantity}</span>
-                  <button onClick={() => setQuantity((q) => q + 1)}>
+                  <span className="mx-4 font-bold min-w-[20px] text-center">
+                    {quantity}
+                  </span>
+                  <button
+                    onClick={() => setQuantity((q) => q + 1)}
+                    disabled={addingToCart}
+                    className="disabled:opacity-50"
+                  >
                     <Plus size={16} />
                   </button>
                 </div>
+
                 <button
-                  className="flex-1 bg-current text-white dark:text-black rounded-full font-bold uppercase tracking-wider"
-                  style={{ backgroundColor: theme.text, color: theme.bg }}
+                  onClick={handleCartAction}
+                  disabled={addingToCart}
+                  className={`flex-1 rounded-full font-bold uppercase tracking-wider flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed hover:opacity-90 transition-opacity ${
+                    cartItemMatch ? "bg-green-600 text-white" : ""
+                  }`}
+                  style={
+                    cartItemMatch
+                      ? {} // Use green bg class
+                      : { backgroundColor: theme.text, color: theme.bg }
+                  }
                 >
-                  Add to Cart
+                  {addingToCart ? (
+                    <Loader2 size={20} className="animate-spin" />
+                  ) : cartItemMatch ? (
+                    <>
+                      <Check size={20} /> Update Cart
+                    </>
+                  ) : (
+                    <>
+                      <ShoppingBag size={20} /> Add to Cart
+                    </>
+                  )}
                 </button>
               </div>
 
+              {/* Description Accordions */}
               <div className="pt-8 space-y-2">
                 <AccordionItem
                   title="Description"
