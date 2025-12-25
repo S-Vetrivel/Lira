@@ -24,6 +24,7 @@ import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import { MainLayout } from "./components/layout/MainLayout";
 import ForgetPassword from "./pages/ForgetPassword";
+import Checkout from "./pages/Checkout";
 // import GoogleOneTap from "./components/GoogleOneTap";
 
 function App() {
@@ -75,7 +76,7 @@ function App() {
           <Route path="/about" element={<About />} />
           <Route path="/contact" element={<Contact />} />
           <Route path="/cart" element={<Cart />} />
-
+          <Route path="/checkout" element={<Checkout />} />
           {/* SIMPLE GUARD: If not logged in → go to login */}
           <Route
             path="/profile"

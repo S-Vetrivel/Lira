@@ -34,7 +34,7 @@ const OrderSchema = new Schema(
 
     items: [OrderItemSchema],
 
-    // Address Snapshot (Copied from User address to preserve history)
+    // Address Snapshot
     shippingAddress: {
       name: { type: String, required: true },
       door: String,
@@ -43,7 +43,7 @@ const OrderSchema = new Schema(
       state: String,
       zip: String,
       country: String,
-      phone: String,
+      phone: { type: String }, // Made Required
     },
 
     // Financials

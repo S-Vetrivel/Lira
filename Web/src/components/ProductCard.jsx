@@ -143,7 +143,7 @@ const ProductCard = (props) => {
         </div>
 
         {/* --- DYNAMIC ACTION BUTTON --- */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 translate-y-full group-hover:translate-y-0 transition-transform duration-500 ease-[0.19,1,0.22,1]">
+        {/* <div className="absolute bottom-0 left-0 right-0 p-4 translate-y-full group-hover:translate-y-0 transition-transform duration-500 ease-[0.19,1,0.22,1]">
           <button
             onClick={handleAction}
             disabled={adding}
@@ -173,7 +173,7 @@ const ProductCard = (props) => {
               </>
             )}
           </button>
-        </div>
+        </div> */}
       </div>
 
       <div className="mt-4 flex justify-between items-start">
