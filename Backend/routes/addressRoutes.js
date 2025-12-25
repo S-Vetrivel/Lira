@@ -5,13 +5,13 @@ const {
   getAddresses,
   addAddress,
   updateAddress,
-    setPrimaryAddress,
-  
+  setPrimaryAddress,
+
   deleteAddress,
 } = require("../controllers/addressControllers");
 
 // Protect all address routes (user must be logged in)
-router.use(protect);
+router.use(protect());
 
 // Get all & Add New
 router.route("/").get(getAddresses).post(addAddress);
