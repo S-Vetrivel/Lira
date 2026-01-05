@@ -1,5 +1,12 @@
 // src/components/profile/constants.js
-import { User, Package, MapPin, Heart, GalleryHorizontal } from "lucide-react";
+import {
+  User,
+  Package,
+  MapPin,
+  GalleryHorizontal,
+  User2,
+  BoxesIcon,
+} from "lucide-react";
 import { FiBox } from "react-icons/fi";
 
 // --- TAB CONFIGURATION ---
@@ -8,15 +15,17 @@ export const PROFILE_TABS = [
     id: "personal",
     label: "Personal Info",
     icon: User,
-    showForUser: true, // ✅ User sees this
-    showForAdmin: true, // ✅ Admin sees this
+    showForUser: true,
+    showForAdmin: true,
+    showForStaff: true, // ✅ Staff needs their own profile info
   },
   {
     id: "orders",
     label: "My Orders",
     icon: Package,
-    showForUser: true, // ✅ User sees this
-    showForAdmin: false, // ❌ Admin DOES NOT see this
+    showForUser: true,
+    showForAdmin: false,
+    showForStaff: false, // ❌ Staff dashboard usually separates personal shopping
   },
   {
     id: "addresses",
@@ -24,20 +33,15 @@ export const PROFILE_TABS = [
     icon: MapPin,
     showForUser: true,
     showForAdmin: false,
-  },
-  {
-    id: "wishlist",
-    label: "Wishlist",
-    icon: Heart,
-    showForUser: true,
-    showForAdmin: false,
+    showForStaff: false,
   },
   {
     id: "gallery",
     label: "Gallery",
     icon: GalleryHorizontal,
-    showForUser: false, // ❌ User DOES NOT see this
-    showForAdmin: true, // ✅ Admin sees this
+    showForUser: false,
+    showForAdmin: true,
+    showForStaff: false, // ✅ Staff often manage content/images
   },
   {
     id: "products",
@@ -45,87 +49,22 @@ export const PROFILE_TABS = [
     icon: FiBox,
     showForUser: false,
     showForAdmin: true,
-  },
-];
-// --- MOCK DATA ---
-export const MOCK_USER_META = {
-  memberSince: "2023",
-  authProvider: "google",
-  email: "alex.doe@gmail.com",
-  phone: "+1 (555) 019-2834",
-};
-
-export const MOCK_ORDERS = [
-  {
-    id: "ORD-7782",
-    date: "Oct 24, 2024",
-    total: "$150.00",
-    status: "Delivered",
-    items: [
-      {
-        id: 1,
-        name: "Nike Air Max",
-        image:
-          "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=200&q=80",
-      },
-    ],
+    showForStaff: true, // ✅ Staff manages inventory
   },
   {
-    id: "ORD-9921",
-    date: "Nov 02, 2024",
-    total: "$85.50",
-    status: "Processing",
-    items: [
-      {
-        id: 2,
-        name: "Essentials Tee",
-        image:
-          "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=200&q=80",
-      },
-    ],
-  },
-];
-
-export const MOCK_WISHLIST = [
-  {
-    id: 1,
-    name: "Urban Utility Jacket",
-    price: "$220.00",
-    stock: "In Stock",
-    image:
-      "https://images.unsplash.com/photo-1551488852-d814c937d191?auto=format&fit=crop&w=400&q=80",
+    id: "users",
+    label: "Users",
+    icon: User2,
+    showForUser: false,
+    showForAdmin: true,
+    showForStaff: false, // ❌ Usually only Admins manage other accounts
   },
   {
-    id: 2,
-    name: "Dunk Low Retro",
-    price: "$110.00",
-    stock: "Low Stock",
-    image:
-      "https://images.unsplash.com/photo-1603808033192-082d6919d3e1?auto=format&fit=crop&w=400&q=80",
-  },
-];
-
-export const MOCK_ADDRESSES = [
-  {
-    id: 1,
-    label: "Home",
-    name: "Alex Doe",
-    mobile: "+1 (555) 019-2834",
-    street: "124 Urban District, Apt 4B",
-    city: "New York",
-    state: "NY",
-    zip: "10012",
-    default: true,
-  },
-  {
-    id: 2,
-    label: "Office",
-    name: "Alex Doe",
-    mobile: "+1 (555) 987-6543",
-    street: "45 Tech Plaza, Suite 200",
-    city: "San Francisco",
-    state: "CA",
-    zip: "94016",
-    default: false,
+    id: "processing",
+    label: "Orders Processing",
+    icon: BoxesIcon,
+    showForUser: false,
+    showForAdmin: true,
+    showForStaff: true, // ✅ Staff handles fulfillment
   },
 ];

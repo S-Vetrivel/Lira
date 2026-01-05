@@ -3,7 +3,6 @@ import { motion } from "framer-motion";
 import {
   CheckCircle2,
   Loader2,
-  ChevronDown,
   AlertCircle,
   User,
   Mail,
@@ -12,20 +11,9 @@ import {
   EyeOff,
   Phone,
 } from "lucide-react";
-import { MOCK_USER_META } from "../constants";
 import GoogleIcon from "../../GoogleIcon";
 import Modal from "@/components/layout/Modal";
 import { UpdatePersonalInfo } from "../../../services/api";
-
-// 1. Country Codes Configuration
-const COUNTRY_CODES = [
-  { code: "+91", country: "IN", digits: 10 },
-  { code: "+1", country: "US", digits: 10 },
-  { code: "+44", country: "UK", digits: 10 },
-  { code: "+61", country: "AU", digits: 9 },
-  { code: "+81", country: "JP", digits: 10 },
-  { code: "+49", country: "DE", digits: 11 },
-];
 
 export default function PersonalInfoTab({ theme, user, setUser }) {
   const [isEditing, setIsEditing] = useState(false);
@@ -42,31 +30,23 @@ export default function PersonalInfoTab({ theme, user, setUser }) {
   const [pendingChanges, setPendingChanges] = useState({});
 
   // ---------------------------------------------------------
-  // 2. SMART PHONE EXTRACTION LOGIC
+  // 1. DATA EXTRACTION LOGIC (Indian Context Only)
   // ---------------------------------------------------------
   const initialData = useMemo(() => {
     const rawPhone = user?.phone || "";
-
-    // Default fallback
-    let extractedCode = "+91";
     let extractedNumber = "";
 
-    // Try to find a matching country code at the start of the string
-    const foundCountry = COUNTRY_CODES.find((c) => rawPhone.startsWith(c.code));
-
-    if (foundCountry) {
-      extractedCode = foundCountry.code;
-      // Remove the code from the start and trim whitespace
-      extractedNumber = rawPhone.replace(foundCountry.code, "").trim();
-    } else if (rawPhone) {
-      // If data exists but no code matches, put everything in number (user corrects it)
-      extractedNumber = rawPhone;
+    // If phone exists, strip +91, spaces, and non-digits to get the raw 10 digits
+    if (rawPhone) {
+      // Remove +91 if present at start
+      let clean = rawPhone.replace(/^\+91/, "").trim();
+      // Remove any remaining spaces or non-digits
+      extractedNumber = clean.replace(/\D/g, "");
     }
 
     return {
-      fullName: user?.fullname || "Alex Doe",
+      fullName: user?.fullname || "",
       email: user?.email,
-      countryCode: extractedCode,
       phone: extractedNumber,
     };
   }, [user]);
@@ -107,20 +87,17 @@ export default function PersonalInfoTab({ theme, user, setUser }) {
   // --- Change Detection Effect ---
   useEffect(() => {
     const isNameChanged = formData.fullName !== initialData.fullName;
-    const isCountryChanged = formData.countryCode !== initialData.countryCode;
     const isPhoneChanged = formData.phone !== initialData.phone;
     const isPasswordChanged = formData.password.length > 0;
 
-    setHasChanges(
-      isNameChanged || isCountryChanged || isPhoneChanged || isPasswordChanged
-    );
+    setHasChanges(isNameChanged || isPhoneChanged || isPasswordChanged);
   }, [formData, initialData]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     if (error) setError("");
 
-    // Number validation
+    // Number validation: Only allow digits
     if (name === "phone" && !/^\d*$/.test(value)) return;
 
     // Password Strength Calc
@@ -131,7 +108,7 @@ export default function PersonalInfoTab({ theme, user, setUser }) {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  // 3. Pre-Save: Validate & Calculate Changes
+  // 2. Pre-Save: Validate Indian Number & Password
   const handlePreSave = (e) => {
     e.preventDefault();
     setError("");
@@ -144,15 +121,12 @@ export default function PersonalInfoTab({ theme, user, setUser }) {
       return;
     }
 
-    const selectedCountry = COUNTRY_CODES.find(
-      (c) => c.code === formData.countryCode
-    );
-
-    if (selectedCountry) {
-      const cleanNumber = formData.phone.trim();
-      if (cleanNumber.length !== selectedCountry.digits) {
+    // Indian Phone Validation: 10 digits, starts with 6-9
+    if (formData.phone) {
+      const indianPhoneRegex = /^[6-9]\d{9}$/;
+      if (!indianPhoneRegex.test(formData.phone)) {
         setError(
-          `Invalid Format: ${selectedCountry.country} numbers must be exactly ${selectedCountry.digits} digits.`
+          "Invalid Number: Must be a valid 10-digit Indian mobile number."
         );
         return;
       }
@@ -164,16 +138,8 @@ export default function PersonalInfoTab({ theme, user, setUser }) {
       changes["Full Name"] = formData.fullName;
     }
 
-    // Compare combined phone strings
-    const oldFullPhone =
-      `${initialData.countryCode}${initialData.phone}`.replace(/\s/g, "");
-    const newFullPhone = `${formData.countryCode}${formData.phone}`.replace(
-      /\s/g,
-      ""
-    );
-
-    if (oldFullPhone !== newFullPhone) {
-      changes["Mobile Number"] = `${formData.countryCode} ${formData.phone}`;
+    if (formData.phone !== initialData.phone) {
+      changes["Mobile Number"] = `+91 ${formData.phone}`;
     }
 
     if (formData.password.length > 0) {
@@ -188,15 +154,16 @@ export default function PersonalInfoTab({ theme, user, setUser }) {
     setIsModalOpen(true);
   };
 
-  // 4. Final Save (Triggered from Modal)
+  // 3. Final Save (Triggered from Modal)
   const handleFinalConfirm = async () => {
     setIsLoading(true);
 
     try {
       // 1. Prepare Payload
+      // Note: We send only the 10 digit phone. Backend adds/validates +91 if needed or stores as is.
+      // Based on previous backend code, we just send 'phone' as the 10 digit string.
       const payload = {
         fullName: formData.fullName,
-        countryCode: formData.countryCode,
         phone: formData.phone,
       };
 
@@ -210,17 +177,15 @@ export default function PersonalInfoTab({ theme, user, setUser }) {
 
       // 3. Handle Response
       if (response.success) {
-        // Update Global Context
-        // Priority: Use the fresh user object from backend response.
-        // Fallback: Use local state if backend didn't return the user object.
         if (setUser) {
           if (response.user) {
             setUser(response.user);
           } else {
+            // Fallback optimistic update
             setUser((prev) => ({
               ...prev,
               fullname: formData.fullName,
-              phone: `${formData.countryCode} ${formData.phone}`,
+              phone: `+91 ${formData.phone}`,
             }));
           }
         }
@@ -228,12 +193,8 @@ export default function PersonalInfoTab({ theme, user, setUser }) {
         // Success Cleanup
         setIsModalOpen(false);
         setIsEditing(false);
-        setError(""); // Clear any previous errors
-        setFormData((prev) => ({ ...prev, password: "" })); // Clear password field
-      } else {
-        // API returned success: false (Toast is handled in UpdatePersonalInfo)
-        // You can set a local error here if you want text to appear above the button
-        // setError(response.message);
+        setError("");
+        setFormData((prev) => ({ ...prev, password: "" }));
       }
     } catch (err) {
       console.error("Unexpected error:", err);
@@ -387,7 +348,7 @@ export default function PersonalInfoTab({ theme, user, setUser }) {
           </motion.div>
         </div>
 
-        {/* --- Phone Number --- */}
+        {/* --- Phone Number (India Only) --- */}
         <div className="space-y-2">
           <div className="flex justify-between items-center mb-1">
             <div className="flex items-center gap-2 opacity-50">
@@ -399,45 +360,24 @@ export default function PersonalInfoTab({ theme, user, setUser }) {
           </div>
 
           <div className="flex flex-col gap-2">
-            <div className="flex gap-4">
-              <div className="relative w-28">
-                <select
-                  name="countryCode"
-                  value={formData.countryCode}
-                  onChange={handleInputChange}
-                  disabled={!isEditing}
-                  className="w-full bg-transparent border-b py-3 text-lg focus:outline-none focus:border-current appearance-none cursor-pointer disabled:cursor-not-allowed disabled:opacity-70"
-                  style={{
-                    borderColor: theme.navbar?.border,
-                    color: theme.text,
-                  }}
-                >
-                  {COUNTRY_CODES.map((c) => (
-                    <option
-                      key={c.country}
-                      value={c.code}
-                      style={{
-                        backgroundColor: theme.bg,
-                        color: theme.text,
-                      }}
-                    >
-                      {c.country} ({c.code})
-                    </option>
-                  ))}
-                </select>
-                <div className="absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none opacity-50">
-                  <ChevronDown size={14} />
-                </div>
+            <div className="flex items-center gap-4">
+              {/* Static Country Code */}
+              <div
+                className="py-3 text-lg font-bold opacity-50 border-b w-16 text-center select-none cursor-not-allowed"
+                style={{ borderColor: theme.navbar?.border }}
+              >
+                +91
               </div>
 
+              {/* Number Input */}
               <input
                 type="tel"
                 name="phone"
                 value={formData.phone}
                 onChange={handleInputChange}
                 disabled={!isEditing}
-                placeholder="0000000000"
-                maxLength={15}
+                placeholder="9876543210"
+                maxLength={10}
                 className="flex-1 bg-transparent border-b py-3 text-lg focus:outline-none focus:border-current transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
                 style={{
                   borderColor: error ? "#ef4444" : theme.navbar?.border,

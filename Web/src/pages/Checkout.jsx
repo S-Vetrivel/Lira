@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext } from "react";
-import { useNavigate } from "react-router-dom";
+import { replace, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   MapPin,
@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { ThemeContext } from "@/context/ThemeContext";
 import { useApp } from "@/context/Appcontext";
-import { createOrder, addAddress, UpdatePersonalInfo } from "@/services/api";
+import { createOrder, addAddress } from "@/services/api";
 import toast from "react-hot-toast";
 
 // Helper for currency formatting
@@ -36,7 +36,7 @@ const Checkout = () => {
   // Redirect if cart is empty
   useEffect(() => {
     if (!cart || !cart.items || cart.items.length === 0) {
-      navigate("/cart");
+      navigate("/shop", { replace: true });
     }
   }, [cart, navigate]);
 
@@ -57,8 +57,8 @@ const Checkout = () => {
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
 
   // Initialize Phone from Global Context
+  // This serves as the "Saved Number" if it exists.
   const [phone, setPhone] = useState(user?.phone || user?.mobile || "");
-  const [isUpdatingPhone, setIsUpdatingPhone] = useState(false);
 
   // Address Modal State
   const [isAddrModalOpen, setIsAddrModalOpen] = useState(false);
@@ -80,25 +80,7 @@ const Checkout = () => {
 
   // --- HANDLERS ---
 
-  // 1. Manually Update Phone Number
-  const handleUpdatePhone = async () => {
-    if (!phone || phone.length < 10) return toast.error("Invalid phone number");
-    setIsUpdatingPhone(true);
-    try {
-      const res = await UpdatePersonalInfo({ phone });
-      if (res.success) {
-        setUser((prev) => ({ ...prev, phone: res.user?.phone || phone }));
-        toast.success("Phone number saved");
-      }
-    } catch (error) {
-      console.error("Phone update failed", error);
-      toast.error("Failed to save phone");
-    } finally {
-      setIsUpdatingPhone(false);
-    }
-  };
-
-  // 2. Add New Address
+  // 1. Add New Address
   const handleAddAddress = async (e) => {
     e.preventDefault();
     setIsAddingAddr(true);
@@ -130,16 +112,16 @@ const Checkout = () => {
     }
   };
 
-  // 3. Place Order
+  // 2. Place Order
   const handlePlaceOrder = async () => {
     if (!selectedAddressId) return toast.error("Please select an address");
+
+    // Basic validation for the input field
     if (!phone || phone.length < 10)
       return toast.error("Enter valid phone number");
 
     setIsPlacingOrder(true);
     try {
-      // FIX: We send the phone number explicitly in the payload
-      // The backend handles updating the user profile if needed
       const orderPayload = {
         items: cart.items.map((item) => ({
           product:
@@ -152,22 +134,29 @@ const Checkout = () => {
         addressId: selectedAddressId,
         paymentMethod,
         totalAmount: total,
-        phone: phone, // Pass the current phone state value
+        phone: phone, // Pass whatever is in the input box
       };
 
       const res = await createOrder(orderPayload);
 
       if (res.success) {
+        // If the user didn't have a phone saved in context previously,
+        // update the local context now so the app knows they have a number
+        // (The backend has already saved it to the DB)
+        if (!user.phone && !user.mobile) {
+          setUser((prev) => ({ ...prev, phone: phone }));
+        }
+
         await refreshCart();
         await refreshOrders();
-        navigate("/profile");
-        toast.success("Order placed successfully!");
+        navigate("/shop", { replace: true });
+        // toast.success("Order placed successfully!");
       } else {
         toast.error(res.message || "Failed to place order");
       }
     } catch (error) {
       console.error("Order placement failed", error);
-      toast.error(error.message || "Something went wrong");
+      // toast.error(error.message || "Something went wrong");
     } finally {
       setIsPlacingOrder(false);
     }
@@ -222,21 +211,6 @@ const Checkout = () => {
                   style={{ borderColor: theme.navbar.border }}
                 />
               </div>
-              {/* Show Save button if input differs from global state */}
-              {user?.phone !== phone && user?.mobile !== phone && (
-                <button
-                  onClick={handleUpdatePhone}
-                  disabled={isUpdatingPhone || phone.length < 10}
-                  className="px-8 py-4 rounded-xl font-bold text-sm bg-current text-white dark:text-black disabled:opacity-50 transition-opacity"
-                  style={{ backgroundColor: theme.text, color: theme.bg }}
-                >
-                  {isUpdatingPhone ? (
-                    <Loader2 className="animate-spin" size={18} />
-                  ) : (
-                    "Save"
-                  )}
-                </button>
-              )}
             </div>
           </div>
 

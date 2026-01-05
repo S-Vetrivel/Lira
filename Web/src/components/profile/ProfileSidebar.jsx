@@ -7,6 +7,7 @@ export default function ProfileSidebar({
   onTabChange,
   theme,
   isAdmin = false,
+  isStaff = false, // ✅ Added Staff prop
 }) {
   const sidebarRef = useRef(null);
 
@@ -28,7 +29,14 @@ export default function ProfileSidebar({
     >
       {tabs.map((tab) => {
         // --- VISIBILITY LOGIC ---
-        const shouldShow = isAdmin ? tab.showForAdmin : tab.showForUser;
+        // ✅ Prioritize Admin, then Staff, then default to User
+        let shouldShow = tab.showForUser;
+
+        if (isAdmin) {
+          shouldShow = tab.showForAdmin;
+        } else if (isStaff) {
+          shouldShow = tab.showForStaff;
+        }
 
         if (!shouldShow) {
           return null;

@@ -16,20 +16,22 @@ import ProfileSidebar from "../components/profile/ProfileSidebar";
 import PersonalInfoTab from "../components/profile/tabs/PersonalInfoTab";
 import OrdersTab from "../components/profile/tabs/OrdersTab";
 import AddressesTab from "../components/profile/tabs/AddressesTab";
-import WishlistTab from "../components/profile/tabs/WishlistTab";
 import GalleryTab from "../components/profile/tabs/GalleryTab";
 import ProductsTab from "../components/profile/tabs/ProductsTab";
 
 import { PROFILE_TABS } from "../components/profile/constants";
+import UsersTab from "../components/profile/tabs/UsersTab";
+import ProcessingTab from "../components/profile/tabs/ProcessingTab";
 
 // Map IDs to Component Objects
 const TAB_COMPONENTS = {
   personal: PersonalInfoTab,
   orders: OrdersTab,
   addresses: AddressesTab,
-  wishlist: WishlistTab,
   gallery: GalleryTab,
   products: ProductsTab,
+  users: UsersTab,
+  processing: ProcessingTab,
 };
 
 export default function Profile() {
@@ -172,9 +174,7 @@ export default function Profile() {
 
   return (
     <div
-      className={`w-full flex flex-col overflow-auto md:overflow-hidden transition-colors duration-500 ${outerPadding} ${
-      "h-full"
-      }`}
+      className={`w-full flex flex-col overflow-auto md:overflow-hidden transition-colors duration-500 ${outerPadding} ${"h-full"}`}
       style={{ backgroundColor: theme.bg, color: theme.text }}
     >
       <ProfileHeader
@@ -194,6 +194,7 @@ export default function Profile() {
           onTabChange={setActiveTabId}
           theme={theme}
           isAdmin={user?.role === "admin"}
+          isStaff={user?.role === "staff"}
         />
 
         {/* Main Content Area */}

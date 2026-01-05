@@ -715,4 +715,124 @@ export async function adminUpdateOrderStatus(
     };
   }
 }
+
+// ==============================================================
+// 17. USER MANAGEMENT FUNCTIONS (Admin)
+// ==============================================================
+
+/**
+ * Fetch all users for the admin dashboard
+ * Endpoint: GET /api/admin/users/all
+ */
+export async function getAllUsers() {
+  try {
+    const response = await api.get("/admin/users/all");
+    return {
+      success: true,
+      data: response.data.data, // Accessing the data array from your controller's response
+    };
+  } catch (error) {
+    // Interceptor handles the toast, but we return failure for the UI state
+    return {
+      success: false,
+      message: error.response?.data?.message || "Failed to fetch users",
+    };
+  }
+}
+
+/**
+ * Update a user's role (e.g., from 'user' to 'admin')
+ * Endpoint: PUT /api/admin/users/role/:id
+ */
+export async function updateUserRole(userId, roleData) {
+  try {
+    // roleData should be { role: 'admin' } or { role: 'user' }
+    const response = await api.put(`/admin/users/role/${userId}`, roleData);
+
+    // We don't necessarily need a toast here if the UI provides immediate feedback,
+    // but it's good practice for admin actions.
+    toast.success(response.data.message || "User role updated");
+
+    return {
+      success: true,
+      data: response.data.data,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error.response?.data?.message || "Failed to update role",
+    };
+  }
+}
+
+/**
+ * Delete a user account permanently
+ * Endpoint: DELETE /api/admin/users/:id
+ */
+export async function deleteUser(userId) {
+  try {
+    const response = await api.delete(`/admin/users/${userId}`);
+
+    // Toast is handled here to confirm deletion to the admin
+    toast.success(response.data.message || "User deleted successfully");
+
+    return {
+      success: true,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error.response?.data?.message || "Failed to delete user",
+    };
+  }
+}
+
+// Fetch full details for a single user (Admin)
+export async function getUserDetailsForAdmin(userId) {
+  try {
+    const response = await api.get(`/admin/users/inspect/${userId}`);
+    return {
+      success: true,
+      data: response.data.data,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error.response?.data?.message || "Failed to inspect user",
+    };
+  }
+}
+
+// Get all orders (Admin/Staff only)
+export const getAllOrdersAdmin = async () => {
+  try {
+    const response = await api.get("/admin/orders/all"); // Ensure this route exists in backend
+    return response.data;
+  } catch (error) {
+    return {
+      success: false,
+      message: error.response?.data?.message || "Failed to fetch orders",
+    };
+  }
+};
+
+// Update Order Status (Admin/Staff)
+export const updateOrderStatus = async (
+  orderId,
+  { status, trackingNumber }
+) => {
+  try {
+    const response = await api.put(`/admin/orders/${orderId}`, {
+      status,
+      trackingNumber,
+    });
+    return response.data;
+  } catch (error) {
+    return {
+      success: false,
+      message: error.response?.data?.message || "Failed to update order",
+    };
+  }
+};
+
 export default api;

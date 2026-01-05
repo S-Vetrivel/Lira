@@ -279,6 +279,11 @@ export default function ProfileHeader({
                 Admin
               </span>
             )}
+            {user?.role === "staff" && (
+              <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-blue-500 text-white tracking-widest shadow-sm">
+                Staff
+              </span>
+            )}
           </div>
 
           <div className="flex items-center justify-center md:justify-start gap-2 mt-2">

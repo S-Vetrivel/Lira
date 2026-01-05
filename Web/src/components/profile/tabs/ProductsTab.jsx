@@ -65,7 +65,7 @@ const ProductsTab = () => {
     setLoading(true);
     const res = await getAlladminProducts();
     if (res.success) setProducts(res.data);
-    else toast.error("Failed to load products");
+    // else toast.error("Failed to load products");
     setLoading(false);
   };
 
