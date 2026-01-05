@@ -9,7 +9,14 @@ const connection = new Redis({
 });
 
 // 2. Create the Queue
-// We call this queue 'media-processing'
 const mediaQueue = new Queue("media-processing", { connection });
-
-module.exports = { mediaQueue, connection };
+const notificationQueue = new Queue("notification-queue", { connection });
+const orderProcessingQueue = new Queue("order-processing-queue", {
+  connection,
+});
+module.exports = {
+  mediaQueue,
+  notificationQueue,
+  connection,
+  orderProcessingQueue,
+};

@@ -1,6 +1,12 @@
 const express = require("express");
 const { protect } = require("../middleware/authMiddleware");
 const router = express.Router();
+
+router.use(protect({ staff: true }));
+router.use("/products", require("./admin/productRoutes"));
+router.use("/gallery", require("./admin/galleryRoutes"));
+router.use("/orders", require("./admin/orderRoutes"));
+
 router.use(protect({ admin: true }));
 router.get("/", (req, res) => {
   res.json({
@@ -9,7 +15,7 @@ router.get("/", (req, res) => {
     role: req.user.role,
   });
 });
-router.use("/gallery", require("./admin/galleryRoutes"));
-router.use("/products", require("./admin/productRoutes"));
-router.use("/orders",require("./admin/orderRoutes"))
+
+router.use("/users", require("./admin/userRoutes"));
+
 module.exports = router;

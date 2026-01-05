@@ -6,9 +6,9 @@ const {
   getMyOrders,
   getOrderById,
   cancelOrder,
-  adminUpdateOrderStatus,
 } = require("../controllers/orderControllers");
 router.use(protect());
+
 // --- User Routes ---
 router.post("/", createOrder);
 router.get("/my-orders", getMyOrders);

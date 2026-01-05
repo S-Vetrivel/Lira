@@ -2,9 +2,9 @@ const jwt = require("jsonwebtoken");
 const User = require("../models/userModel");
 const generateTokenAndSetCookie = require("../utils/generateToken");
 
-// 1. Change function signature to accept options (default is empty object)
+// 1. Change function signature to accept options (admin and staff)
 const protect =
-  ({ admin = false } = {}) =>
+  ({ admin = false, staff = false } = {}) =>
   async (req, res, next) => {
     try {
       // 2. Read token from cookie
@@ -25,13 +25,20 @@ const protect =
       }
 
       // ============================================================
-      // 5. ADMIN CHECK (New Logic)
+      // 5. ROLE CHECKS (Admin & Staff)
       // ============================================================
-      // If admin:true was passed, check if the user's role is 'admin'
-      // Note: Ensure your database field is actually named 'role'.
-      // If it is 'userRole', change 'req.user.role' to 'req.user.userRole'.
+
+      // A. ADMIN CHECK
+      // If admin:true is required, the user MUST be an admin.
       if (admin && req.user.role !== "admin") {
         return res.status(403).json({ message: "Not authorized as admin" });
+      }
+
+      // B. STAFF CHECK
+      // If staff:true is required, allow "staff" OR "admin".
+      // (Admins should generally be able to access staff routes).
+      if (staff && req.user.role !== "staff" && req.user.role !== "admin") {
+        return res.status(403).json({ message: "Not authorized as staff" });
       }
 
       // ============================================================

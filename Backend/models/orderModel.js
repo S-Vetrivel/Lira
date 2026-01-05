@@ -1,6 +1,18 @@
 const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
 
+// --- STEP SCHEMA (For Timeline) ---
+const OrderStepSchema = new Schema(
+  {
+    status: { type: String, required: true },
+    date: { type: Date, default: Date.now },
+    description: { type: String },
+    // ✅ NEW: Track who performed this action (e.g., "Customer", "System", "Admin: John")
+    processedBy: { type: String, default: "System" },
+  },
+  { _id: false }
+);
+
 const OrderItemSchema = new Schema(
   {
     product: {
@@ -8,15 +20,12 @@ const OrderItemSchema = new Schema(
       ref: "Product",
       required: true,
     },
-    // Snapshot of product details at time of purchase
     title: { type: String, required: true },
     price: { type: Number, required: true },
     quantity: { type: Number, required: true, min: 1 },
-
-    // Variant details
     color: { type: String },
     size: { type: String },
-    image: { type: String }, // Thumbnail
+    image: { type: String },
   },
   { _id: false }
 );
@@ -28,13 +37,8 @@ const OrderSchema = new Schema(
       ref: "User",
       required: true,
     },
-
-    // Unique human-readable Order ID (e.g., ORD-1735152345)
     orderId: { type: String, unique: true, required: true },
-
     items: [OrderItemSchema],
-
-    // Address Snapshot
     shippingAddress: {
       name: { type: String, required: true },
       door: String,
@@ -43,10 +47,8 @@ const OrderSchema = new Schema(
       state: String,
       zip: String,
       country: String,
-      phone: { type: String }, // Made Required
+      phone: { type: String },
     },
-
-    // Financials
     totalAmount: { type: Number, required: true },
     paymentMethod: { type: String, enum: ["COD", "Online"], default: "COD" },
     paymentStatus: {
@@ -54,26 +56,24 @@ const OrderSchema = new Schema(
       enum: ["Pending", "Paid", "Failed", "Refunded"],
       default: "Pending",
     },
-
-    // Order Lifecycle State Machine
     status: {
       type: String,
       enum: [
-        "Pending", // Placed, stock deducted, waiting for worker
-        "Processing", // Worker picked up / Packed
-        "Shipped", // With courier
-        "Delivered", // Completed
-        "Cancelled", // Final cancelled state
-        "Cancellation Requested", // User asked to cancel, waiting for admin
+        "Pending",
+        "Processing",
+        "Shipped",
+        "Delivered",
+        "Cancelled",
+        "Cancellation Requested",
       ],
       default: "Pending",
     },
-
-    // Cancellation Details
+    steps: {
+      type: [OrderStepSchema],
+      default: [],
+    },
     cancellationReason: { type: String },
     cancelledAt: { type: Date },
-
-    // Admin/Worker Tracking
     processedByWorker: { type: Boolean, default: false },
     trackingNumber: { type: String },
   },

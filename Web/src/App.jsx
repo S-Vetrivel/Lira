@@ -1,6 +1,6 @@
 import "./App.css";
 import { useContext, useEffect } from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 
 // CONTEXT
@@ -11,6 +11,7 @@ import { useApp } from "./context/Appcontext";
 import ScrollToTop from "./components/ScrollToTop";
 import ProductDisplay from "./components/ProductDisplay";
 import AuthLayout from "./components/layout/AuthLayout";
+import Modal from "./components/layout/Modal";
 
 // PAGES
 import Home from "./pages/Home";
@@ -25,18 +26,24 @@ import Signup from "./pages/Signup";
 import { MainLayout } from "./components/layout/MainLayout";
 import ForgetPassword from "./pages/ForgetPassword";
 import Checkout from "./pages/Checkout";
-// import GoogleOneTap from "./components/GoogleOneTap";
 
 function App() {
-  const { user } = useApp();
+  const { user, modalState, closeModal } = useApp();
   const { theme } = useContext(ThemeContext);
+  const location = useLocation();
 
   useEffect(() => {
     document.documentElement.style.backgroundColor = theme.bg;
     document.body.style.backgroundColor = theme.bg;
     document.documentElement.style.color = theme.text;
   }, [theme]);
-  // console.log(import.meta.env.VITE_GOOGLE_CLIENT_ID);
+
+  // --- AUTOMATICALLY CLOSE MODAL ON ROUTE CHANGE ---
+  // ✅ FIX: Removed modalState.isOpen from dependency array.
+  // This ensures it only runs when location.pathname changes, not when the modal opens.
+  useEffect(() => {
+    closeModal();
+  }, [location.pathname, closeModal]);
 
   return (
     <>
@@ -49,9 +56,19 @@ function App() {
       />
 
       <ScrollToTop />
-      {/* {!user && <GoogleOneTap />} */}
+
+      {/* --- GLOBAL MODAL MOUNT --- */}
+      <Modal
+        isOpen={modalState.isOpen}
+        onClose={closeModal}
+        title={modalState.title}
+        description={modalState.description}
+        theme={theme}
+      >
+        {modalState.children}
+      </Modal>
+
       <Routes>
-        {/* =============== AUTH ROUTES =============== */}
         <Route element={<AuthLayout />}>
           <Route
             path="/login"
@@ -67,7 +84,6 @@ function App() {
           />
         </Route>
 
-        {/* =============== MAIN LAYOUT ROUTES =============== */}
         <Route element={<MainLayout />}>
           <Route path="/" element={<Home />} />
           <Route path="/shop" element={<Shop />} />
@@ -77,7 +93,6 @@ function App() {
           <Route path="/contact" element={<Contact />} />
           <Route path="/cart" element={<Cart />} />
           <Route path="/checkout" element={<Checkout />} />
-          {/* SIMPLE GUARD: If not logged in → go to login */}
           <Route
             path="/profile"
             element={user ? <Profile /> : <Navigate to="/" replace />}
