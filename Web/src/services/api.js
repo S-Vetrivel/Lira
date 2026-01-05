@@ -835,4 +835,41 @@ export const updateOrderStatus = async (
   }
 };
 
+// ==============================================================
+// REVIEW FUNCTIONS
+// ==============================================================
+
+// A. Get Reviews for a Product
+export async function getProductReviews(productId) {
+  try {
+    const response = await api.get(`/reviews/${productId}`); // Ensure route matches backend
+    return {
+      success: true,
+      reviews: response.data.reviews,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error.response?.data?.message || "Failed to load reviews",
+    };
+  }
+}
+
+// B. Add a Review
+export async function addReview(productId, rating, comment) {
+  try {
+    const response = await api.post("/reviews", { productId, rating, comment });
+    toast.success("Review posted successfully!");
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error.response?.data?.message || "Failed to post review",
+    };
+  }
+}
+
 export default api;

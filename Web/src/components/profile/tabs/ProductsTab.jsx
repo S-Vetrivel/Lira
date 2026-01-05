@@ -37,6 +37,7 @@ const INITIAL_PRODUCT_STATE = {
   title: "",
   description: "",
   category: "",
+  subCategory: "", // --- ADDED SUBCATEGORY STATE ---
   price: "",
   discountPrice: "",
   badge: "",
@@ -106,8 +107,11 @@ const ProductsTab = () => {
 
   const filteredProducts = useMemo(
     () =>
-      products.filter((p) =>
-        p.title.toLowerCase().includes(searchQuery.toLowerCase())
+      products.filter(
+        (p) =>
+          p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          (p.subCategory &&
+            p.subCategory.toLowerCase().includes(searchQuery.toLowerCase()))
       ),
     [products, searchQuery]
   );
@@ -154,7 +158,7 @@ const ProductsTab = () => {
           />
           <input
             type="text"
-            placeholder="Search products..."
+            placeholder="Search products or subcategories..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-11 pr-4 py-3 rounded-2xl bg-transparent border outline-none focus:ring-2 focus:ring-current transition-all"
@@ -278,7 +282,7 @@ const ListView = ({ products, onEdit, onDelete, theme }) => (
           style={{ borderColor: theme.navbar.border }}
         >
           <th className="p-6">Product</th>
-          <th className="p-6">Category</th>
+          <th className="p-6">Category / Sub</th>
           <th className="p-6">Price</th>
           <th className="p-6">Variants</th>
           <th className="p-6 text-right">Actions</th>
@@ -310,7 +314,12 @@ const ListView = ({ products, onEdit, onDelete, theme }) => (
                 </div>
               </div>
             </td>
-            <td className="p-6 opacity-70">{p.category}</td>
+            <td className="p-6 opacity-70">
+              <span className="block font-bold">{p.category}</span>
+              {p.subCategory && (
+                <span className="text-xs opacity-70">{p.subCategory}</span>
+              )}
+            </td>
             <td className="p-6 font-mono text-lg">₹{p.price}</td>
             <td className="p-6">
               <div className="flex -space-x-2">
@@ -399,7 +408,9 @@ const TileView = ({ products, onEdit, onDelete, theme }) => (
             <span className="font-mono text-lg font-medium">₹{p.price}</span>
           </div>
           <div className="flex justify-between items-center text-xs opacity-60 font-medium uppercase tracking-wide">
-            <span>{p.category}</span>
+            <span>
+              {p.category} {p.subCategory && `• ${p.subCategory}`}
+            </span>
             <span>{p.visuals?.length || 0} Colors</span>
           </div>
         </div>
@@ -679,6 +690,17 @@ const ProductFormModal = ({
                     </option>
                   </select>
                 </div>
+
+                {/* --- ADDED SUB CATEGORY INPUT --- */}
+                <Input
+                  label="Sub Category"
+                  name="subCategory"
+                  val={formData.subCategory}
+                  onChange={handleChange}
+                  theme={theme}
+                  placeholder="e.g. Running, Lifestyle, Basketball"
+                />
+
                 <Input
                   label="Price (₹)"
                   name="price"

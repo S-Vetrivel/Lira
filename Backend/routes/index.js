@@ -12,4 +12,6 @@ router.use("/products", require("./productRoutes"));
 router.use("/cart", require("./cartRoutes"));
 router.use("/orders", require("./orderRoutes"));
 router.use("/address", require("./addressRoutes"));
+router.use("/reviews", require("./reviewRoutes"));
+
 module.exports = router;

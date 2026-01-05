@@ -4,6 +4,7 @@ import React, {
   useEffect,
   useCallback,
   useRef,
+  useMemo,
 } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -14,6 +15,7 @@ import {
   ChevronRight,
   DollarSign,
   Loader2,
+  Tag,
 } from "lucide-react";
 import { ThemeContext } from "../context/ThemeContext";
 import ProductCard from "../components/ProductCard";
@@ -66,7 +68,7 @@ const CATEGORIES = [
   "Running",
   "Lifestyle",
   "Basketball",
-  "Street",
+  "Accessories",
   "Vintage",
   "Exclusive",
   "Outdoor",
@@ -386,6 +388,30 @@ const Shop = () => {
 
     return () => clearTimeout(debounceTimer);
   }, [activeCategory, searchQuery, priceRange, sortOption]);
+
+  // --- GROUPING LOGIC (SUBCATEGORY BANNERS) ---
+  const groupedProducts = useMemo(() => {
+    if (!products.length) return {};
+
+    const groups = {};
+    products.forEach((product) => {
+      // Use subCategory if available, otherwise fallback to category or "General Collection"
+      const groupKey =
+        product.subCategory || product.category || "General Collection";
+      if (!groups[groupKey]) {
+        groups[groupKey] = [];
+      }
+      groups[groupKey].push(product);
+    });
+
+    // Sort keys alphabetically
+    return Object.keys(groups)
+      .sort()
+      .reduce((acc, key) => {
+        acc[key] = groups[key];
+        return acc;
+      }, {});
+  }, [products]);
 
   // --- HANDLERS ---
 
@@ -753,45 +779,76 @@ const Shop = () => {
                 </p>
               </motion.div>
             ) : products.length > 0 ? (
-              // --- PRODUCTS GRID ---
-              <motion.div
-                key="grid"
-                layout
-                variants={containerVariants}
-                initial="hidden"
-                animate="visible"
-                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-8 gap-y-12"
-              >
-                {products.map((product) => (
+              // --- PRODUCTS GRID (GROUPED BY SUBCATEGORY) ---
+              <div className="space-y-24">
+                {Object.keys(groupedProducts).map((groupTitle) => (
                   <motion.div
-                    layout
-                    key={product._id || product.id} // Handle MongoDB _id
-                    variants={itemVariants}
-                    exit="exit"
-                    className="w-full"
+                    key={groupTitle}
+                    initial={{ opacity: 0, y: 30 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5 }}
+                    className="relative"
                   >
-                    <Link
-                      to={`/shop/${product._id || product.id}`}
-                      onDragStart={(e) => e.preventDefault()}
+                    {/* BANNER HEADER - REPLACED WITH SOLID BLOCK STYLE */}
+                    <div
+                      className="w-full py-10 rounded-3xl mb-10 flex flex-col items-center justify-center shadow-lg transition-transform hover:scale-[1.01]"
+                      style={{
+                        backgroundColor: theme.text, // Solid block color (black in light mode)
+                        color: theme.bg, // Inverted text color (white in light mode)
+                      }}
                     >
-                      <ProductCard
-                        _id={product._id || product.id}
-                        title={product.title}
-                        price={product.price}
-                        category={product.category}
-                        image1={
-                          product.visuals?.[0]?.images?.[0] || product.image1
-                        }
-                        image2={
-                          product.visuals?.[0]?.images?.[1] || product.image2
-                        }
-                        badge={product.badge}
-                        visuals={product.visuals} // VITAL: Pass visuals prop!
-                      />
-                    </Link>
+                      <h2 className="text-2xl md:text-4xl font-black uppercase tracking-[0.3em] text-center z-10">
+                        {groupTitle}
+                      </h2>
+                      <div className="h-1 w-12 bg-current mt-4 opacity-50 rounded-full" />
+                      <span className="absolute bottom-4 right-6 text-[10px] md:text-xs font-mono opacity-30">
+                        ({groupedProducts[groupTitle].length})
+                      </span>
+                    </div>
+
+                    {/* PRODUCT GRID FOR THIS SUBCATEGORY */}
+                    <motion.div
+                      layout
+                      variants={containerVariants}
+                      initial="hidden"
+                      animate="visible"
+                      className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-8 gap-y-12"
+                    >
+                      {groupedProducts[groupTitle].map((product) => (
+                        <motion.div
+                          layout
+                          key={product._id || product.id}
+                          variants={itemVariants}
+                          exit="exit"
+                          className="w-full"
+                        >
+                          <Link
+                            to={`/shop/${product._id || product.id}`}
+                            onDragStart={(e) => e.preventDefault()}
+                          >
+                            <ProductCard
+                              _id={product._id || product.id}
+                              title={product.title}
+                              price={product.price}
+                              category={product.category}
+                              image1={
+                                product.visuals?.[0]?.images?.[0] ||
+                                product.image1
+                              }
+                              image2={
+                                product.visuals?.[0]?.images?.[1] ||
+                                product.image2
+                              }
+                              badge={product.badge}
+                              visuals={product.visuals}
+                            />
+                          </Link>
+                        </motion.div>
+                      ))}
+                    </motion.div>
                   </motion.div>
                 ))}
-              </motion.div>
+              </div>
             ) : (
               // --- EMPTY STATE ---
               <motion.div

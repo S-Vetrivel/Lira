@@ -165,7 +165,7 @@ exports.getAllProducts = async (req, res) => {
 
     const products = await Product.find(query)
       .sort(sortOption)
-      .select("title price category image1 image2 badge visuals")
+      .select("title price category image1 image2 badge visuals subCategory")
       .lean();
 
     res.status(200).json(products);
