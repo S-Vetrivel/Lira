@@ -12,7 +12,7 @@ sharp.cache(false);
 require("../models/galleryModel");
 require("../models/userModel");
 require("../models/productModel");
-require("../models/bannerModal");
+require("../models/bannerModel");
 
 const BUCKET = process.env.MINIO_BUCKET_NAME;
 

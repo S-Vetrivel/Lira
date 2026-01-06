@@ -12,13 +12,17 @@ const bannerSchema = new mongoose.Schema(
     },
     image: {
       type: String,
-      required: false, // Initially empty until Worker updates it
+      required: false,
     },
     page: {
       type: String,
       enum: ["home", "shop"],
       default: "home",
       required: true,
+    },
+    order: {
+      type: Number,
+      default: 0,
     },
   },
   { timestamps: true }

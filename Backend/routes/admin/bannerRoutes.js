@@ -5,17 +5,16 @@ const bannerController = require("../../controllers/bannerController");
 
 const upload = multer({ dest: "uploads/temp/" });
 
-// GET /api/banners
-router.get("/", bannerController.getBanners);
+// ADMIN POST (Upload)
+router.post("/", upload.single("image"), bannerController.createBanner);
 
-// POST /api/admin/banners
-router.post(
-  "/", // mounted at /admin in main file or keep full path here
-  upload.single("image"),
-  bannerController.createBanner
-);
+// ADMIN PUT (Reorder) - MUST be before /:id to avoid collision
+router.put("/reorder", bannerController.reorderBanners);
 
-// DELETE /api/admin/banners/:id
+// ADMIN PUT (Update Details)
+router.put("/:id", bannerController.updateBannerDetails);
+
+// ADMIN DELETE
 router.delete("/:id", bannerController.deleteBanner);
 
 module.exports = router;

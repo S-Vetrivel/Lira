@@ -876,28 +876,25 @@ export async function addReview(productId, rating, comment) {
 // BANNER ENDPOINTS (Corrected)
 // ==============================================================
 
-// 1. Get Banners
+// --- BANNER ENDPOINTS ---
+
 export const getBanners = async (page = "") => {
   try {
-    // Use 'api' instance to ensure cookies are sent
     const endpoint = page ? `/banners?page=${page}` : "/banners";
     const response = await api.get(endpoint);
     return { success: true, data: response.data };
   } catch (error) {
-    return {
-      success: false,
-      message: error.response?.data?.message || "Failed to fetch banners",
-    };
+    return { success: false, message: error.response?.data?.message };
   }
 };
 
 // 2. Create Banner (Upload)
 export const createBanner = async (formData) => {
   try {
+    // 🛑 CRITICAL FIX: Overriding the default JSON header
+    // We set 'Content-Type': undefined so the browser generates the multipart boundary
     const response = await api.post("/admin/banners", formData, {
       headers: {
-        // SETTING THIS TO UNDEFINED IS MAGIC
-        // It forces the browser to set the boundary and content-type automatically
         "Content-Type": undefined,
       },
     });
@@ -911,16 +908,32 @@ export const createBanner = async (formData) => {
   }
 };
 
-// 3. Delete Banner
 export const deleteBanner = async (id) => {
   try {
     const response = await api.delete(`/admin/banners/${id}`);
     return { success: true, data: response.data };
   } catch (error) {
-    return {
-      success: false,
-      message: error.response?.data?.message || "Failed to delete banner",
-    };
+    return { success: false, message: error.response?.data?.message };
+  }
+};
+
+// NEW: Update Title/Subtitle
+export const updateBannerDetails = async (id, data) => {
+  try {
+    const response = await api.put(`/admin/banners/${id}`, data);
+    return { success: true, data: response.data };
+  } catch (error) {
+    return { success: false, message: error.response?.data?.message };
+  }
+};
+
+// NEW: Reorder
+export const reorderBanners = async (items) => {
+  try {
+    const response = await api.put("/admin/banners/reorder", { items });
+    return { success: true, data: response.data };
+  } catch (error) {
+    return { success: false, message: error.response?.data?.message };
   }
 };
 
