@@ -1,10 +1,10 @@
 const { Queue } = require("bullmq");
 const Redis = require("ioredis");
 
-// 1. Setup Redis Connection
 const connection = new Redis({
-  host: "127.0.0.1", // Your Redis Host
-  port: 6379, // Your Redis Port
+  host: process.env.REDIS_HOST || "redis",
+  port: Number(process.env.REDIS_PORT) || 6379,
+  db: Number(process.env.REDIS_DB) || 0,
   maxRetriesPerRequest: null,
 });
 
