@@ -16,8 +16,10 @@ import { Link, useNavigate } from "react-router-dom";
 import { ThemeContext } from "@/context/ThemeContext";
 import HeroCarousel from "@/components/home/HeroCarousel";
 import ProductCard from "@/components/ProductCard";
+import { getAllProducts } from "@/services/api"; // API Service
+import { Loader2 } from "lucide-react"; // Loader Icon
 
-// --- DATA ---
+// --- STATIC DATA FOR HERO (Visuals only) ---
 const SLIDES_DATA = [
   {
     desktopSrc:
@@ -48,75 +50,6 @@ const SLIDES_DATA = [
       "https://images.unsplash.com/photo-1529139574466-a302d2752424?q=80&w=600&auto=format&fit=crop",
     title: "Urban Flux",
     subtitle: "Redefining street wear.",
-  },
-];
-
-const PRODUCTS = [
-  {
-    id: 1,
-    title: "Nike Air Max Pulse",
-    price: "150.00",
-    category: "Men's Running",
-    badge: "New",
-    image1:
-      "https://images.unsplash.com/photo-1542291026-7eec264c27ff?q=80&w=800&auto=format&fit=crop",
-    image2:
-      "https://images.unsplash.com/photo-1606107557195-0e29a4b5b4aa?q=80&w=800&auto=format&fit=crop",
-  },
-  {
-    id: 2,
-    title: "Air Jordan 1 Mid",
-    price: "125.00",
-    category: "Lifestyle",
-    badge: null,
-    image1:
-      "https://images.unsplash.com/photo-1549298916-b41d501d3772?q=80&w=800&auto=format&fit=crop",
-    image2:
-      "https://images.unsplash.com/photo-1525966222134-fcfa99b8ae77?q=80&w=800&auto=format&fit=crop",
-  },
-  {
-    id: 3,
-    title: "Dunk Low Retro",
-    price: "115.00",
-    category: "Basketball",
-    badge: "Sale",
-    image1:
-      "https://images.unsplash.com/photo-1560769629-975ec94e6a86?q=80&w=800&auto=format&fit=crop",
-    image2:
-      "https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?q=80&w=800&auto=format&fit=crop",
-  },
-  {
-    id: 4,
-    title: "Yeezy Boost 350",
-    price: "220.00",
-    category: "Exclusive",
-    badge: "Hot",
-    image1:
-      "https://images.unsplash.com/photo-1584735175315-9d5816093171?q=80&w=800&auto=format&fit=crop",
-    image2:
-      "https://images.unsplash.com/photo-1584735174965-48c48d7edfde?q=80&w=800&auto=format&fit=crop",
-  },
-  {
-    id: 5,
-    title: "New Balance 550",
-    price: "110.00",
-    category: "Vintage",
-    badge: null,
-    image1:
-      "https://images.unsplash.com/photo-1539185441755-769473a23570?q=80&w=800&auto=format&fit=crop",
-    image2:
-      "https://images.unsplash.com/photo-1512374382149-233c42b6a83b?q=80&w=800&auto=format&fit=crop",
-  },
-  {
-    id: 6,
-    title: "Adidas Forum Low",
-    price: "100.00",
-    category: "Street",
-    badge: "New",
-    image1:
-      "https://images.unsplash.com/photo-1587563871167-1ee9c731aef4?q=80&w=800&auto=format&fit=crop",
-    image2:
-      "https://images.unsplash.com/photo-1608231387042-66d1773070a5?q=80&w=800&auto=format&fit=crop",
   },
 ];
 
@@ -189,7 +122,7 @@ const CarouselItem = ({ product, index, x, isClickBlockedRef }) => {
         className="w-full h-full block"
       >
         <Link
-          to={`/shop/${product.id}`}
+          to={`/shop/${product._id || product.id}`}
           className="block w-full h-full"
           draggable={false}
           onClick={(e) => {
@@ -206,8 +139,8 @@ const CarouselItem = ({ product, index, x, isClickBlockedRef }) => {
             image1={product.visuals?.[0]?.images?.[0] || product.image1}
             image2={product.visuals?.[0]?.images?.[1] || product.image2}
             badge={product.badge}
-            visuals={product.visuals} // VITAL: Pass visuals prop!
-          />{" "}
+            visuals={product.visuals}
+          />
         </Link>
       </motion.div>
     </motion.div>
@@ -216,13 +149,17 @@ const CarouselItem = ({ product, index, x, isClickBlockedRef }) => {
 
 export default function Home() {
   const { theme } = useContext(ThemeContext);
+  const navigate = useNavigate();
+
+  // --- STATE ---
   const [currentSection, setCurrentSection] = useState(0);
   const [direction, setDirection] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
-
-  // ZOOM STATE: 'idle' or 'full' (zooming in)
   const [isZooming, setIsZooming] = useState(false);
-  const navigate = useNavigate();
+
+  // --- DATA STATE ---
+  const [trendingProducts, setTrendingProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   // --- HORIZONTAL SCROLL LOGIC ---
   const productTrackRef = useRef(null);
@@ -247,7 +184,30 @@ export default function Home() {
 
   const TOTAL_SECTIONS = 3;
   const HORIZONTAL_BUFFER = 200;
-  const EXIT_THRESHOLD = 350; // Require noticeable scroll to trigger zoom
+  const EXIT_THRESHOLD = 350;
+
+  // --- API FETCH EFFECT ---
+  useEffect(() => {
+    const fetchTrending = async () => {
+      setLoading(true);
+      try {
+        const res = await getAllProducts();
+        if (res.success) {
+          // Filter products that have specific badges
+          const trends = res.data.filter((p) => ["Trending"].includes(p.badge));
+          // If no specific trends found, take the first 6 as fallback
+          setTrendingProducts(
+            trends.length > 0 ? trends : res.data.slice(0, 6)
+          );
+        }
+      } catch (error) {
+        console.error("Failed to fetch home products:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchTrending();
+  }, []);
 
   const updateHorizontal = (val) => {
     xRef.current = val;
@@ -297,15 +257,23 @@ export default function Home() {
       }
 
       if (sectionRef.current === 1) {
+        // Only process horizontal scroll if data exists and is loaded
         const track = productTrackRef.current;
-        if (!track) return;
+        if (!track || loading || trendingProducts.length === 0) {
+          // Allow vertical escape if content isn't scrollable
+          if (delta > 0) triggerSectionChange(2, 1);
+          else triggerSectionChange(0, -1);
+          return;
+        }
 
         const trackScrollWidth = track.scrollWidth;
         const contentMaxScroll = -(trackScrollWidth - window.innerWidth);
+        // Small buffer to ensure we see the last item
         const triggerPoint = contentMaxScroll - HORIZONTAL_BUFFER;
 
         let newX = xRef.current - delta * sensitivity;
 
+        // Logic to exit Section 1
         if (newX > 150) {
           if (delta < 0) {
             triggerSectionChange(0, -1);
@@ -319,15 +287,13 @@ export default function Home() {
         }
       }
     },
-    [triggerSectionChange, isZooming]
+    [triggerSectionChange, isZooming, loading, trendingProducts.length]
   );
 
   // --- NAVIGATE AFTER ZOOM COMPLETES ---
   useEffect(() => {
     if (isZooming) {
-      // Wait for the zoom animation (0.8s) then navigate
       const timeout = setTimeout(() => {
-        // Navigate and pass state to indicate we are coming from a zoom
         navigate("/shop", { state: { fromZoom: true } });
       }, 800);
       return () => clearTimeout(timeout);
@@ -509,39 +475,52 @@ export default function Home() {
             </div>
 
             {/* Carousel Track */}
-            <div className="w-full h-[60vh] flex items-center overflow-visible mt-4 relative z-20">
-              <motion.div
-                ref={productTrackRef}
-                style={{ x: springX }}
-                className="flex gap-8 items-center"
-                {...{
-                  style: {
-                    x: springX,
-                    display: "flex",
-                    gap: "2rem",
-                    paddingLeft: "calc(50vw - 150px)",
-                    paddingRight: "calc(50vw - 150px)",
-                    alignItems: "center",
-                  },
-                }}
-              >
-                {PRODUCTS.map((product, index) => (
-                  <CarouselItem
-                    key={product.id}
-                    product={product}
-                    index={index}
-                    x={springX}
-                    isClickBlockedRef={isClickBlocked}
-                  />
-                ))}
-
-                <div
-                  className="flex-shrink-0 flex items-center justify-center opacity-30 font-mono text-xl"
-                  style={{ width: "200px" }}
-                >
-                  view all &rarr;
+            <div className="w-full h-[60vh] flex items-center justify-center overflow-visible mt-4 relative z-20">
+              {loading ? (
+                <div className="flex flex-col items-center gap-2">
+                  <Loader2 className="animate-spin" size={40} />
+                  <p className="opacity-50 text-sm font-mono">
+                    Loading trends...
+                  </p>
                 </div>
-              </motion.div>
+              ) : trendingProducts.length > 0 ? (
+                <motion.div
+                  ref={productTrackRef}
+                  style={{ x: springX }}
+                  className="flex gap-8 items-center"
+                  {...{
+                    style: {
+                      x: springX,
+                      display: "flex",
+                      gap: "2rem",
+                      paddingLeft: "calc(50vw - 150px)",
+                      paddingRight: "calc(50vw - 150px)",
+                      alignItems: "center",
+                    },
+                  }}
+                >
+                  {trendingProducts.map((product, index) => (
+                    <CarouselItem
+                      key={product._id || product.id}
+                      product={product}
+                      index={index}
+                      x={springX}
+                      isClickBlockedRef={isClickBlocked}
+                    />
+                  ))}
+
+                  <div
+                    className="flex-shrink-0 flex items-center justify-center opacity-30 font-mono text-xl"
+                    style={{ width: "200px" }}
+                  >
+                    <Link to="/shop">view all &rarr;</Link>
+                  </div>
+                </motion.div>
+              ) : (
+                <div className="text-center opacity-50">
+                  <p>No trending items found.</p>
+                </div>
+              )}
             </div>
           </motion.section>
         )}

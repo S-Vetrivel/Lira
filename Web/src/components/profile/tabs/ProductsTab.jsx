@@ -17,6 +17,7 @@ import {
   AlertCircle,
   Truck,
   Palette,
+  ChevronDown, // Added ChevronDown import
 } from "lucide-react";
 import { ThemeContext } from "@/context/ThemeContext";
 import toast from "react-hot-toast";
@@ -37,7 +38,7 @@ const INITIAL_PRODUCT_STATE = {
   title: "",
   description: "",
   category: "",
-  subCategory: "", // --- ADDED SUBCATEGORY STATE ---
+  subCategory: "",
   price: "",
   discountPrice: "",
   badge: "",
@@ -51,6 +52,16 @@ const INITIAL_PRODUCT_STATE = {
     returnPolicy: "7 Days Return Policy",
   },
 };
+
+// --- BADGE OPTIONS CONSTANT ---
+const BADGE_OPTIONS = [
+  { label: "No Badge", value: "" },
+  { label: "New Arrival", value: "New" },
+  { label: "Trending", value: "Trending" },
+  { label: "Hot", value: "Hot" },
+  { label: "Sale", value: "Sale" },
+  { label: "Limited", value: "Limited" },
+];
 
 const ProductsTab = () => {
   const { theme } = useContext(ThemeContext);
@@ -691,7 +702,6 @@ const ProductFormModal = ({
                   </select>
                 </div>
 
-                {/* --- ADDED SUB CATEGORY INPUT --- */}
                 <Input
                   label="Sub Category"
                   name="subCategory"
@@ -719,14 +729,48 @@ const ProductFormModal = ({
                   theme={theme}
                   placeholder="Optional"
                 />
-                <Input
-                  label="Badge"
-                  name="badge"
-                  val={formData.badge}
-                  onChange={handleChange}
-                  theme={theme}
-                  placeholder="e.g. New Arrival"
-                />
+
+                {/* --- NEW BADGE SELECT DROPDOWN --- */}
+                <div className="flex flex-col gap-2">
+                  <label
+                    className="text-xs font-bold uppercase tracking-wider opacity-60"
+                    style={{ color: theme.text }}
+                  >
+                    Badge
+                  </label>
+                  <div className="relative">
+                    <select
+                      name="badge"
+                      value={formData.badge}
+                      onChange={handleChange}
+                      className="w-full p-4 rounded-xl border outline-none appearance-none transition-all focus:ring-2 focus:ring-current"
+                      style={{
+                        backgroundColor: theme.navbar.searchBg || "transparent",
+                        color: theme.text,
+                        borderColor: theme.navbar.border,
+                      }}
+                    >
+                      {BADGE_OPTIONS.map((option) => (
+                        <option
+                          key={option.value}
+                          value={option.value}
+                          style={{
+                            backgroundColor: theme.bg,
+                            color: theme.text,
+                          }}
+                        >
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                    {/* Custom Dropdown Arrow */}
+                    <ChevronDown
+                      size={18}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-50"
+                      style={{ color: theme.text }}
+                    />
+                  </div>
+                </div>
               </div>
 
               <div className="space-y-4">

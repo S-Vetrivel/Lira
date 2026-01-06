@@ -4,14 +4,16 @@ const { connection } = require("../services/queue");
 const sharp = require("sharp");
 const path = require("path");
 const fs = require("fs");
+const minio = require("../config/minio");
 
-// Disable Sharp cache to ensure file handles are released immediately
 sharp.cache(false);
 
-// Import Models
+// Models
 require("../models/galleryModel");
 require("../models/userModel");
 require("../models/productModel");
+
+const BUCKET = process.env.MINIO_BUCKET_NAME;
 
 const worker = new Worker(
   "media-processing",
@@ -20,176 +22,137 @@ const worker = new Worker(
       fileId,
       filePath,
       mimeType,
-      outputDir, // Expected to be 'public/uploads' or similar
+      outputDir,
       modelName,
       fieldName,
       operation,
     } = job.data;
 
-    console.log(`[Worker] 🟢 Job started: ${modelName} (${fileId})`);
+    console.log(`\n[Worker] 🟢 JOB START`);
+    console.log(`[Worker] Model: ${modelName}`);
+    console.log(`[Worker] File ID: ${fileId}`);
+    console.log(`[Worker] File Path: ${filePath}`);
+    console.log(`[Worker] Output Dir: ${outputDir}`);
+    console.log(`[Worker] Bucket: ${BUCKET}`);
 
-    // --- 1. RESOLVE INPUT PATH (BULLETPROOF) ---
-    // Try to find the file in multiple common locations
+    // ---------- STEP 1: Resolve input ----------
     let absoluteInputPath = path.resolve(filePath);
 
-    // Fix: If running from root but file is in Backend/, check there
     if (!fs.existsSync(absoluteInputPath)) {
-      const potentialPath = path.join(process.cwd(), "Backend", filePath);
-      if (fs.existsSync(potentialPath)) {
-        absoluteInputPath = potentialPath;
-      }
+      const fallback = path.join(process.cwd(), "Backend", filePath);
+      if (fs.existsSync(fallback)) absoluteInputPath = fallback;
     }
 
-    // Final Input Check
+    console.log(`[Worker][STEP 1] Input resolved to: ${absoluteInputPath}`);
+
     if (!fs.existsSync(absoluteInputPath)) {
-      const errorMsg = `❌ Input file missing at: ${absoluteInputPath}`;
-      console.error(errorMsg);
-      throw new Error(errorMsg); // Triggers retry
+      throw new Error(`Input file missing: ${absoluteInputPath}`);
     }
 
-    // --- 2. RESOLVE OUTPUT PATH (ABSOLUTE) ---
-    // We resolve outputDir relative to CWD or Backend to ensure we know EXACTLY where it goes
-    let absoluteOutputDir = path.resolve(outputDir);
-
-    // Fix: Ensure we are writing to Backend/public/uploads if that's where the app expects it
-    if (
-      !absoluteOutputDir.includes("Backend") &&
-      fs.existsSync(path.join(process.cwd(), "Backend"))
-    ) {
-      absoluteOutputDir = path.join(process.cwd(), "Backend", outputDir);
-    }
-
-    if (!fs.existsSync(absoluteOutputDir)) {
-      console.log(`[Worker] Creating output dir: ${absoluteOutputDir}`);
-      fs.mkdirSync(absoluteOutputDir, { recursive: true });
-    }
+    // ---------- STEP 2: Prepare temp dir ----------
+    const tempDir = path.resolve(outputDir);
+    fs.mkdirSync(tempDir, { recursive: true });
+    console.log(`[Worker][STEP 2] Temp dir ready: ${tempDir}`);
 
     const timestamp = Date.now();
-    let finalFilename = "";
-    let absoluteFinalPath = "";
-    let relativeUrl = "";
+    const finalFilename = `${modelName.toLowerCase()}-${fileId}-${timestamp}.webp`;
+    const tempOutput = path.join(tempDir, finalFilename);
 
     try {
-      // --- 3. PROCESSING (CONVERSION) ---
-      if (mimeType.startsWith("image/")) {
-        finalFilename = `${modelName.toLowerCase()}-${fileId}-${timestamp}.webp`;
-        absoluteFinalPath = path.join(absoluteOutputDir, finalFilename);
+      // ---------- STEP 3: Sharp processing ----------
+      console.log(`[Worker][STEP 3] Sharp start`);
 
-        console.log(`[Worker] ⚙️ Converting to: ${absoluteFinalPath}`);
+      let pipeline = sharp(absoluteInputPath);
 
-        let pipeline = sharp(absoluteInputPath);
-
-        // Apply Resizing Logic
-        if (modelName === "User") {
-          pipeline = pipeline.resize(500, 500, { fit: "cover" });
-        } else if (modelName === "Product") {
-          pipeline = pipeline.resize(1200, 1200, {
-            fit: "inside",
-            withoutEnlargement: true,
-          });
-        } else if (modelName === "Gallery") {
-          pipeline = pipeline.resize(1920, 1080, {
-            fit: "inside",
-            withoutEnlargement: true,
-          });
-        }
-
-        // Write to file
-        await pipeline.webp({ quality: 80 }).toFile(absoluteFinalPath);
-      } else {
-        throw new Error("Unsupported MIME type for this worker");
+      if (modelName === "User") {
+        pipeline = pipeline.resize(500, 500, { fit: "cover" });
+      } else if (modelName === "Product") {
+        pipeline = pipeline.resize(1200, 1200, {
+          fit: "inside",
+          withoutEnlargement: true,
+        });
+      } else if (modelName === "Gallery") {
+        pipeline = pipeline.resize(1920, 1080, {
+          fit: "inside",
+          withoutEnlargement: true,
+        });
       }
 
-      // --- 4. BULLETPROOF VERIFICATION (THE FIX) ---
-      // Check 1: Does file exist?
-      if (!fs.existsSync(absoluteFinalPath)) {
-        throw new Error(
-          `Conversion failed: File not found at ${absoluteFinalPath}`
-        );
+      await pipeline.webp({ quality: 80 }).toFile(tempOutput);
+
+      console.log(`[Worker][STEP 3] Sharp done → ${tempOutput}`);
+
+      if (!fs.existsSync(tempOutput) || fs.statSync(tempOutput).size === 0) {
+        throw new Error("Sharp output invalid");
       }
 
-      // Check 2: Is file size > 0? (catches empty file corruptions)
-      const stats = fs.statSync(absoluteFinalPath);
-      if (stats.size === 0) {
-        // Delete the empty file to clean up
-        fs.unlinkSync(absoluteFinalPath);
-        throw new Error(`Conversion failed: Generated file is empty (0 bytes)`);
-      }
+      // ---------- STEP 4: Upload to MinIO ----------
+      const objectKey = `${modelName.toLowerCase()}/${finalFilename}`;
+      console.log(`[Worker][STEP 4] Uploading to MinIO`);
+      console.log(`[Worker][STEP 4] Object Key: ${objectKey}`);
 
-      console.log(
-        `[Worker] ✅ Verification Passed: File exists (${(
-          stats.size / 1024
-        ).toFixed(2)} KB)`
-      );
+      await minio.fPutObject(BUCKET, objectKey, tempOutput, {
+        "Content-Type": "image/webp",
+      });
 
-      // --- 5. DATABASE UPDATE ---
-      // Only now do we generate the URL and touch the DB
-      // relativeUrl = /uploads/filename.webp
-      relativeUrl = `/${path
-        .relative(path.join(process.cwd(), "Backend/public"), absoluteFinalPath)
-        .replace(/\\/g, "/")}`;
 
-      // Fallback if the logic above gets messy with paths:
-      if (!relativeUrl.startsWith("/"))
-        relativeUrl = `/uploads/${finalFilename}`;
+      console.log(`[Worker][STEP 4] MinIO upload DONE`);
+
+      // ---------- STEP 5: DB update ----------
+      const storedPath = `/uploads/${objectKey}`;
+      console.log(`[Worker][STEP 5] Stored path: ${storedPath}`);
 
       const Model = mongoose.model(modelName);
 
       if (operation === "push") {
+        console.log(`[Worker][STEP 5] Mongo push update`);
         await Model.findByIdAndUpdate(fileId, {
-          $push: { [fieldName]: relativeUrl },
+          $push: { [fieldName]: storedPath },
         });
       } else {
-        // --- 6. OLD FILE CLEANUP (SAFE) ---
-        // Fetch old doc to find old image
-        const doc = await Model.findById(fileId);
-        if (doc && doc[fieldName]) {
-          const oldUrl = doc[fieldName];
-          // Construct absolute path of old file
-          const oldFileName = path.basename(oldUrl);
-          const oldAbsolutePath = path.join(absoluteOutputDir, oldFileName);
+        console.log(`[Worker][STEP 5] Mongo replace update`);
 
-          // Only delete if it's a different file and it actually exists
-          if (oldFileName !== finalFilename && fs.existsSync(oldAbsolutePath)) {
+        const doc = await Model.findById(fileId);
+
+        if (doc && doc[fieldName]) {
+          const oldPath = doc[fieldName];
+          if (oldPath.startsWith("/")) {
+            const oldKey = oldPath.slice(1);
             try {
-              fs.unlinkSync(oldAbsolutePath);
-              console.log(`[Worker] 🗑️ Deleted old image: ${oldFileName}`);
-            } catch (err) {
-              console.error(
-                `[Worker Warning] Failed to delete old image: ${err.message}`
+              console.log(
+                `[Worker][STEP 5] Deleting old MinIO object: ${oldKey}`
               );
+              await minio.removeObject(BUCKET, oldKey);
+            } catch (e) {
+              console.warn(`[Worker] Old object delete failed (ignored)`);
             }
           }
         }
 
-        const updateData = { [fieldName]: relativeUrl };
-        if (modelName === "Gallery") updateData.status = "completed";
-        await Model.findByIdAndUpdate(fileId, updateData);
+        const update = { [fieldName]: storedPath };
+        if (modelName === "Gallery") update.status = "completed";
+        await Model.findByIdAndUpdate(fileId, update);
       }
 
-      // --- 7. CLEANUP INPUT FILE ---
-      try {
-        if (fs.existsSync(absoluteInputPath)) {
-          fs.unlinkSync(absoluteInputPath);
-          console.log(`[Worker] 🧹 Cleaned up input file`);
-        }
-      } catch (e) {
-        console.error("Cleanup warning:", e.message);
-      }
+      // ---------- STEP 6: Cleanup ----------
+      console.log(`[Worker][STEP 6] Cleanup start`);
+      fs.unlinkSync(tempOutput);
+      fs.unlinkSync(absoluteInputPath);
 
-      console.log(`[Worker] 🎉 JOB COMPLETE. URL: ${relativeUrl}`);
-      return relativeUrl;
-    } catch (error) {
-      console.error(`❌ [Worker Failed] ${error.message}`);
+      console.log(`[Worker] 🎉 JOB COMPLETED SUCCESSFULLY`);
+      console.log(`[Worker] Final Path: ${storedPath}\n`);
 
-      // Emergency Cleanup: If we created a file but failed DB update, delete the orphan file
-      if (absoluteFinalPath && fs.existsSync(absoluteFinalPath)) {
+      return storedPath;
+    } catch (err) {
+      console.error(`[Worker ❌ ERROR] ${err.message}`);
+
+      if (fs.existsSync(tempOutput)) {
         try {
-          fs.unlinkSync(absoluteFinalPath);
-        } catch (e) {}
+          fs.unlinkSync(tempOutput);
+        } catch {}
       }
 
-      throw error; // Trigger Retry
+      throw err;
     }
   },
   {
@@ -199,4 +162,4 @@ const worker = new Worker(
   }
 );
 
-console.log("Media Worker started (Bulletproof Mode)...");
+console.log("🧵 Media Worker started (MinIO + DEBUG)");

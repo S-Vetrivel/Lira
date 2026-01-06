@@ -4,56 +4,97 @@ const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const bodyParser = require("body-parser");
 const passport = require("passport");
-const fs = require("fs");
 const path = require("path");
-// 1. Pass the 'passport' library into your config file
-require("./config/passport")(passport);
 
-//  Database imports
-const connectMongo = require("./config/connectMongo"); // Mongo
+require("./config/passport")(passport);
+const connectMongo = require("./config/connectMongo");
 
 const { createServer } = require("http");
 const app = express();
 const server = createServer(app);
 
+// -----------------
+// FEATURE TOGGLE
+// -----------------
+const USE_MINIO = process.env.USE_MINIO === "true";
+
+// -----------------
+// CONDITIONAL MINIO LOAD
+// -----------------
+let minioClient, BUCKET_NAME;
+if (USE_MINIO) {
+  const minio = require("./config/minio");
+  minioClient = minio;
+  BUCKET_NAME = process.env.MINIO_BUCKET_NAME;
+}
+
+// -----------------
+// MIDDLEWARE
+// -----------------
 app.use(
   cors({
-    origin: process.env.CLIENT_URL || "http://localhost:5173", // Allow requests from your frontend
-    credentials: true, // Allow cookies to be sent
+    origin: process.env.CLIENT_URL || "http://localhost:5173",
+    credentials: true,
   })
 );
+
 app.use(cookieParser());
 app.use(express.json());
 app.use(bodyParser.json());
 app.use(passport.initialize());
-const uploadDir = path.join(__dirname, "public/uploads");
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir);
-  console.log('📂 Created "uploads" directory');
-}
-app.use("/uploads", express.static(path.join(__dirname, "public/uploads")));
+
+// ------------------------------------------------
+// FILE SERVING — MINIO PROXY (LIKE YOUR EXAMPLE)
+// ------------------------------------------------
+app.get(/^\/uploads\/(.+)$/, async (req, res) => {
+  if (!USE_MINIO || !minioClient) {
+    return res.status(404).send("Storage provider not enabled");
+  }
+
+  const objectName = req.params[0]; // product/abc.webp
+
+  try {
+    // Ensure object exists
+    await minioClient.statObject(BUCKET_NAME, objectName);
+
+    // Stream from MinIO
+    const stream = await minioClient.getObject(BUCKET_NAME, objectName);
+
+    // Basic headers (can be improved later)
+    res.setHeader("Cache-Control", "public, max-age=86400");
+    res.setHeader("Content-Type", "image/webp");
+
+    stream.pipe(res);
+  } catch (err) {
+    console.error(`[MinIO Proxy] File not found: ${objectName}`);
+    res.status(404).send("File not found");
+  }
+});
+
+// -----------------
+// BOOTSTRAP
+// -----------------
 const port = process.env.PORT || 3000;
 
-// Bootstrap app with all DBs
 (async () => {
   try {
-    // CHANGED: Added connectRedis() to the Promise.all array
-    await Promise.all([connectMongo()]);
+    await connectMongo();
 
-    // register routes
     app.use("/api", require("./routes/index"));
+
     server.listen(port, "0.0.0.0", () => {
-      console.log(`☑️  Ecommerce server running on http://127.0.0.1:${port}`);
-      console.log("=".repeat(process.stdout.columns || 80));
+      console.log(`☑️ Server running on port ${port}`);
     });
   } catch (err) {
-    console.error("❌ Startup failed (DB not connected):", err.message || err);
-    process.exit(1); // let nodemon restart
+    console.error("Startup failed:", err);
+    process.exit(1);
   }
 })();
 
-// Optional: gracefully handle MongoDB disconnect
+// -----------------
+// GRACEFUL SHUTDOWN
+// -----------------
 const mongoose = require("mongoose");
 mongoose.connection.on("disconnected", () => {
-  console.warn("⚠️ MongoDB disconnected — shutting down server");
+  console.warn("⚠️ MongoDB disconnected");
 });
