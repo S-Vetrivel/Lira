@@ -6,6 +6,7 @@ router.use(protect({ staff: true }));
 router.use("/products", require("./admin/productRoutes"));
 router.use("/gallery", require("./admin/galleryRoutes"));
 router.use("/orders", require("./admin/orderRoutes"));
+router.use("/banners", require("./admin/bannerRoutes"));
 
 router.use(protect({ admin: true }));
 router.get("/", (req, res) => {

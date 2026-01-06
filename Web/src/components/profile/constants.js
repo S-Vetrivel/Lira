@@ -6,6 +6,7 @@ import {
   GalleryHorizontal,
   User2,
   BoxesIcon,
+  Image,
 } from "lucide-react";
 import { FiBox } from "react-icons/fi";
 
@@ -63,6 +64,14 @@ export const PROFILE_TABS = [
     id: "processing",
     label: "Orders Processing",
     icon: BoxesIcon,
+    showForUser: false,
+    showForAdmin: true,
+    showForStaff: true, // ✅ Staff handles fulfillment
+  },
+  {
+    id: "banner",
+    label: "Banner Images",
+    icon: Image,
     showForUser: false,
     showForAdmin: true,
     showForStaff: true, // ✅ Staff handles fulfillment

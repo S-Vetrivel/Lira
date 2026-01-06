@@ -1,67 +1,17 @@
-import React, {
-  useState,
-  useContext,
-  useEffect,
-  useCallback,
-  useRef,
-  useMemo,
-} from "react";
+import React, { useState, useContext, useEffect, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search,
   SlidersHorizontal,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
   DollarSign,
   Loader2,
-  Tag,
 } from "lucide-react";
 import { ThemeContext } from "../context/ThemeContext";
 import ProductCard from "../components/ProductCard";
+import HeroCarousel from "@/components/home/HeroCarousel";
 import { Link, useLocation } from "react-router-dom";
-import { getAllProducts } from "@/services/api"; // Ensure this matches your alias
-
-// --- 1. CONFIGURATION & STATIC ASSETS ---
-
-const HERO_SLIDES = [
-  {
-    id: 1,
-    title: "Step Into the Future",
-    subtitle: "The all-new Air Max Pulse. Engineered for the streets.",
-    desktopSrc:
-      "https://images.unsplash.com/photo-1552346154-21d32810aba3?q=80&w=1600&auto=format&fit=crop",
-    tabletSrc:
-      "https://images.unsplash.com/photo-1552346154-21d32810aba3?q=80&w=1000&auto=format&fit=crop",
-    mobileSrc:
-      "https://images.unsplash.com/photo-1552346154-21d32810aba3?q=80&w=600&auto=format&fit=crop",
-    altText: "Air Max Pulse",
-  },
-  {
-    id: 2,
-    title: "Urban Utility",
-    subtitle: "Rugged durability meets modern aesthetics.",
-    desktopSrc:
-      "https://images.unsplash.com/photo-1606107557195-0e29a4b5b4aa?q=80&w=1600&auto=format&fit=crop",
-    tabletSrc:
-      "https://images.unsplash.com/photo-1606107557195-0e29a4b5b4aa?q=80&w=1000&auto=format&fit=crop",
-    mobileSrc:
-      "https://images.unsplash.com/photo-1606107557195-0e29a4b5b4aa?q=80&w=600&auto=format&fit=crop",
-    altText: "Urban Collection",
-  },
-  {
-    id: 3,
-    title: "Court Classics",
-    subtitle: "Timeless designs that changed the game forever.",
-    desktopSrc:
-      "https://images.unsplash.com/photo-1556906781-9a412961d289?q=80&w=1600&auto=format&fit=crop",
-    tabletSrc:
-      "https://images.unsplash.com/photo-1556906781-9a412961d289?q=80&w=1000&auto=format&fit=crop",
-    mobileSrc:
-      "https://images.unsplash.com/photo-1556906781-9a412961d289?q=80&w=600&auto=format&fit=crop",
-    altText: "Court Classics",
-  },
-];
+import { getAllProducts, getBanners } from "@/services/api";
 
 const CATEGORIES = [
   "All",
@@ -76,215 +26,13 @@ const CATEGORIES = [
   "Limited",
 ];
 
-// --- 2. INTERNAL COMPONENTS (HERO CAROUSEL) ---
-
-const carouselVariants = {
-  enter: (direction) => ({
-    x: direction > 0 ? "100%" : "-100%",
-    opacity: 0,
-    scale: 1.1,
-  }),
-  center: {
-    zIndex: 1,
-    x: 0,
-    opacity: 1,
-    scale: 1,
-  },
-  exit: (direction) => ({
-    zIndex: 0,
-    x: direction < 0 ? "100%" : "-100%",
-    opacity: 0,
-    scale: 1.1,
-  }),
+const getImageUrl = (path) => {
+  if (!path) return "";
+  if (path.startsWith("http") || path.startsWith("blob")) return path;
+  return `${import.meta.env.VITE_API_URL}${path}`;
 };
 
-const swipeConfidenceThreshold = 10000;
-const swipePower = (offset, velocity) => {
-  return Math.abs(offset) * velocity;
-};
-
-const HeroCarousel = ({
-  slides,
-  autoPlayInterval = 5000,
-  textDelay = 0,
-  controlsDelay = 0,
-  isIntro = false,
-}) => {
-  const [[page, direction], setPage] = useState([0, 0]);
-  const [isPaused, setIsPaused] = useState(isIntro);
-  const [isHovered, setIsHovered] = useState(false);
-
-  // Wrap around logic using modulus
-  const imageIndex = Math.abs(page % slides.length);
-
-  const paginate = useCallback((newDirection) => {
-    setPage(([p]) => [p + newDirection, newDirection]);
-  }, []);
-
-  useEffect(() => {
-    setIsPaused(isIntro);
-  }, [isIntro]);
-
-  useEffect(() => {
-    if (isPaused || isHovered) return;
-    const timer = setInterval(() => {
-      paginate(1);
-    }, autoPlayInterval);
-    return () => clearInterval(timer);
-  }, [page, isPaused, isHovered, autoPlayInterval, paginate]);
-
-  // Sync Text Logic EXACTLY with Arrows
-  const currentTextDelay = isIntro ? controlsDelay : 0.2;
-  const currentDuration = isIntro ? 0.8 : 0.5;
-
-  return (
-    <div
-      className="relative w-full h-full overflow-hidden bg-black"
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-    >
-      <AnimatePresence initial={false} custom={direction}>
-        <motion.div
-          key={page}
-          custom={direction}
-          variants={carouselVariants}
-          initial="enter"
-          animate="center"
-          exit="exit"
-          transition={{
-            x: { type: "spring", stiffness: 300, damping: 30 },
-            opacity: { duration: 0.2 },
-            scale: { duration: 0.5 },
-          }}
-          drag={isIntro ? false : "x"}
-          dragConstraints={isIntro ? undefined : { left: 0, right: 0 }}
-          dragElastic={1}
-          onDragEnd={(e, { offset, velocity }) => {
-            if (isIntro) return;
-            const swipe = swipePower(offset.x, velocity.x);
-            if (swipe < -swipeConfidenceThreshold) {
-              paginate(1);
-            } else if (swipe > swipeConfidenceThreshold) {
-              paginate(-1);
-            }
-          }}
-          className={`absolute inset-0 ${
-            isIntro ? "cursor-auto" : "cursor-grab active:cursor-grabbing"
-          }`}
-        >
-          {/* Responsive Picture */}
-          <picture>
-            <source
-              media="(min-width: 1024px)"
-              srcSet={slides[imageIndex].desktopSrc}
-            />
-            <source
-              media="(min-width: 768px)"
-              srcSet={slides[imageIndex].tabletSrc}
-            />
-            <img
-              src={slides[imageIndex].mobileSrc}
-              alt={slides[imageIndex].altText || "Hero Image"}
-              className="w-full h-full object-cover object-center pointer-events-none"
-            />
-          </picture>
-
-          {/* Dynamic Slide Text */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{
-              delay: currentTextDelay,
-              duration: currentDuration,
-              ease: "easeOut",
-            }}
-            className="absolute inset-0 flex flex-col items-center justify-center text-center text-white z-10 pointer-events-none p-4"
-          >
-            {slides[imageIndex].title && (
-              <motion.h2
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{
-                  delay: currentTextDelay + 0.1,
-                  duration: currentDuration,
-                }}
-                className="text-5xl md:text-7xl font-black uppercase tracking-tighter drop-shadow-2xl"
-              >
-                {slides[imageIndex].title}
-              </motion.h2>
-            )}
-            {slides[imageIndex].subtitle && (
-              <motion.p
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 0.9 }}
-                transition={{
-                  delay: currentTextDelay + 0.2,
-                  duration: currentDuration,
-                }}
-                className="text-lg md:text-2xl font-light mt-2 drop-shadow-md"
-              >
-                {slides[imageIndex].subtitle}
-              </motion.p>
-            )}
-          </motion.div>
-        </motion.div>
-      </AnimatePresence>
-
-      {/* Controls & Indicators */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: controlsDelay, duration: 0.8 }}
-        className="absolute inset-0 pointer-events-none"
-      >
-        <div className="absolute inset-0 flex items-center justify-between p-4 z-20">
-          <button
-            className={`pointer-events-auto p-3 rounded-full bg-black/20 hover:bg-white/20 backdrop-blur-md text-white transition-all ${
-              isIntro ? "opacity-50 pointer-events-none" : ""
-            }`}
-            onClick={() => {
-              if (isIntro) return;
-              paginate(-1);
-            }}
-            aria-disabled={isIntro}
-          >
-            <ChevronLeft size={32} />
-          </button>
-          <button
-            className={`pointer-events-auto p-3 rounded-full bg-black/20 hover:bg-white/20 backdrop-blur-md text-white transition-all ${
-              isIntro ? "opacity-50 pointer-events-none" : ""
-            }`}
-            onClick={() => {
-              if (isIntro) return;
-              paginate(1);
-            }}
-            aria-disabled={isIntro}
-          >
-            <ChevronRight size={32} />
-          </button>
-        </div>
-
-        <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 flex space-x-3 z-20 pointer-events-none">
-          {slides.map((_, index) => (
-            <button
-              key={index}
-              onClick={() => {
-                if (isIntro) return;
-                const direction = index > imageIndex ? 1 : -1;
-                setPage(([p]) => [p + (index - imageIndex), direction]);
-              }}
-              className={`h-2 rounded-full transition-all duration-300 pointer-events-auto ${
-                index === imageIndex ? "w-8 bg-white" : "w-2 bg-white/40"
-              }`}
-            />
-          ))}
-        </div>
-      </motion.div>
-    </div>
-  );
-};
-
-// --- 3. MAIN SHOP COMPONENT ---
+// ... Internal HeroCarousel/ProductCard components (imported) ...
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -313,8 +61,8 @@ const Shop = () => {
 
   // --- API DATA STATE ---
   const [products, setProducts] = useState([]);
+  const [banners, setBanners] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
 
   // --- FILTER STATE ---
   const [isMobile, setIsMobile] = useState(false);
@@ -331,7 +79,6 @@ const Shop = () => {
   const [startX, setStartX] = useState(0);
   const [scrollLeft, setScrollLeft] = useState(0);
 
-  // --- INIT MOBILE CHECK ---
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
     checkMobile();
@@ -339,7 +86,6 @@ const Shop = () => {
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
-  // --- INTRO SEQUENCE ---
   useEffect(() => {
     if (isIntroSequence) {
       const timer = setTimeout(() => {
@@ -349,14 +95,26 @@ const Shop = () => {
     }
   }, [isIntroSequence]);
 
-  // --- DATA FETCHING (SERVER-SIDE FILTERING) ---
   useEffect(() => {
-    const fetchProducts = async () => {
+    const fetchBannersAndProducts = async () => {
       setLoading(true);
-      setError(null);
 
       try {
-        // Build filters object
+        // Fetch SHOP Banners
+        const bannerRes = await getBanners("shop");
+        if (bannerRes.success) {
+          const formattedBanners = bannerRes.data.map((b) => ({
+            id: b._id || b.id,
+            desktopSrc: getImageUrl(b.image),
+            tabletSrc: getImageUrl(b.image),
+            mobileSrc: getImageUrl(b.image),
+            title: b.title,
+            subtitle: b.subtitle,
+          }));
+          setBanners(formattedBanners);
+        }
+
+        // Fetch Products
         const filters = {
           category: activeCategory,
           search: searchQuery,
@@ -366,45 +124,31 @@ const Shop = () => {
         };
 
         const res = await getAllProducts(filters);
-
-        if (res.success) {
-          setProducts(res.data);
-        } else {
-          // If search returns 404/no data, just set empty array rather than error
-          setProducts([]);
-        }
+        if (res.success) setProducts(res.data);
+        else setProducts([]);
       } catch (err) {
         console.error("Fetch Error:", err);
-        setError("Failed to load products.");
       } finally {
         setLoading(false);
       }
     };
 
-    // Debounce Search to prevent too many API calls
     const debounceTimer = setTimeout(() => {
-      fetchProducts();
-    }, 400); // 400ms delay after typing stops
+      fetchBannersAndProducts();
+    }, 400);
 
     return () => clearTimeout(debounceTimer);
   }, [activeCategory, searchQuery, priceRange, sortOption]);
 
-  // --- GROUPING LOGIC (SUBCATEGORY BANNERS) ---
   const groupedProducts = useMemo(() => {
     if (!products.length) return {};
-
     const groups = {};
     products.forEach((product) => {
-      // Use subCategory if available, otherwise fallback to category or "General Collection"
       const groupKey =
         product.subCategory || product.category || "General Collection";
-      if (!groups[groupKey]) {
-        groups[groupKey] = [];
-      }
+      if (!groups[groupKey]) groups[groupKey] = [];
       groups[groupKey].push(product);
     });
-
-    // Sort keys alphabetically
     return Object.keys(groups)
       .sort()
       .reduce((acc, key) => {
@@ -413,17 +157,14 @@ const Shop = () => {
       }, {});
   }, [products]);
 
-  // --- HANDLERS ---
-
+  // Handlers (Drag, Filters)
   const handleMouseDown = (e) => {
     setIsDragging(true);
     setStartX(e.pageX - scrollContainerRef.current.offsetLeft);
     setScrollLeft(scrollContainerRef.current.scrollLeft);
   };
-
   const handleMouseLeave = () => setIsDragging(false);
   const handleMouseUp = () => setIsDragging(false);
-
   const handleMouseMove = (e) => {
     if (!isDragging) return;
     e.preventDefault();
@@ -431,21 +172,17 @@ const Shop = () => {
     const walk = (x - startX) * 2;
     scrollContainerRef.current.scrollLeft = scrollLeft - walk;
   };
-
   const handlePriceChange = (e, type) => {
     const value = Math.min(Math.max(Number(e.target.value), 0), 1000);
     if (type === "min") {
-      if (value <= priceRange.max) {
+      if (value <= priceRange.max)
         setPriceRange((prev) => ({ ...prev, min: value }));
-      }
     } else {
-      if (value >= priceRange.min) {
+      if (value >= priceRange.min)
         setPriceRange((prev) => ({ ...prev, max: value }));
-      }
     }
   };
 
-  // --- ANIMATION TIMING ---
   const SHRINK_DELAY = fromZoom ? 0.5 : 0;
   const TEXT_DELAY = fromZoom ? 1.2 : 0;
   const CONTROLS_DELAY = fromZoom ? 1.2 : 0;
@@ -466,7 +203,7 @@ const Shop = () => {
         .range-input::-moz-range-thumb { height: 20px; width: 20px; border: none; border-radius: 50%; background: ${theme.text}; pointer-events: auto; -moz-appearance: none; box-shadow: 0 0 6px rgba(0,0,0,0.2); cursor: pointer; }
       `}</style>
 
-      {/* --- CAROUSEL WITH SHRINK ANIMATION --- */}
+      {/* --- CAROUSEL (Uses SHOP Banners) --- */}
       <motion.div
         initial={fromZoom ? { height: "100vh" } : false}
         animate={{ height: isMobile ? "60vh" : "70vh" }}
@@ -479,26 +216,28 @@ const Shop = () => {
         style={!fromZoom ? { height: isMobile ? "60vh" : "70vh" } : {}}
       >
         <div className="w-full h-full">
-          <HeroCarousel
-            slides={HERO_SLIDES}
-            textDelay={TEXT_DELAY}
-            controlsDelay={CONTROLS_DELAY}
-            isIntro={isIntroSequence}
-          />
+          {banners.length > 0 ? (
+            <HeroCarousel
+              slides={banners}
+              textDelay={TEXT_DELAY}
+              controlsDelay={CONTROLS_DELAY}
+              isIntro={isIntroSequence}
+            />
+          ) : (
+            <div className="w-full h-full bg-black flex items-center justify-center">
+              <Loader2 className="animate-spin text-white opacity-50" />
+            </div>
+          )}
         </div>
       </motion.div>
 
-      {/* --- REST OF PAGE FADE IN --- */}
+      {/* --- CONTENT --- */}
       <motion.div
         initial={{ opacity: 0, y: 40 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{
-          delay: CONTENT_DELAY,
-          duration: 0.8,
-          ease: "easeOut",
-        }}
+        transition={{ delay: CONTENT_DELAY, duration: 0.8, ease: "easeOut" }}
       >
-        {/* 2. FILTER BAR */}
+        {/* Filter Bar */}
         <div
           ref={productSectionRef}
           className="w-full px-6 md:px-12 py-6 border-y transition-colors duration-300"
@@ -508,7 +247,6 @@ const Shop = () => {
           }}
         >
           <div className="max-w-[1600px] mx-auto flex flex-col xl:flex-row gap-6 items-center justify-between">
-            {/* LEFT: Categories */}
             <div className="flex-1 min-w-0 w-full xl:w-auto relative">
               <div
                 ref={scrollContainerRef}
@@ -517,12 +255,6 @@ const Shop = () => {
                 onMouseUp={handleMouseUp}
                 onMouseMove={handleMouseMove}
                 className="no-scrollbar flex items-center gap-3 overflow-x-auto w-full pb-2 md:pb-0 cursor-grab active:cursor-grabbing select-none px-6"
-                style={{
-                  maskImage:
-                    "linear-gradient(to right, transparent, black 20px, black calc(100% - 20px), transparent)",
-                  WebkitMaskImage:
-                    "linear-gradient(to right, transparent, black 20px, black calc(100% - 20px), transparent)",
-                }}
               >
                 {CATEGORIES.map((cat) => (
                   <button
@@ -549,9 +281,7 @@ const Shop = () => {
               </div>
             </div>
 
-            {/* RIGHT: Search, Price, Sort */}
             <div className="flex-none w-full xl:w-auto flex flex-wrap lg:flex-nowrap items-center gap-4 justify-between xl:justify-end">
-              {/* Search */}
               <div className="relative group w-full sm:w-auto flex-1 md:w-72">
                 <Search
                   size={18}
@@ -572,7 +302,6 @@ const Shop = () => {
               </div>
 
               <div className="flex gap-3 w-full sm:w-auto">
-                {/* Price Filter */}
                 <div className="relative w-1/2 sm:w-auto">
                   <button
                     onClick={() => {
@@ -596,7 +325,6 @@ const Shop = () => {
                       }`}
                     />
                   </button>
-
                   <AnimatePresence>
                     {isPriceOpen && (
                       <motion.div
@@ -626,7 +354,6 @@ const Shop = () => {
                               Reset
                             </button>
                           </div>
-
                           <div className="py-2 px-1">
                             <div className="range-slider">
                               <div
@@ -656,7 +383,6 @@ const Shop = () => {
                               />
                             </div>
                           </div>
-
                           <div className="flex items-center gap-3">
                             <div
                               className="flex-1 p-2 rounded-lg border text-center"
@@ -688,7 +414,6 @@ const Shop = () => {
                   </AnimatePresence>
                 </div>
 
-                {/* Sort */}
                 <div className="relative w-1/2 sm:w-auto">
                   <button
                     onClick={() => {
@@ -713,7 +438,6 @@ const Shop = () => {
                       }`}
                     />
                   </button>
-
                   <AnimatePresence>
                     {isSortOpen && (
                       <motion.div
@@ -758,11 +482,10 @@ const Shop = () => {
           </div>
         </div>
 
-        {/* 3. PRODUCT GRID */}
+        {/* Product Grid */}
         <div className="max-w-[1600px] mx-auto px-6 md:px-12 py-12 min-h-[500px]">
           <AnimatePresence mode="popLayout">
             {loading ? (
-              // --- LOADING STATE ---
               <motion.div
                 key="loader"
                 initial={{ opacity: 0 }}
@@ -779,7 +502,6 @@ const Shop = () => {
                 </p>
               </motion.div>
             ) : products.length > 0 ? (
-              // --- PRODUCTS GRID (GROUPED BY SUBCATEGORY) ---
               <div className="space-y-24">
                 {Object.keys(groupedProducts).map((groupTitle) => (
                   <motion.div
@@ -789,13 +511,9 @@ const Shop = () => {
                     transition={{ duration: 0.5 }}
                     className="relative"
                   >
-                    {/* BANNER HEADER - REPLACED WITH SOLID BLOCK STYLE */}
                     <div
                       className="w-full py-10 rounded-3xl mb-10 flex flex-col items-center justify-center shadow-lg transition-transform hover:scale-[1.01]"
-                      style={{
-                        backgroundColor: theme.text, // Solid block color (black in light mode)
-                        color: theme.bg, // Inverted text color (white in light mode)
-                      }}
+                      style={{ backgroundColor: theme.text, color: theme.bg }}
                     >
                       <h2 className="text-2xl md:text-4xl font-black uppercase tracking-[0.3em] text-center z-10">
                         {groupTitle}
@@ -805,8 +523,6 @@ const Shop = () => {
                         ({groupedProducts[groupTitle].length})
                       </span>
                     </div>
-
-                    {/* PRODUCT GRID FOR THIS SUBCATEGORY */}
                     <motion.div
                       layout
                       variants={containerVariants}
@@ -850,7 +566,6 @@ const Shop = () => {
                 ))}
               </div>
             ) : (
-              // --- EMPTY STATE ---
               <motion.div
                 key="empty"
                 initial={{ opacity: 0 }}

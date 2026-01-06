@@ -872,4 +872,56 @@ export async function addReview(productId, rating, comment) {
   }
 }
 
+// ==============================================================
+// BANNER ENDPOINTS (Corrected)
+// ==============================================================
+
+// 1. Get Banners
+export const getBanners = async (page = "") => {
+  try {
+    // Use 'api' instance to ensure cookies are sent
+    const endpoint = page ? `/banners?page=${page}` : "/banners";
+    const response = await api.get(endpoint);
+    return { success: true, data: response.data };
+  } catch (error) {
+    return {
+      success: false,
+      message: error.response?.data?.message || "Failed to fetch banners",
+    };
+  }
+};
+
+// 2. Create Banner (Upload)
+export const createBanner = async (formData) => {
+  try {
+    const response = await api.post("/admin/banners", formData, {
+      headers: {
+        // SETTING THIS TO UNDEFINED IS MAGIC
+        // It forces the browser to set the boundary and content-type automatically
+        "Content-Type": undefined,
+      },
+    });
+    return { success: true, data: response.data };
+  } catch (error) {
+    console.error("Banner Upload Error:", error);
+    return {
+      success: false,
+      message: error.response?.data?.message || "Failed to create banner",
+    };
+  }
+};
+
+// 3. Delete Banner
+export const deleteBanner = async (id) => {
+  try {
+    const response = await api.delete(`/admin/banners/${id}`);
+    return { success: true, data: response.data };
+  } catch (error) {
+    return {
+      success: false,
+      message: error.response?.data?.message || "Failed to delete banner",
+    };
+  }
+};
+
 export default api;

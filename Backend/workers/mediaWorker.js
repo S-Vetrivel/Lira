@@ -12,6 +12,7 @@ sharp.cache(false);
 require("../models/galleryModel");
 require("../models/userModel");
 require("../models/productModel");
+require("../models/bannerModal");
 
 const BUCKET = process.env.MINIO_BUCKET_NAME;
 
@@ -94,7 +95,6 @@ const worker = new Worker(
       await minio.fPutObject(BUCKET, objectKey, tempOutput, {
         "Content-Type": "image/webp",
       });
-
 
       console.log(`[Worker][STEP 4] MinIO upload DONE`);
 

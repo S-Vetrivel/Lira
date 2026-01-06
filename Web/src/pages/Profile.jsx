@@ -22,6 +22,7 @@ import ProductsTab from "../components/profile/tabs/ProductsTab";
 import { PROFILE_TABS } from "../components/profile/constants";
 import UsersTab from "../components/profile/tabs/UsersTab";
 import ProcessingTab from "../components/profile/tabs/ProcessingTab";
+import BannerTab from "../components/profile/tabs/BannerTab";
 
 // Map IDs to Component Objects
 const TAB_COMPONENTS = {
@@ -32,6 +33,7 @@ const TAB_COMPONENTS = {
   products: ProductsTab,
   users: UsersTab,
   processing: ProcessingTab,
+  banner: BannerTab,
 };
 
 export default function Profile() {
