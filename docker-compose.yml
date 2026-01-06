@@ -7,7 +7,7 @@ networks:
 services:
   backend:
     build: ./Backend
-    container_name: ecommerce-backend
+    container_name: 4i-backend
     restart: unless-stopped
     env_file:
       - ./Backend/.env
@@ -18,7 +18,7 @@ services:
 
   frontend:
     build: ./Web
-    container_name: ecommerce-frontend
+    container_name: 4i-frontend
     restart: unless-stopped
     networks:
       - infra_internal
