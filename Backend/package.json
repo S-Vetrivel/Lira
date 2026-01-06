@@ -15,6 +15,7 @@
     "bcryptjs": "^3.0.3",
     "body-parser": "^2.2.1",
     "bullmq": "^5.66.0",
+    "concurrently": "^9.2.1",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
