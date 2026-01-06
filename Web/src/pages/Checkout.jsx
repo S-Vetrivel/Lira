@@ -287,7 +287,7 @@ const Checkout = () => {
               <CreditCard size={18} /> Payment Method
             </h3>
             <div className="space-y-4">
-              {["COD", "ONLINE"].map((method) => (
+              {["COD"].map((method) => (
                 <div
                   key={method}
                   onClick={() => setPaymentMethod(method)}

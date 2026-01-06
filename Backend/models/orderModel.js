@@ -50,7 +50,7 @@ const OrderSchema = new Schema(
       phone: { type: String },
     },
     totalAmount: { type: Number, required: true },
-    paymentMethod: { type: String, enum: ["COD", "Online"], default: "COD" },
+    paymentMethod: { type: String, enum: ["COD"], default: "COD" },
     paymentStatus: {
       type: String,
       enum: ["Pending", "Paid", "Failed", "Refunded"],
