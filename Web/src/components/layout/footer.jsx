@@ -245,7 +245,7 @@ const Footer = () => {
               opacity: 0.03,
             }}
           >
-            IHYAET
+            4I
           </motion.h1>
         </div>
       </div>
