@@ -4,11 +4,11 @@ const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const bodyParser = require("body-parser");
 const passport = require("passport");
+const { createServer } = require("http");
 
 require("./config/passport")(passport);
 const connectMongo = require("./config/connectMongo");
 
-const { createServer } = require("http");
 const app = express();
 const server = createServer(app);
 
@@ -28,6 +28,16 @@ if (USE_MINIO) {
 }
 
 // -----------------
+// DIAGNOSTIC MIDDLEWARE (TOP)
+// -----------------
+app.use((req, res, next) => {
+  res.setHeader("X-Backend-Hit", "true");
+  // Log all requests to console
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  next();
+});
+
+// -----------------
 // MIDDLEWARE
 // -----------------
 app.use(
@@ -42,80 +52,60 @@ app.use(express.json());
 app.use(bodyParser.json());
 app.use(passport.initialize());
 
-// Logging Middleware
-app.use((req, res, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
-  next();
-});
+// -----------------
+// ROUTES
+// -----------------
 
-// ------------------------------------------------
-// FILE SERVING — MINIO PROXY (LIKE YOUR EXAMPLE)
-// ------------------------------------------------
+// 1. Minio Proxy for uploads
 app.get(/^\/(?:api\/)?uploads\/(.+)$/, async (req, res) => {
   if (!USE_MINIO || !minioClient) {
     return res.status(404).send("Storage provider not enabled");
   }
 
-  const objectName = req.params[0]; // product/abc.webp
-
+  const objectName = req.params[0];
   try {
-    // Ensure object exists
-    await minioClient.statObject(BUCKET_NAME, objectName);
-
-    // Stream from MinIO
     const stream = await minioClient.getObject(BUCKET_NAME, objectName);
-
-    // Basic headers (can be improved later)
-    res.setHeader("Cache-Control", "public, max-age=86400");
-    res.setHeader("Content-Type", "image/webp");
-
     stream.pipe(res);
   } catch (err) {
-    console.error(`[MinIO Proxy] File not found: ${objectName}`);
     res.status(404).send("File not found");
   }
 });
 
+// 2. Health & Ping (Bypass DB)
+app.get("/api/ping", (req, res) => res.send("pong"));
+app.get("/api/health", (req, res) => res.json({ status: "alive" }));
+
+// 3. Main API Routes
+app.use("/api", require("./routes/index"));
+
+// 4. Catch-all for unmatched /api routes
+app.use("/api", (req, res) => {
+  console.log(`[404 DEBUG] Unmatched API path: ${req.originalUrl}`);
+  res.status(404).json({
+    success: false,
+    message: `Route ${req.originalUrl} not found on this server`,
+  });
+});
+
 // -----------------
-// BOOTSTRAP
+// STARTUP
 // -----------------
 const port = process.env.PORT || 5000;
-console.log(`>>> BACKEND ATTEMPTING TO START ON PORT ${port} <<<`);
 
+// Listen IMMEDIATELY so we can debug connectivity
+server.listen(port, "0.0.0.0", () => {
+  console.log(`☑️ Backend server listening on port ${port}`);
+  console.log(`>>> DIAGNOSTIC: Try visiting /api/ping <<<`);
+});
+
+// Background DB Connection (Don't let it crash the server)
 (async () => {
   try {
-    // 1. Register routes BEFORE DB connection to ensure they are available
-    app.use("/api", require("./routes/index"));
-
-    app.get("/api/health", (req, res) => {
-      res.status(200).json({ status: "OK", timestamp: new Date().toISOString() });
-    });
-
-    app.get("/api/ping", (req, res) => {
-      res.send("pong");
-    });
-
-    console.log(">>> ROUTES REGISTERED <<<");
-
-    // 2. Connect to Database
     await connectMongo();
-    console.log(">>> MONGO CONNECTED <<<");
-
-    // 3. Catch-all for unmatched /api routes
-    app.use("/api/*", (req, res) => {
-      console.log(`[404 DEBUG] Unmatched API path: ${req.originalUrl}`);
-      res.status(404).json({
-        success: false,
-        message: `Route ${req.originalUrl} not found on this server`,
-      });
-    });
-
-    server.listen(port, "0.0.0.0", () => {
-      console.log(`☑️ Server running on port ${port}`);
-    });
+    console.log("✅ MongoDB initialization complete");
   } catch (err) {
-    console.error(">>> STARTUP FAILED <<<", err);
-    process.exit(1);
+    console.error("❌ MONGODB INITIALIZATION FAILED:", err.message);
+    // We stay alive so the user can still hit /api/ping to verify Nginx
   }
 })();
 
