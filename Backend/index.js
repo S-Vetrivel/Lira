@@ -79,6 +79,12 @@ app.get(/^\/(?:api\/)?uploads\/(.+)$/, async (req, res) => {
 // -----------------
 // ROUTES
 // -----------------
+// Hit tracker middleware
+app.use((req, res, next) => {
+  res.setHeader("X-Backend-Hit", "true");
+  next();
+});
+
 app.use("/api", require("./routes/index"));
 
 // Health check
@@ -95,10 +101,12 @@ app.get("/api/ping", (req, res) => {
 // BOOTSTRAP
 // -----------------
 const port = process.env.PORT || 5000;
+console.log(`>>> BACKEND ATTEMPTING TO START ON PORT ${port} <<<`);
 
 (async () => {
   try {
     await connectMongo();
+    console.log(">>> MONGO CONNECTED <<<");
 
     // Catch-all for unmatched /api routes
     app.use("/api/*", (req, res) => {
@@ -113,7 +121,7 @@ const port = process.env.PORT || 5000;
       console.log(`☑️ Server running on port ${port}`);
     });
   } catch (err) {
-    console.error("Startup failed:", err);
+    console.error(">>> STARTUP FAILED <<<", err);
     process.exit(1);
   }
 })();
