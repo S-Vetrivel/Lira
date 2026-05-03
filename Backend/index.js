@@ -42,6 +42,12 @@ app.use(express.json());
 app.use(bodyParser.json());
 app.use(passport.initialize());
 
+// Logging Middleware
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  next();
+});
+
 // ------------------------------------------------
 // FILE SERVING — MINIO PROXY (LIKE YOUR EXAMPLE)
 // ------------------------------------------------
@@ -80,6 +86,11 @@ const port = process.env.PORT || 5000;
     await connectMongo();
 
     app.use("/api", require("./routes/index"));
+
+    // Health check
+    app.get("/api/health", (req, res) => {
+      res.status(200).json({ status: "OK", timestamp: new Date().toISOString() });
+    });
 
 
     server.listen(port, "0.0.0.0", () => {
