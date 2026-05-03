@@ -77,27 +77,6 @@ app.get(/^\/(?:api\/)?uploads\/(.+)$/, async (req, res) => {
 });
 
 // -----------------
-// ROUTES
-// -----------------
-// Hit tracker middleware
-app.use((req, res, next) => {
-  res.setHeader("X-Backend-Hit", "true");
-  next();
-});
-
-app.use("/api", require("./routes/index"));
-
-// Health check
-app.get("/api/health", (req, res) => {
-  res.status(200).json({ status: "OK", timestamp: new Date().toISOString() });
-});
-
-// Simple Ping
-app.get("/api/ping", (req, res) => {
-  res.send("pong");
-});
-
-// -----------------
 // BOOTSTRAP
 // -----------------
 const port = process.env.PORT || 5000;
@@ -105,10 +84,24 @@ console.log(`>>> BACKEND ATTEMPTING TO START ON PORT ${port} <<<`);
 
 (async () => {
   try {
+    // 1. Register routes BEFORE DB connection to ensure they are available
+    app.use("/api", require("./routes/index"));
+
+    app.get("/api/health", (req, res) => {
+      res.status(200).json({ status: "OK", timestamp: new Date().toISOString() });
+    });
+
+    app.get("/api/ping", (req, res) => {
+      res.send("pong");
+    });
+
+    console.log(">>> ROUTES REGISTERED <<<");
+
+    // 2. Connect to Database
     await connectMongo();
     console.log(">>> MONGO CONNECTED <<<");
 
-    // Catch-all for unmatched /api routes
+    // 3. Catch-all for unmatched /api routes
     app.use("/api/*", (req, res) => {
       console.log(`[404 DEBUG] Unmatched API path: ${req.originalUrl}`);
       res.status(404).json({
