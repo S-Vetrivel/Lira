@@ -90,7 +90,7 @@ app.use("/api", (req, res) => {
 // -----------------
 // STARTUP
 // -----------------
-const port = process.env.PORT || 5000;
+const port = 5000; // Forced to 5000 to match Nginx proxy_pass and avoid conflict with Nginx on 3000
 
 // Listen IMMEDIATELY so we can debug connectivity
 server.listen(port, "0.0.0.0", () => {
