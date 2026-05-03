@@ -74,13 +74,23 @@ app.get(/^\/uploads\/(.+)$/, async (req, res) => {
 // -----------------
 // BOOTSTRAP
 // -----------------
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 5000;
 
 (async () => {
   try {
     await connectMongo();
 
     app.use("/api", require("./routes/index"));
+
+    // Serve static files from the React app
+    const distPath = path.join(__dirname, "../Web/dist");
+    app.use(express.static(distPath));
+
+    // Handle SPA routing
+    app.get("*", (req, res) => {
+      if (req.path.startsWith("/api")) return;
+      res.sendFile(path.join(distPath, "index.html"));
+    });
 
     server.listen(port, "0.0.0.0", () => {
       console.log(`☑️ Server running on port ${port}`);

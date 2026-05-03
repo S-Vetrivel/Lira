@@ -3,7 +3,7 @@ import toast from "react-hot-toast";
 
 // 1. Configuration Constants
 const API_URL = `${import.meta.env.VITE_API_URL}/api`;
-export const GOOGLE_AUTH_URL = `${API_URL}/auth/google`;
+export const GOOGLE_AUTH_URL = `${API_URL}/api/auth/google`;
 
 // 2. Create Axios Instance
 const api = axios.create({
