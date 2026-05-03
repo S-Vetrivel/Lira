@@ -4,7 +4,6 @@ const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const bodyParser = require("body-parser");
 const passport = require("passport");
-const path = require("path");
 
 require("./config/passport")(passport);
 const connectMongo = require("./config/connectMongo");
@@ -46,7 +45,7 @@ app.use(passport.initialize());
 // ------------------------------------------------
 // FILE SERVING — MINIO PROXY (LIKE YOUR EXAMPLE)
 // ------------------------------------------------
-app.get(/^\/uploads\/(.+)$/, async (req, res) => {
+app.get(/^\/(?:api\/)?uploads\/(.+)$/, async (req, res) => {
   if (!USE_MINIO || !minioClient) {
     return res.status(404).send("Storage provider not enabled");
   }
@@ -82,15 +81,6 @@ const port = process.env.PORT || 5000;
 
     app.use("/api", require("./routes/index"));
 
-    // Serve static files from the React app
-    const distPath = path.join(__dirname, "../Web/dist");
-    app.use(express.static(distPath));
-
-    // Handle SPA routing
-    app.get("*", (req, res) => {
-      if (req.path.startsWith("/api")) return;
-      res.sendFile(path.join(distPath, "index.html"));
-    });
 
     server.listen(port, "0.0.0.0", () => {
       console.log(`☑️ Server running on port ${port}`);
