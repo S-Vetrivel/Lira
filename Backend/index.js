@@ -77,6 +77,21 @@ app.get(/^\/(?:api\/)?uploads\/(.+)$/, async (req, res) => {
 });
 
 // -----------------
+// ROUTES
+// -----------------
+app.use("/api", require("./routes/index"));
+
+// Health check
+app.get("/api/health", (req, res) => {
+  res.status(200).json({ status: "OK", timestamp: new Date().toISOString() });
+});
+
+// Simple Ping
+app.get("/api/ping", (req, res) => {
+  res.send("pong");
+});
+
+// -----------------
 // BOOTSTRAP
 // -----------------
 const port = process.env.PORT || 5000;
@@ -85,13 +100,14 @@ const port = process.env.PORT || 5000;
   try {
     await connectMongo();
 
-    app.use("/api", require("./routes/index"));
-
-    // Health check
-    app.get("/api/health", (req, res) => {
-      res.status(200).json({ status: "OK", timestamp: new Date().toISOString() });
+    // Catch-all for unmatched /api routes
+    app.use("/api/*", (req, res) => {
+      console.log(`[404 DEBUG] Unmatched API path: ${req.originalUrl}`);
+      res.status(404).json({
+        success: false,
+        message: `Route ${req.originalUrl} not found on this server`,
+      });
     });
-
 
     server.listen(port, "0.0.0.0", () => {
       console.log(`☑️ Server running on port ${port}`);
