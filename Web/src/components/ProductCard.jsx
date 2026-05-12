@@ -195,7 +195,7 @@ const ProductCard = (props) => {
           className="text-lg font-semibold"
           style={{ color: theme.card?.textPrimary || "#000" }}
         >
-          ${price}
+          ₹{price}
         </p>
       </div>
     </div>

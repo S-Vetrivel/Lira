@@ -4,7 +4,7 @@ import {
   Search,
   SlidersHorizontal,
   ChevronDown,
-  DollarSign,
+  IndianRupee,
   Loader2,
 } from "lucide-react";
 import { ThemeContext } from "../context/ThemeContext";
@@ -173,7 +173,7 @@ const Shop = () => {
     scrollContainerRef.current.scrollLeft = scrollLeft - walk;
   };
   const handlePriceChange = (e, type) => {
-    const value = Math.min(Math.max(Number(e.target.value), 0), 1000);
+    const value = Math.min(Math.max(Number(e.target.value), 0), 10000);
     if (type === "min") {
       if (value <= priceRange.max)
         setPriceRange((prev) => ({ ...prev, min: value }));
@@ -315,7 +315,7 @@ const Shop = () => {
                     }}
                   >
                     <div className="flex items-center gap-2">
-                      <DollarSign size={16} />
+                      <IndianRupee size={16} />
                       <span>Price</span>
                     </div>
                     <ChevronDown
@@ -347,7 +347,7 @@ const Shop = () => {
                             </span>
                             <button
                               onClick={() =>
-                                setPriceRange({ min: 0, max: 1000 })
+                                setPriceRange({ min: 0, max: 10000 })
                               }
                               className="text-xs font-semibold opacity-50 hover:opacity-100 transition-opacity"
                             >
@@ -359,9 +359,9 @@ const Shop = () => {
                               <div
                                 className="range-progress"
                                 style={{
-                                  left: `${(priceRange.min / 1000) * 100}%`,
+                                  left: `${(priceRange.min / 10000) * 100}%`,
                                   right: `${
-                                    100 - (priceRange.max / 1000) * 100
+                                    100 - (priceRange.max / 10000) * 100
                                   }%`,
                                 }}
                               ></div>
@@ -369,7 +369,7 @@ const Shop = () => {
                                 type="range"
                                 className="range-input"
                                 min="0"
-                                max="1000"
+                                max="10000"
                                 value={priceRange.min}
                                 onChange={(e) => handlePriceChange(e, "min")}
                               />
@@ -377,7 +377,7 @@ const Shop = () => {
                                 type="range"
                                 className="range-input"
                                 min="0"
-                                max="1000"
+                                max="10000"
                                 value={priceRange.max}
                                 onChange={(e) => handlePriceChange(e, "max")}
                               />
@@ -392,7 +392,7 @@ const Shop = () => {
                                 Min Price
                               </span>
                               <span className="font-mono text-sm">
-                                ${priceRange.min}
+                                ₹{priceRange.min}
                               </span>
                             </div>
                             <span className="opacity-30">-</span>
@@ -404,7 +404,7 @@ const Shop = () => {
                                 Max Price
                               </span>
                               <span className="font-mono text-sm">
-                                ${priceRange.max}
+                                ₹{priceRange.max}
                               </span>
                             </div>
                           </div>

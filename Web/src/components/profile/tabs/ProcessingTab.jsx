@@ -7,7 +7,7 @@ import {
   ChevronRight,
   MapPin,
   Calendar,
-  DollarSign,
+  IndianRupee,
   Save,
   Loader2,
   Clock,
@@ -259,7 +259,7 @@ const OrderCard = ({ order, theme, onClick }) => {
             <Package size={12} /> {order.items?.length} items
           </span>
           <span className="flex items-center gap-1">
-            <DollarSign size={12} /> ₹{order.totalAmount}
+            <IndianRupee size={12} /> ₹{order.totalAmount}
           </span>
         </div>
       </div>

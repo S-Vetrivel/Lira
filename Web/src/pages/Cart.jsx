@@ -34,7 +34,7 @@ export default function Cart() {
 
   // --- 1. Calculate Totals ---
   const subtotal = cart?.totalPrice || 0;
-  const shipping = subtotal > 200 || subtotal === 0 ? 0 : 15; // Free shipping over $200
+  const shipping = subtotal > 2000 || subtotal === 0 ? 0 : 150; // Free shipping over ₹2000
   const tax = subtotal * 0.08; // 8% Tax
   const total = subtotal + shipping + tax;
 
@@ -180,7 +180,7 @@ export default function Cart() {
                             </p>
                           </div>
                           <p className="font-bold text-lg">
-                            ${item.price.toFixed(2)}
+                            ₹{item.price.toFixed(2)}
                           </p>
                         </div>
 
@@ -272,17 +272,17 @@ export default function Cart() {
                   <div className="space-y-4 mb-8 text-sm font-medium opacity-80">
                     <div className="flex justify-between">
                       <span>Subtotal</span>
-                      <span>${subtotal.toFixed(2)}</span>
+                      <span>₹{subtotal.toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between">
                       <span>Shipping Estimate</span>
                       <span>
-                        {shipping === 0 ? "Free" : `$${shipping.toFixed(2)}`}
+                        {shipping === 0 ? "Free" : `₹${shipping.toFixed(2)}`}
                       </span>
                     </div>
                     <div className="flex justify-between">
                       <span>Tax Estimate (8%)</span>
-                      <span>${tax.toFixed(2)}</span>
+                      <span>₹{tax.toFixed(2)}</span>
                     </div>
                   </div>
 
@@ -290,7 +290,7 @@ export default function Cart() {
 
                   <div className="flex justify-between items-center text-xl font-bold mb-8">
                     <span>Total</span>
-                    <span>${total.toFixed(2)}</span>
+                    <span>₹{total.toFixed(2)}</span>
                   </div>
 
                   <Link to="/checkout" state={{ cartTotal: total }}>
@@ -303,7 +303,7 @@ export default function Cart() {
                   </Link>
 
                   <p className="mt-6 text-xs text-center opacity-50 leading-relaxed">
-                    Secure Checkout. Free shipping on orders over $200. Returns
+                    Secure Checkout. Free shipping on orders over ₹2000. Returns
                     accepted within 30 days.
                   </p>
                 </motion.div>

@@ -74,7 +74,7 @@ const Checkout = () => {
 
   // --- CALCULATIONS ---
   const subtotal = cart?.totalPrice || 0;
-  const shipping = subtotal > 200 || subtotal === 0 ? 0 : 15;
+  const shipping = subtotal > 2000 || subtotal === 0 ? 0 : 150;
   const tax = subtotal * 0.08;
   const total = subtotal + shipping + tax;
 

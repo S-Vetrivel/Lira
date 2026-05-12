@@ -23,7 +23,14 @@ import {
   updateUserRole,
   deleteUser,
   getUserDetailsForAdmin,
-} from "@/services/api";
+} from \"@/services/api\";
+
+const formatINR = (amount) =>
+  new Intl.NumberFormat(\"en-IN\", {
+    style: \"currency\",
+    currency: \"INR\",
+    maximumFractionDigits: 0,
+  }).format(amount);
 
 const UsersTab = () => {
   const { theme } = useContext(ThemeContext);
@@ -564,7 +571,7 @@ const UserInspectModal = ({ userId, onClose, theme }) => {
                               <span>
                                 {i.title} x{i.quantity}
                               </span>
-                              <span>₹{i.price * i.quantity}</span>
+                              <span>{formatINR(i.price * i.quantity)}</span>
                             </div>
                           ))}
                         </div>
@@ -573,7 +580,7 @@ const UserInspectModal = ({ userId, onClose, theme }) => {
                           style={{ borderColor: theme.navbar.border }}
                         >
                           <span>TOTAL</span>
-                          <span>₹{o.totalAmount}</span>
+                          <span>{formatINR(o.totalAmount)}</span>
                         </div>
                       </div>
                     ))
@@ -591,7 +598,7 @@ const UserInspectModal = ({ userId, onClose, theme }) => {
                       Current Cart Total
                     </span>
                     <span className="text-2xl font-black">
-                      ₹{data?.cart?.totalPrice || 0}
+                      {formatINR(data?.cart?.totalPrice || 0)}
                     </span>
                   </div>
                   {data?.cart?.items.length === 0 ? (
@@ -616,7 +623,7 @@ const UserInspectModal = ({ userId, onClose, theme }) => {
                           <h4 className="font-bold text-sm">{item.title}</h4>
                         </div>
                         <div className="text-right">
-                          <p className="font-bold">₹{item.price}</p>
+                          <p className="font-bold">{formatINR(item.price)}</p>
                         </div>
                       </div>
                     ))

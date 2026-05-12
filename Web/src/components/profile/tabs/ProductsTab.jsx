@@ -10,7 +10,7 @@ import {
   X,
   UploadCloud,
   Loader2,
-  DollarSign,
+  IndianRupee,
   Package,
   Check,
   Image as ImageIcon,
@@ -1240,7 +1240,7 @@ const Input = ({
       </label>
       <div className="relative">
         {type === "number" && isPrice && (
-          <DollarSign
+          <IndianRupee
             size={16}
             className="absolute left-4 top-1/2 -translate-y-1/2 opacity-40"
           />
