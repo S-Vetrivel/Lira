@@ -24,6 +24,11 @@ exports.createProduct = async (req, res) => {
       productData = JSON.parse(req.body.productData);
     }
 
+    // Strip immutable fields
+    delete productData._id;
+    delete productData.__v;
+    delete productData.createdAt;
+
     const newProduct = new Product(productData);
     const savedProduct = await newProduct.save();
 
@@ -45,6 +50,7 @@ exports.createProduct = async (req, res) => {
 
     res.status(201).json(savedProduct);
   } catch (err) {
+    console.error(`[Create Error] Msg: ${err.message}`);
     res.status(500).json({ error: err.message });
   }
 };
@@ -57,14 +63,21 @@ exports.updateProduct = async (req, res) => {
       updateData = JSON.parse(req.body.productData);
     }
 
+    // Strip immutable fields to prevent MongoDB errors
+    delete updateData._id;
+    delete updateData.__v;
+    delete updateData.createdAt;
+
     const updatedProduct = await Product.findByIdAndUpdate(
       req.params.id,
       { $set: updateData },
       { new: true, runValidators: true }
     );
 
-    if (!updatedProduct)
+    if (!updatedProduct) {
+      console.warn(`[Update] Product not found: ${req.params.id}`);
       return res.status(404).json({ message: "Product not found" });
+    }
 
     // Handle New Files
     if (req.files) {
@@ -84,6 +97,7 @@ exports.updateProduct = async (req, res) => {
 
     res.status(200).json(updatedProduct);
   } catch (err) {
+    console.error(`[Update Error] ID: ${req.params.id} | Msg: ${err.message}`);
     res.status(500).json({ error: err.message });
   }
 };

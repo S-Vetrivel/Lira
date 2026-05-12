@@ -471,9 +471,15 @@ const ProductFormModal = ({
       ...prev,
       visuals: prev.visuals.filter((_, i) => i !== idx),
     }));
-    const newFiles = { ...visualFiles };
-    delete newFiles[idx];
-    setVisualFiles(newFiles);
+    setVisualFiles((prev) => {
+      const next = {};
+      Object.keys(prev).forEach((key) => {
+        const k = parseInt(key);
+        if (k < idx) next[k] = prev[k];
+        if (k > idx) next[k - 1] = prev[k];
+      });
+      return next;
+    });
   };
 
   const handleFileChange = (e, idx) => {

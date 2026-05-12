@@ -17,8 +17,8 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
-// Allow up to 5 visual variants
-const fields = [0, 1, 2, 3, 4].map((i) => ({
+// Allow up to 20 visual variants
+const fields = Array.from({ length: 20 }, (_, i) => ({
   name: `images_${i}`,
   maxCount: 10,
 }));
