@@ -20,7 +20,7 @@ const upload = multer({ storage });
 // Allow up to 20 visual variants
 const fields = Array.from({ length: 20 }, (_, i) => ({
   name: `images_${i}`,
-  maxCount: 10,
+  maxCount: 50,
 }));
 
 router.post("/", upload.fields(fields), productController.createProduct);

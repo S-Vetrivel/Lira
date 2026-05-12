@@ -99,6 +99,19 @@ server.listen(port, "0.0.0.0", () => {
   console.log(`>>> DIAGNOSTIC: Try visiting /api/ping <<<`);
 });
 
+// -----------------
+// GLOBAL ERROR HANDLER
+// -----------------
+app.use((err, req, res, next) => {
+  console.error(`[Global Error] ${err.stack}`);
+  const status = err.status || err.statusCode || 500;
+  res.status(status).json({
+    success: false,
+    message: err.message || "Internal Server Error",
+    error: err.code || "UNKNOWN_ERROR",
+  });
+});
+
 // Background DB Connection (Don't let it crash the server)
 (async () => {
   try {
