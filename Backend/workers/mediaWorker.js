@@ -56,7 +56,8 @@ const worker = new Worker(
     console.log(`[Worker][STEP 2] Temp dir ready: ${tempDir}`);
 
     const timestamp = Date.now();
-    const finalFilename = `${modelName.toLowerCase()}-${fileId}-${timestamp}.webp`;
+    const randomStr = Math.random().toString(36).substring(2, 10);
+    const finalFilename = `${modelName.toLowerCase()}-${fileId}-${timestamp}-${randomStr}.webp`;
     const tempOutput = path.join(tempDir, finalFilename);
 
     try {
