@@ -6,7 +6,7 @@ const path = require("path");
 const BUCKET = process.env.MINIO_BUCKET_NAME;
 
 // --- HELPER: Queue Image Processing ---
-const queueBannerProcessing = async (file, bannerId) => {
+const queueBannerProcessing = async (file, bannerId, fieldName) => {
   // Use absolute path for worker reliability
   const absolutePath = path.resolve(file.path);
 
@@ -16,7 +16,7 @@ const queueBannerProcessing = async (file, bannerId) => {
     mimeType: file.mimetype,
     outputDir: path.join(__dirname, "../public/uploads"),
     modelName: "Banner",
-    fieldName: "image",
+    fieldName: fieldName,
     operation: "replace",
   });
 };
@@ -55,9 +55,14 @@ exports.createBanner = async (req, res) => {
 
     const savedBanner = await newBanner.save();
 
-    // Check req.file exists before queuing
-    if (req.file) {
-      await queueBannerProcessing(req.file, savedBanner._id);
+    // Check req.files exists before queuing
+    if (req.files) {
+      if (req.files.desktopImage && req.files.desktopImage[0]) {
+        await queueBannerProcessing(req.files.desktopImage[0], savedBanner._id, "desktopImage");
+      }
+      if (req.files.mobileImage && req.files.mobileImage[0]) {
+        await queueBannerProcessing(req.files.mobileImage[0], savedBanner._id, "mobileImage");
+      }
     }
 
     res.status(201).json(savedBanner);
@@ -110,8 +115,15 @@ exports.deleteBanner = async (req, res) => {
     const banner = await Banner.findById(req.params.id);
     if (!banner) return res.status(404).json({ message: "Not found" });
 
-    if (banner.image && banner.image.startsWith("/uploads/")) {
-      const objectKey = banner.image.replace("/uploads/", "");
+    if (banner.desktopImage && banner.desktopImage.startsWith("/uploads/")) {
+      const objectKey = banner.desktopImage.replace("/uploads/", "");
+      try {
+        await minio.removeObject(BUCKET, objectKey);
+      } catch (e) {}
+    }
+    
+    if (banner.mobileImage && banner.mobileImage.startsWith("/uploads/")) {
+      const objectKey = banner.mobileImage.replace("/uploads/", "");
       try {
         await minio.removeObject(BUCKET, objectKey);
       } catch (e) {}

@@ -81,9 +81,12 @@ export default function BannerTab() {
   // Upload Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [uploadForm, setUploadForm] = useState({ title: "", subtitle: "" });
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [previewUrl, setPreviewUrl] = useState("");
-  const fileInputRef = useRef(null);
+  const [desktopFile, setDesktopFile] = useState(null);
+  const [mobileFile, setMobileFile] = useState(null);
+  const [desktopPreview, setDesktopPreview] = useState("");
+  const [mobilePreview, setMobilePreview] = useState("");
+  const desktopInputRef = useRef(null);
+  const mobileInputRef = useRef(null);
 
   // --- Fetch Data ---
   const fetchBanners = async (showLoading = true) => {
@@ -106,33 +109,44 @@ export default function BannerTab() {
 
   // --- Handlers ---
 
-  const handleFileSelect = (e) => {
+  const handleDesktopSelect = (e) => {
     const file = e.target.files[0];
     if (file) {
-      setSelectedFile(file);
-      setPreviewUrl(URL.createObjectURL(file));
+      setDesktopFile(file);
+      setDesktopPreview(URL.createObjectURL(file));
+    }
+  };
+
+  const handleMobileSelect = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setMobileFile(file);
+      setMobilePreview(URL.createObjectURL(file));
     }
   };
 
   const handleUpload = async () => {
-    if (!selectedFile) return toast.error("Please select an image");
+    if (!desktopFile) return toast.error("Please select a desktop image at minimum");
 
     setIsSubmitting(true);
     const formData = new FormData();
     formData.append("title", uploadForm.title);
     formData.append("subtitle", uploadForm.subtitle);
     formData.append("page", activePage); // Upload to the currently active tab
-    formData.append("image", selectedFile);
+    if (desktopFile) formData.append("desktopImage", desktopFile);
+    if (mobileFile) formData.append("mobileImage", mobileFile);
 
     const res = await createBanner(formData);
 
     if (res.success) {
-      toast.success("Banner uploading... processing image.");
+      toast.success("Banner uploading... processing images.");
       setIsModalOpen(false);
       // Reset Form
       setUploadForm({ title: "", subtitle: "" });
-      setSelectedFile(null);
-      setPreviewUrl("");
+      setDesktopFile(null);
+      setMobileFile(null);
+      setDesktopPreview("");
+      setMobilePreview("");
 
       // --- CRITICAL: POLL FOR UPDATES ---
       // 1. Immediate fetch (gets record, might have temp or empty image)
@@ -270,8 +284,10 @@ export default function BannerTab() {
           <button
             onClick={() => {
               setUploadForm({ title: "", subtitle: "" });
-              setPreviewUrl("");
-              setSelectedFile(null);
+              setDesktopPreview("");
+              setMobilePreview("");
+              setDesktopFile(null);
+              setMobileFile(null);
               setIsModalOpen(true);
             }}
             className="flex items-center gap-2 px-6 py-3 rounded-full font-bold text-sm text-white shadow-xl hover:scale-105 transition-transform"
@@ -334,7 +350,7 @@ export default function BannerTab() {
                   {/* Image Area */}
                   <div className="aspect-video relative overflow-hidden bg-gray-100 dark:bg-gray-800">
                     <img
-                      src={getImageUrl(banner.image)}
+                      src={getImageUrl(banner.desktopImage || banner.image)}
                       alt={banner.title}
                       className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                     />
@@ -457,36 +473,70 @@ export default function BannerTab() {
         theme={theme}
       >
         <div className="space-y-6">
-          <div className="space-y-2">
-            <label className="text-xs font-bold uppercase opacity-60">
-              Image ({activePage})
-            </label>
-            <label
-              className="w-full aspect-video flex flex-col items-center justify-center border-2 border-dashed rounded-2xl cursor-pointer hover:bg-black/5 transition-colors overflow-hidden relative"
-              style={{ borderColor: theme.navbar?.border }}
-            >
-              {previewUrl ? (
-                <img
-                  src={previewUrl}
-                  className="w-full h-full object-cover"
-                  alt="Preview"
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase opacity-60">
+                Desktop Image
+              </label>
+              <label
+                className="w-full aspect-video flex flex-col items-center justify-center border-2 border-dashed rounded-2xl cursor-pointer hover:bg-black/5 transition-colors overflow-hidden relative"
+                style={{ borderColor: theme.navbar?.border }}
+              >
+                {desktopPreview ? (
+                  <img
+                    src={desktopPreview}
+                    className="w-full h-full object-cover"
+                    alt="Desktop Preview"
+                  />
+                ) : (
+                  <>
+                    <UploadCloud size={24} className="opacity-40 mb-2" />
+                    <span className="text-xs font-bold opacity-60">
+                      Upload Desktop
+                    </span>
+                  </>
+                )}
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleDesktopSelect}
+                  className="hidden"
+                  ref={desktopInputRef}
                 />
-              ) : (
-                <>
-                  <UploadCloud size={32} className="opacity-40 mb-2" />
-                  <span className="text-xs font-bold opacity-60">
-                    Click to Upload
-                  </span>
-                </>
-              )}
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleFileSelect}
-                className="hidden"
-                ref={fileInputRef}
-              />
-            </label>
+              </label>
+            </div>
+            
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase opacity-60">
+                Mobile Image (Optional)
+              </label>
+              <label
+                className="w-full aspect-[9/16] flex flex-col items-center justify-center border-2 border-dashed rounded-2xl cursor-pointer hover:bg-black/5 transition-colors overflow-hidden relative mx-auto max-w-[150px]"
+                style={{ borderColor: theme.navbar?.border }}
+              >
+                {mobilePreview ? (
+                  <img
+                    src={mobilePreview}
+                    className="w-full h-full object-cover"
+                    alt="Mobile Preview"
+                  />
+                ) : (
+                  <>
+                    <UploadCloud size={24} className="opacity-40 mb-2" />
+                    <span className="text-[10px] text-center font-bold opacity-60">
+                      Upload Mobile
+                    </span>
+                  </>
+                )}
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleMobileSelect}
+                  className="hidden"
+                  ref={mobileInputRef}
+                />
+              </label>
+            </div>
           </div>
 
           <div className="space-y-4">

@@ -5,11 +5,14 @@ import App from "./App";
 import "./index.css";
 import { ThemeProvider } from "./context/ThemeContext";
 import { AppProvider } from "./context/Appcontext";
+import { BannerProvider } from "./context/BannerContext";
 ReactDOM.createRoot(document.getElementById("root")).render(
   <AppProvider>
     <BrowserRouter>
       <ThemeProvider>
-        <App />
+        <BannerProvider>
+          <App />
+        </BannerProvider>
       </ThemeProvider>
     </BrowserRouter>
   </AppProvider>

@@ -1,74 +1,74 @@
 export const Theme = {
-  name: "light",
-  bg: "#EFF6FF", // Blue-50: Modern, airy light blue
-  text: "#334155", // Slate-700: High contrast text
-  arrowBg: "#354f87ce", // Soft Golden White (Champagne) accent
-  rememberMe: "#94A3B8", // Slate-400
+  name: "dark",
+  bg: "#0B0C10", // Very dark sleek slate/black
+  text: "#FFFFFF", // Crisp white text
+  arrowBg: "#D4AF37", // Luxurious Champagne Gold
+  rememberMe: "#8892B0", // Soft muted slate/blue
 
   // UI elements
   ui: {
-    barBg: "#1E293B", // Deep Slate for Filter Bar
-    barText: "#FFFFFF", // White text
+    barBg: "#12141A", // Slightly lighter than bg
+    barText: "#FFFFFF", 
   },
 
   navbar: {
-    // Dark Slate Glass (Inverted)
-    bg: "rgba(30, 41, 59, 0.95)",
-    border: "rgba(255, 255, 255, 0.1)",
-    shadow: "0 4px 20px -5px rgba(0, 0, 0, 0.2)",
+    // Dark Glass Navbar
+    bg: "rgba(11, 12, 16, 0.85)",
+    border: "rgba(212, 175, 55, 0.15)", // Subtle gold border
+    shadow: "0 8px 32px 0 rgba(0, 0, 0, 0.6)",
 
     // Text Colors
-    textIdle: "#7f9fcaff", // Slate-200
-    textHover: "#FFFFFF", // White
-    activePill: "#354f87ce", // Golden White Pill (Replaces Peach)
+    textIdle: "#8892B0", // Soft slate
+    textHover: "#D4AF37", // Gold on hover
+    activePill: "rgba(212, 175, 55, 0.2)", // Gold pill bg
 
     // Logo
-    logoBg: "#FFFFFF", // White Box
-    logoText: "#1E293B", // Dark Slate Text
+    logoBg: "#D4AF37", // Gold Box
+    logoText: "#0B0C10", // Dark Text
 
     // Search Bar
-    searchBg: "#334155", // Slate-700
-    searchHoverBg: "#475569", // Slate-600
+    searchBg: "#12141A",
+    searchHoverBg: "#1F232D",
     searchText: "#FFFFFF",
-    searchBorder: "rgba(255, 255, 255, 0.1)",
+    searchBorder: "rgba(212, 175, 55, 0.3)",
 
     iconColor: "#FFFFFF",
-    modalBg: "#1E293B",
-    modalOverlay: "rgba(0, 0, 0, 0.5)",
+    modalBg: "#12141A",
+    modalOverlay: "rgba(0, 0, 0, 0.75)",
   },
 
   card: {
-    imgBg: "#DBEAFE", // Blue-100
+    imgBg: "#1A1D24", // Very dark gray for image backgrounds
 
-    // White/Blue Glass Card
-    bg: "rgba(255, 255, 255, 0.6)",
-    border: "rgba(191, 219, 254, 0.6)", // Blue-200
+    // Dark Glass Card
+    bg: "rgba(18, 20, 26, 0.7)",
+    border: "rgba(255, 255, 255, 0.05)",
 
-    textPrimary: "#1E293B", // Dark Slate
-    textSecondary: "#64748B", // Light Slate
+    textPrimary: "#FFFFFF",
+    textSecondary: "#8892B0",
 
     // Buttons
-    btnBg: "#475569", // Slate Blue
-    btnText: "#EFF6FF", // Light Blue Text
+    btnBg: "#D4AF37", // Gold button
+    btnText: "#0B0C10", // Dark text on gold button
 
-    iconBtnBg: "#FFFFFF",
-    iconBtnColor: "#475569",
+    iconBtnBg: "rgba(255, 255, 255, 0.05)",
+    iconBtnColor: "#FFFFFF",
   },
 
   badges: {
-    new: { bg: "#475569", text: "#EFF6FF" },
-    sale: { bg: "#FF9F80", text: "#FFFFFF" }, // Coral is standard for sale, kept as pop
-    hot: { bg: "#FEF08A", text: "#1E293B" }, // Golden White with Dark Text
-    default: { bg: "#DBEAFE", text: "#1E3A8A" },
+    new: { bg: "#D4AF37", text: "#0B0C10" }, // Gold
+    sale: { bg: "#FF3366", text: "#FFFFFF" }, // Neon Red/Pink pop
+    hot: { bg: "#00E5FF", text: "#0B0C10" }, // Electric Cyan
+    default: { bg: "#1F232D", text: "#FFFFFF" },
   },
 
   scrollbar: {
-    track: "#EFF6FF",
-    border: "#DBEAFE",
-    teeth: "#FEF08A", // Golden White details
-    handleBody: "#93C5FD",
-    handleStroke: "#FFFFFF",
-    handleGradientStart: "#FEF08A", // Golden White Gradient
-    handleGradientEnd: "#FCD34D", // Slightly deeper gold
+    track: "#0B0C10",
+    border: "#12141A",
+    teeth: "#D4AF37", 
+    handleBody: "#1F232D",
+    handleStroke: "rgba(212, 175, 55, 0.3)",
+    handleGradientStart: "#D4AF37", 
+    handleGradientEnd: "#AA8C2C",
   },
 };

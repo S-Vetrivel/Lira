@@ -10,7 +10,11 @@ const bannerSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
-    image: {
+    desktopImage: {
+      type: String,
+      required: false,
+    },
+    mobileImage: {
       type: String,
       required: false,
     },

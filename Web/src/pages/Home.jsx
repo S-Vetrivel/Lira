@@ -14,17 +14,14 @@ import {
 } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
 import { ThemeContext } from "@/context/ThemeContext";
+import { BannerContext } from "@/context/BannerContext";
 import HeroCarousel from "@/components/home/HeroCarousel";
 import ProductCard from "@/components/ProductCard";
-import { getAllProducts, getBanners } from "@/services/api";
+import { getAllProducts } from "@/services/api";
 import { Loader2 } from "lucide-react";
 
-// Helper for image URLs
-const getImageUrl = (path) => {
-  if (!path) return "";
-  if (path.startsWith("http") || path.startsWith("blob")) return path;
-  return `${import.meta.env.VITE_API_URL}${path}`;
-};
+// Helper for image URLs (not needed for banners anymore, handled in context)
+// Product images might still need it, but we'll use it inline if needed
 
 // --- ANIMATION VARIANTS ---
 const sectionVariants = {
@@ -113,6 +110,7 @@ const CarouselItem = ({ product, index, x, isClickBlockedRef }) => {
 
 export default function Home() {
   const { theme } = useContext(ThemeContext);
+  const { homeBanners, shopBanners, isLoading: bannersLoading } = useContext(BannerContext);
   const navigate = useNavigate();
 
   // --- STATE ---
@@ -123,9 +121,10 @@ export default function Home() {
 
   // --- DATA STATE ---
   const [trendingProducts, setTrendingProducts] = useState([]);
-  const [homeBanners, setHomeBanners] = useState([]);
-  const [shopFeaturedImage, setShopFeaturedImage] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [productsLoading, setProductsLoading] = useState(true);
+  
+  const shopFeaturedImage = shopBanners.length > 0 ? shopBanners[0].desktopSrc : "";
+  const loading = productsLoading || bannersLoading;
 
   // --- HORIZONTAL SCROLL LOGIC ---
   const productTrackRef = useRef(null);
@@ -152,7 +151,7 @@ export default function Home() {
   // --- DATA FETCHING ---
   useEffect(() => {
     const fetchData = async () => {
-      setLoading(true);
+      setProductsLoading(true);
       try {
         // 1. Fetch Products
         const prodRes = await getAllProducts();
@@ -164,30 +163,10 @@ export default function Home() {
             trends.length > 0 ? trends : prodRes.data.slice(0, 6)
           );
         }
-
-        // 2. Fetch HOME Banners (for main carousel)
-        const homeBannerRes = await getBanners("home");
-        if (homeBannerRes.success) {
-          const formattedBanners = homeBannerRes.data.map((b) => ({
-            id: b._id || b.id,
-            desktopSrc: getImageUrl(b.image),
-            tabletSrc: getImageUrl(b.image),
-            mobileSrc: getImageUrl(b.image),
-            title: b.title,
-            subtitle: b.subtitle,
-          }));
-          setHomeBanners(formattedBanners);
-        }
-
-        // 3. Fetch SHOP Banners (only need 1 for the Featured section)
-        const shopBannerRes = await getBanners("shop");
-        if (shopBannerRes.success && shopBannerRes.data.length > 0) {
-          setShopFeaturedImage(getImageUrl(shopBannerRes.data[0].image));
-        }
       } catch (error) {
         console.error("Data fetch error:", error);
       } finally {
-        setLoading(false);
+        setProductsLoading(false);
       }
     };
     fetchData();

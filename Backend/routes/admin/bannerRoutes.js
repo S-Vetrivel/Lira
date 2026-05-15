@@ -6,7 +6,11 @@ const bannerController = require("../../controllers/bannerController");
 const upload = multer({ dest: "uploads/temp/" });
 
 // ADMIN POST (Upload)
-router.post("/", upload.single("image"), bannerController.createBanner);
+router.post(
+  "/",
+  upload.fields([{ name: "desktopImage" }, { name: "mobileImage" }]),
+  bannerController.createBanner
+);
 
 // ADMIN PUT (Reorder) - MUST be before /:id to avoid collision
 router.put("/reorder", bannerController.reorderBanners);
