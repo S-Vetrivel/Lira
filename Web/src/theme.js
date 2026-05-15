@@ -12,25 +12,25 @@ export const DarkTheme = {
   },
 
   navbar: {
-    // White Tinted Glass Navbar
-    bg: "rgba(255, 255, 255, 0.1)",
-    border: "rgba(255, 255, 255, 0.2)",
+    // Gray Tinted Glass Navbar
+    bg: "rgba(40, 45, 55, 0.9)",
+    border: "rgba(255, 255, 255, 0.1)",
     shadow: "0 8px 32px 0 rgba(0, 0, 0, 0.6)",
 
     // Text Colors
     textIdle: "#D1D5DB",
     textHover: "#FFFFFF",
-    activePill: "rgba(255, 255, 255, 0.2)",
+    activePill: "rgba(255, 255, 255, 0.15)",
 
     // Logo
     logoBg: "#FFFFFF",
     logoText: "#0B0C10",
 
     // Search Bar
-    searchBg: "rgba(255, 255, 255, 0.1)",
-    searchHoverBg: "rgba(255, 255, 255, 0.15)",
+    searchBg: "rgba(255, 255, 255, 0.05)",
+    searchHoverBg: "rgba(255, 255, 255, 0.1)",
     searchText: "#FFFFFF",
-    searchBorder: "rgba(255, 255, 255, 0.2)",
+    searchBorder: "rgba(255, 255, 255, 0.1)",
 
     iconColor: "#FFFFFF",
     modalBg: "#12141A",
@@ -86,22 +86,22 @@ export const LightTheme = {
   },
 
   navbar: {
-    // Black Tinted Glass Navbar
-    bg: "rgba(0, 0, 0, 0.85)",
+    // Gray Tinted Glass Navbar
+    bg: "rgba(40, 45, 55, 0.9)",
     border: "rgba(255, 255, 255, 0.1)",
     shadow: "0 8px 32px 0 rgba(0, 0, 0, 0.2)",
 
     textIdle: "#D1D5DB",
     textHover: "#FFFFFF",
-    activePill: "rgba(255, 255, 255, 0.2)",
+    activePill: "rgba(255, 255, 255, 0.15)",
 
     logoBg: "#FFFFFF",
     logoText: "#0B0C10",
 
-    searchBg: "rgba(255, 255, 255, 0.1)",
-    searchHoverBg: "rgba(255, 255, 255, 0.15)",
+    searchBg: "rgba(255, 255, 255, 0.05)",
+    searchHoverBg: "rgba(255, 255, 255, 0.1)",
     searchText: "#FFFFFF",
-    searchBorder: "rgba(255, 255, 255, 0.2)",
+    searchBorder: "rgba(255, 255, 255, 0.1)",
 
     iconColor: "#FFFFFF",
     modalBg: "#FFFFFF", // Modal itself should be light
