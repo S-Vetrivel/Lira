@@ -82,6 +82,16 @@ exports.updateBannerDetails = async (req, res) => {
     if (subtitle !== undefined) banner.subtitle = subtitle;
 
     await banner.save();
+
+    if (req.files) {
+      if (req.files.desktopImage && req.files.desktopImage[0]) {
+        await queueBannerProcessing(req.files.desktopImage[0], banner._id, "desktopImage");
+      }
+      if (req.files.mobileImage && req.files.mobileImage[0]) {
+        await queueBannerProcessing(req.files.mobileImage[0], banner._id, "mobileImage");
+      }
+    }
+
     res.status(200).json(banner);
   } catch (err) {
     res.status(500).json({ error: err.message });

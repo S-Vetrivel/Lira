@@ -16,7 +16,11 @@ router.post(
 router.put("/reorder", bannerController.reorderBanners);
 
 // ADMIN PUT (Update Details)
-router.put("/:id", bannerController.updateBannerDetails);
+router.put(
+  "/:id",
+  upload.fields([{ name: "desktopImage" }, { name: "mobileImage" }]),
+  bannerController.updateBannerDetails
+);
 
 // ADMIN DELETE
 router.delete("/:id", bannerController.deleteBanner);

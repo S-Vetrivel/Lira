@@ -43,7 +43,7 @@ const Modal = ({ isOpen, onClose, title, children, theme }) => {
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.9, opacity: 0 }}
         className="w-full max-w-lg rounded-3xl overflow-hidden shadow-2xl relative flex flex-col max-h-[90vh]"
-        style={{ backgroundColor: theme.modalBg || "#fff", color: theme.text }}
+        style={{ backgroundColor: theme.navbar?.modalBg || theme.bg || "#111", color: theme.text }}
       >
         <div
           className="p-6 border-b flex justify-between items-center"
@@ -76,7 +76,6 @@ export default function BannerTab() {
 
   // Edit State
   const [editingId, setEditingId] = useState(null);
-  const [editData, setEditData] = useState({ title: "", subtitle: "" });
 
   // Upload Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -126,36 +125,37 @@ export default function BannerTab() {
   };
 
   const handleUpload = async () => {
-    if (!desktopFile) return toast.error("Please select a desktop image at minimum");
+    if (!editingId && !desktopFile) return toast.error("Please select a desktop image at minimum");
 
     setIsSubmitting(true);
     const formData = new FormData();
     formData.append("title", uploadForm.title);
     formData.append("subtitle", uploadForm.subtitle);
-    formData.append("page", activePage); // Upload to the currently active tab
+    if (!editingId) formData.append("page", activePage);
+    
     if (desktopFile) formData.append("desktopImage", desktopFile);
     if (mobileFile) formData.append("mobileImage", mobileFile);
 
-    const res = await createBanner(formData);
+    let res;
+    if (editingId) {
+      res = await updateBannerDetails(editingId, formData);
+    } else {
+      res = await createBanner(formData);
+    }
 
     if (res.success) {
-      toast.success("Banner uploading... processing images.");
+      toast.success(editingId ? "Banner updated" : "Banner uploading... processing images.");
       setIsModalOpen(false);
       // Reset Form
+      setEditingId(null);
       setUploadForm({ title: "", subtitle: "" });
       setDesktopFile(null);
       setMobileFile(null);
       setDesktopPreview("");
       setMobilePreview("");
 
-      // --- CRITICAL: POLL FOR UPDATES ---
-      // 1. Immediate fetch (gets record, might have temp or empty image)
       await fetchBanners(false);
-
-      // 2. Fetch again in 1s (Worker usually done by now)
       setTimeout(() => fetchBanners(false), 1000);
-
-      // 3. Fetch again in 3s (Just in case)
       setTimeout(() => fetchBanners(false), 3000);
     } else {
       toast.error(res.message);
@@ -183,26 +183,15 @@ export default function BannerTab() {
 
   const startEdit = (banner) => {
     setEditingId(banner._id || banner.id);
-    setEditData({ title: banner.title, subtitle: banner.subtitle });
+    setUploadForm({ title: banner.title || "", subtitle: banner.subtitle || "" });
+    setDesktopPreview(getImageUrl(banner.desktopImage || banner.image));
+    setMobilePreview(getImageUrl(banner.mobileImage));
+    setDesktopFile(null);
+    setMobileFile(null);
+    setIsModalOpen(true);
   };
 
-  const saveEdit = async (id) => {
-    // Optimistic Update
-    const oldBanners = [...banners];
-    setBanners((prev) =>
-      prev.map((b) => ((b._id || b.id) === id ? { ...b, ...editData } : b))
-    );
-    setEditingId(null);
-
-    const res = await updateBannerDetails(id, editData);
-    if (res.success) {
-      toast.success("Updated");
-      await fetchBanners(false); // Silent reload
-    } else {
-      setBanners(oldBanners); // Revert
-      toast.error(res.message);
-    }
-  };
+  
 
   // --- Reordering Logic ---
 
@@ -394,44 +383,7 @@ export default function BannerTab() {
                     className="p-5 border-t relative"
                     style={{ borderColor: theme.navbar?.border }}
                   >
-                    {isEditing ? (
-                      <div className="space-y-3">
-                        <input
-                          value={editData.title}
-                          onChange={(e) =>
-                            setEditData({ ...editData, title: e.target.value })
-                          }
-                          placeholder="Title"
-                          className="w-full bg-transparent border-b border-current/30 p-1 font-bold outline-none"
-                          autoFocus
-                        />
-                        <input
-                          value={editData.subtitle}
-                          onChange={(e) =>
-                            setEditData({
-                              ...editData,
-                              subtitle: e.target.value,
-                            })
-                          }
-                          placeholder="Subtitle"
-                          className="w-full bg-transparent border-b border-current/30 p-1 text-sm outline-none"
-                        />
-                        <div className="flex gap-2 justify-end mt-2">
-                          <button
-                            onClick={() => saveEdit(banner._id || banner.id)}
-                            className="p-2 bg-green-500/10 text-green-500 rounded-lg hover:bg-green-500/20"
-                          >
-                            <Check size={16} />
-                          </button>
-                          <button
-                            onClick={() => setEditingId(null)}
-                            className="p-2 bg-red-500/10 text-red-500 rounded-lg hover:bg-red-500/20"
-                          >
-                            <X size={16} />
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
+                    {false ? null : (
                       <div className="flex justify-between items-start">
                         <div>
                           <h3 className="font-bold text-lg leading-tight">
@@ -469,7 +421,7 @@ export default function BannerTab() {
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title="Upload Banner"
+        title={editingId ? "Edit Banner" : "Upload Banner"}
         theme={theme}
       >
         <div className="space-y-6">

@@ -920,7 +920,9 @@ export const deleteBanner = async (id) => {
 // NEW: Update Title/Subtitle
 export const updateBannerDetails = async (id, data) => {
   try {
-    const response = await api.put(`/admin/banners/${id}`, data);
+    const isFormData = data instanceof FormData;
+    const config = isFormData ? { headers: { "Content-Type": "multipart/form-data" } } : {};
+    const response = await api.put(`/admin/banners/${id}`, data, config);
     return { success: true, data: response.data };
   } catch (error) {
     return { success: false, message: error.response?.data?.message };

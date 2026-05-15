@@ -593,7 +593,7 @@ const ProductFormModal = ({
         animate={{ scale: 1, opacity: 1 }}
         className="w-full max-w-5xl max-h-[90vh] flex flex-col rounded-3xl overflow-hidden shadow-2xl"
         style={{
-          backgroundColor: theme.modalBg || theme.bg,
+          backgroundColor: theme.navbar?.modalBg || theme.bg || "#111",
           color: theme.text,
         }}
       >
@@ -672,7 +672,7 @@ const ProductFormModal = ({
                     <option
                       value=""
                       style={{
-                        backgroundColor: theme.modalBg || theme.bg,
+                        backgroundColor: theme.navbar?.modalBg || theme.bg || "#111",
                         color: theme.text,
                       }}
                     >
@@ -681,7 +681,7 @@ const ProductFormModal = ({
                     <option
                       value="Men's Shoes"
                       style={{
-                        backgroundColor: theme.modalBg || theme.bg,
+                        backgroundColor: theme.navbar?.modalBg || theme.bg || "#111",
                         color: theme.text,
                       }}
                     >
@@ -690,7 +690,7 @@ const ProductFormModal = ({
                     <option
                       value="Women's Shoes"
                       style={{
-                        backgroundColor: theme.modalBg || theme.bg,
+                        backgroundColor: theme.navbar?.modalBg || theme.bg || "#111",
                         color: theme.text,
                       }}
                     >
@@ -699,7 +699,7 @@ const ProductFormModal = ({
                     <option
                       value="Accessories"
                       style={{
-                        backgroundColor: theme.modalBg || theme.bg,
+                        backgroundColor: theme.navbar?.modalBg || theme.bg || "#111",
                         color: theme.text,
                       }}
                     >
