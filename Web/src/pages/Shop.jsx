@@ -282,7 +282,7 @@ const Shop = () => {
                   className="w-full pl-10 pr-4 py-2.5 rounded-xl outline-none border transition-all duration-300"
                   style={{
                     backgroundColor: theme.navbar.searchBg,
-                    color: theme.text,
+                    color: theme.navbar.textIdle,
                     borderColor: "transparent",
                   }}
                 />
@@ -299,6 +299,7 @@ const Shop = () => {
                     style={{
                       backgroundColor: theme.navbar.searchBg,
                       borderColor: theme.navbar.border,
+                      color: theme.navbar.textIdle,
                     }}
                   >
                     <div className="flex items-center gap-2">
@@ -411,6 +412,7 @@ const Shop = () => {
                     style={{
                       backgroundColor: theme.navbar.searchBg,
                       borderColor: theme.navbar.border,
+                      color: theme.navbar.textIdle,
                     }}
                   >
                     <div className="flex items-center gap-2">
