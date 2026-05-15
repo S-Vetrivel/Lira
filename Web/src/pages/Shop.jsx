@@ -8,10 +8,11 @@ import {
   Loader2,
 } from "lucide-react";
 import { ThemeContext } from "../context/ThemeContext";
+import { BannerContext } from "../context/BannerContext";
 import ProductCard from "../components/ProductCard";
 import HeroCarousel from "@/components/home/HeroCarousel";
 import { Link, useLocation } from "react-router-dom";
-import { getAllProducts, getBanners } from "@/services/api";
+import { getAllProducts } from "@/services/api";
 
 const CATEGORIES = [
   "All",
@@ -54,6 +55,7 @@ const itemVariants = {
 
 const Shop = () => {
   const { theme } = useContext(ThemeContext);
+  const { shopBanners, isLoading: bannersLoading } = useContext(BannerContext);
   const location = useLocation();
   const fromZoom = location.state?.fromZoom ?? true;
 
@@ -61,7 +63,6 @@ const Shop = () => {
 
   // --- API DATA STATE ---
   const [products, setProducts] = useState([]);
-  const [banners, setBanners] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // --- FILTER STATE ---
@@ -96,24 +97,10 @@ const Shop = () => {
   }, [isIntroSequence]);
 
   useEffect(() => {
-    const fetchBannersAndProducts = async () => {
+    const fetchProducts = async () => {
       setLoading(true);
 
       try {
-        // Fetch SHOP Banners
-        const bannerRes = await getBanners("shop");
-        if (bannerRes.success) {
-          const formattedBanners = bannerRes.data.map((b) => ({
-            id: b._id || b.id,
-            desktopSrc: getImageUrl(b.image),
-            tabletSrc: getImageUrl(b.image),
-            mobileSrc: getImageUrl(b.image),
-            title: b.title,
-            subtitle: b.subtitle,
-          }));
-          setBanners(formattedBanners);
-        }
-
         // Fetch Products
         const filters = {
           category: activeCategory,
@@ -134,7 +121,7 @@ const Shop = () => {
     };
 
     const debounceTimer = setTimeout(() => {
-      fetchBannersAndProducts();
+      fetchProducts();
     }, 400);
 
     return () => clearTimeout(debounceTimer);
@@ -216,9 +203,9 @@ const Shop = () => {
         style={!fromZoom ? { height: isMobile ? "60vh" : "70vh" } : {}}
       >
         <div className="w-full h-full">
-          {banners.length > 0 ? (
+          {shopBanners.length > 0 ? (
             <HeroCarousel
-              slides={banners}
+              slides={shopBanners}
               textDelay={TEXT_DELAY}
               controlsDelay={CONTROLS_DELAY}
               isIntro={isIntroSequence}

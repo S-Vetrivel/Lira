@@ -19,8 +19,8 @@ export const BannerProvider = ({ children }) => {
   const [shopBanners, setShopBanners] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const fetchBanners = async () => {
-    setIsLoading(true);
+  const fetchBanners = async (silent = false) => {
+    if (!silent) setIsLoading(true);
     try {
       const res = await getBanners();
       if (res.success) {
@@ -32,7 +32,7 @@ export const BannerProvider = ({ children }) => {
           .map(b => ({
             id: b._id || b.id,
             desktopSrc: getImageUrl(b.desktopImage || b.image),
-            tabletSrc: getImageUrl(b.desktopImage || b.image), // fallback to desktop for tablet
+            tabletSrc: getImageUrl(b.desktopImage || b.image),
             mobileSrc: getImageUrl(b.mobileImage || b.image),
             title: b.title,
             subtitle: b.subtitle,
@@ -56,19 +56,27 @@ export const BannerProvider = ({ children }) => {
     } catch (error) {
       console.error("Error fetching banners:", error);
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
     }
   };
 
   useEffect(() => {
     fetchBanners();
+
+    // 5-minute polling interval
+    const interval = setInterval(() => {
+      console.log("Auto-refreshing banners...");
+      fetchBanners(true);
+    }, 5 * 60 * 1000);
+
+    return () => clearInterval(interval);
   }, []);
 
-  // Prefetch Shop Images once shopBanners are loaded
+  // Prefetch ALL Images once banners are loaded or updated
   useEffect(() => {
-    if (shopBanners.length > 0) {
-      console.log("Prefetching shop banners...");
-      shopBanners.forEach((banner) => {
+    const allBanners = [...homeBanners, ...shopBanners];
+    if (allBanners.length > 0) {
+      allBanners.forEach((banner) => {
         if (banner.desktopSrc) {
           const img = new Image();
           img.src = banner.desktopSrc;
@@ -79,7 +87,7 @@ export const BannerProvider = ({ children }) => {
         }
       });
     }
-  }, [shopBanners]);
+  }, [homeBanners, shopBanners]);
 
   return (
     <BannerContext.Provider value={{ homeBanners, shopBanners, isLoading, refreshBanners: fetchBanners }}>

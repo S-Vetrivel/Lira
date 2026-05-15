@@ -17,6 +17,7 @@ import {
   UploadCloud,
 } from "lucide-react";
 import { ThemeContext } from "@/context/ThemeContext";
+import { BannerContext } from "@/context/BannerContext";
 import toast from "react-hot-toast";
 import {
   getBanners,
@@ -67,6 +68,7 @@ const Modal = ({ isOpen, onClose, title, children, theme }) => {
 
 export default function BannerTab() {
   const { theme } = useContext(ThemeContext);
+  const { homeBanners, shopBanners, refreshBanners, isLoading: contextLoading } = useContext(BannerContext);
 
   // --- State ---
   const [banners, setBanners] = useState([]);
@@ -87,12 +89,11 @@ export default function BannerTab() {
   const desktopInputRef = useRef(null);
   const mobileInputRef = useRef(null);
 
-  // --- Fetch Data ---
+  // Fetch Data
   const fetchBanners = async (showLoading = true) => {
     if (showLoading) setIsLoading(true);
     const res = await getBanners();
     if (res.success) {
-      // Sort by order ensuring numeric comparison
       const sorted = res.data.sort((a, b) => (a.order || 0) - (b.order || 0));
       setBanners(sorted);
     }
@@ -100,7 +101,14 @@ export default function BannerTab() {
   };
 
   useEffect(() => {
-    fetchBanners();
+    // If context has data, use it for immediate display
+    if (homeBanners.length > 0 || shopBanners.length > 0) {
+      // Re-map context format back to raw banner format for admin use
+      // Or better, just fetch once to ensure we have the full object (including id vs _id etc)
+      fetchBanners(true);
+    } else {
+      fetchBanners(true);
+    }
   }, []);
 
   // Filter banners for the current view
@@ -155,6 +163,7 @@ export default function BannerTab() {
       setMobilePreview("");
 
       await fetchBanners(false);
+      refreshBanners();
       setTimeout(() => fetchBanners(false), 1000);
       setTimeout(() => fetchBanners(false), 3000);
     } else {
@@ -173,6 +182,7 @@ export default function BannerTab() {
     if (res.success) {
       toast.success("Deleted");
       await fetchBanners(false); // Sync to be sure
+      refreshBanners();
     } else {
       toast.error(res.message);
       await fetchBanners(false); // Revert on error
@@ -241,6 +251,7 @@ export default function BannerTab() {
     // 6. Silent Refresh
     if (res.success) {
       await fetchBanners(false);
+      refreshBanners();
     } else {
       toast.error("Reorder failed");
       await fetchBanners(false); // Revert
