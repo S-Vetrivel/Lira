@@ -64,6 +64,23 @@ export const BannerProvider = ({ children }) => {
     fetchBanners();
   }, []);
 
+  // Prefetch Shop Images once shopBanners are loaded
+  useEffect(() => {
+    if (shopBanners.length > 0) {
+      console.log("Prefetching shop banners...");
+      shopBanners.forEach((banner) => {
+        if (banner.desktopSrc) {
+          const img = new Image();
+          img.src = banner.desktopSrc;
+        }
+        if (banner.mobileSrc) {
+          const img = new Image();
+          img.src = banner.mobileSrc;
+        }
+      });
+    }
+  }, [shopBanners]);
+
   return (
     <BannerContext.Provider value={{ homeBanners, shopBanners, isLoading, refreshBanners: fetchBanners }}>
       {children}
