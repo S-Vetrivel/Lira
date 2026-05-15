@@ -23,7 +23,7 @@ export const BannerProvider = ({ children }) => {
     if (!silent) setIsLoading(true);
     try {
       const res = await getBanners();
-      if (res.success) {
+      if (res.success && Array.isArray(res.data)) {
         const allBanners = res.data;
         
         const formattedHome = allBanners

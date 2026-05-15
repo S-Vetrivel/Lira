@@ -36,7 +36,9 @@ api.interceptors.response.use(
 
     // A. Network / Connection Errors
     if (!error.response) {
-      toast.error("Network Error - Is the Network available?");
+      if (window.location.pathname !== "/network-error") {
+        window.location.href = "/network-error";
+      }
       return Promise.reject(error);
     }
 

@@ -26,6 +26,8 @@ import Signup from "./pages/Signup";
 import { MainLayout } from "./components/layout/MainLayout";
 import ForgetPassword from "./pages/ForgetPassword";
 import Checkout from "./pages/Checkout";
+import NetworkError from "./pages/NetworkError";
+import NotFound from "./pages/NotFound";
 
 function App() {
   const { user, modalState, closeModal } = useApp();
@@ -97,6 +99,8 @@ function App() {
             path="/profile"
             element={user ? <Profile /> : <Navigate to="/" replace />}
           />
+          <Route path="/network-error" element={<NetworkError />} />
+          <Route path="*" element={<NotFound />} />
         </Route>
       </Routes>
     </>

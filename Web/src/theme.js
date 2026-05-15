@@ -1,4 +1,4 @@
-export const Theme = {
+export const DarkTheme = {
   name: "dark",
   bg: "#0B0C10", // Very dark sleek slate/black
   text: "#FFFFFF", // Crisp white text
@@ -12,25 +12,25 @@ export const Theme = {
   },
 
   navbar: {
-    // Dark Glass Navbar
-    bg: "rgba(11, 12, 16, 0.85)",
-    border: "rgba(212, 175, 55, 0.15)", // Subtle gold border
+    // White Tinted Glass Navbar
+    bg: "rgba(255, 255, 255, 0.1)",
+    border: "rgba(255, 255, 255, 0.2)",
     shadow: "0 8px 32px 0 rgba(0, 0, 0, 0.6)",
 
     // Text Colors
-    textIdle: "#8892B0", // Soft slate
-    textHover: "#D4AF37", // Gold on hover
-    activePill: "rgba(212, 175, 55, 0.2)", // Gold pill bg
+    textIdle: "#D1D5DB",
+    textHover: "#FFFFFF",
+    activePill: "rgba(255, 255, 255, 0.2)",
 
     // Logo
-    logoBg: "#D4AF37", // Gold Box
-    logoText: "#0B0C10", // Dark Text
+    logoBg: "#FFFFFF",
+    logoText: "#0B0C10",
 
     // Search Bar
-    searchBg: "#12141A",
-    searchHoverBg: "#1F232D",
+    searchBg: "rgba(255, 255, 255, 0.1)",
+    searchHoverBg: "rgba(255, 255, 255, 0.15)",
     searchText: "#FFFFFF",
-    searchBorder: "rgba(212, 175, 55, 0.3)",
+    searchBorder: "rgba(255, 255, 255, 0.2)",
 
     iconColor: "#FFFFFF",
     modalBg: "#12141A",
@@ -72,3 +72,75 @@ export const Theme = {
     handleGradientEnd: "#AA8C2C",
   },
 };
+
+export const LightTheme = {
+  name: "light",
+  bg: "#F9FAFB", // Soft off-white background
+  text: "#111827", // Dark gray text
+  arrowBg: "#D4AF37", 
+  rememberMe: "#6B7280", 
+
+  ui: {
+    barBg: "#FFFFFF", 
+    barText: "#111827", 
+  },
+
+  navbar: {
+    // Black Tinted Glass Navbar
+    bg: "rgba(0, 0, 0, 0.85)",
+    border: "rgba(255, 255, 255, 0.1)",
+    shadow: "0 8px 32px 0 rgba(0, 0, 0, 0.2)",
+
+    textIdle: "#D1D5DB",
+    textHover: "#FFFFFF",
+    activePill: "rgba(255, 255, 255, 0.2)",
+
+    logoBg: "#FFFFFF",
+    logoText: "#0B0C10",
+
+    searchBg: "rgba(255, 255, 255, 0.1)",
+    searchHoverBg: "rgba(255, 255, 255, 0.15)",
+    searchText: "#FFFFFF",
+    searchBorder: "rgba(255, 255, 255, 0.2)",
+
+    iconColor: "#FFFFFF",
+    modalBg: "#FFFFFF", // Modal itself should be light
+    modalOverlay: "rgba(0, 0, 0, 0.4)",
+  },
+
+  card: {
+    imgBg: "#F3F4F6", 
+
+    bg: "rgba(255, 255, 255, 0.8)",
+    border: "rgba(0, 0, 0, 0.05)",
+
+    textPrimary: "#111827",
+    textSecondary: "#6B7280",
+
+    btnBg: "#0B0C10", 
+    btnText: "#FFFFFF", 
+
+    iconBtnBg: "rgba(0, 0, 0, 0.05)",
+    iconBtnColor: "#111827",
+  },
+
+  badges: {
+    new: { bg: "#D4AF37", text: "#0B0C10" },
+    sale: { bg: "#FF3366", text: "#FFFFFF" },
+    hot: { bg: "#00E5FF", text: "#0B0C10" },
+    default: { bg: "#E5E7EB", text: "#111827" },
+  },
+
+  scrollbar: {
+    track: "#F9FAFB",
+    border: "#E5E7EB",
+    teeth: "#D4AF37", 
+    handleBody: "#D1D5DB",
+    handleStroke: "rgba(212, 175, 55, 0.3)",
+    handleGradientStart: "#D4AF37", 
+    handleGradientEnd: "#AA8C2C",
+  },
+};
+
+// Export LightTheme as default Theme for backwards compatibility in other imports
+export const Theme = LightTheme;

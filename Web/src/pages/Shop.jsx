@@ -111,7 +111,7 @@ const Shop = () => {
         };
 
         const res = await getAllProducts(filters);
-        if (res.success) setProducts(res.data);
+        if (res.success && Array.isArray(res.data)) setProducts(res.data);
         else setProducts([]);
       } catch (err) {
         console.error("Fetch Error:", err);

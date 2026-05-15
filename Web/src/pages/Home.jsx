@@ -155,13 +155,15 @@ export default function Home() {
       try {
         // 1. Fetch Products
         const prodRes = await getAllProducts();
-        if (prodRes.success) {
+        if (prodRes.success && Array.isArray(prodRes.data)) {
           const trends = prodRes.data.filter((p) =>
             ["Trending", "Hot", "New"].includes(p.badge)
           );
           setTrendingProducts(
             trends.length > 0 ? trends : prodRes.data.slice(0, 6)
           );
+        } else {
+          setTrendingProducts([]);
         }
       } catch (error) {
         console.error("Data fetch error:", error);
