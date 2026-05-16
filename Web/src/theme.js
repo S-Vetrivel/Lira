@@ -71,6 +71,12 @@ export const DarkTheme = {
     handleGradientStart: "#D4AF37", 
     handleGradientEnd: "#AA8C2C",
   },
+  footer: {
+    textIdle: "#D1D5DB",
+    textHover: "#FFFFFF",
+    heading: "#FFFFFF",
+    bg: "#0B0C10",
+  }
 };
 
 export const LightTheme = {
@@ -140,6 +146,12 @@ export const LightTheme = {
     handleGradientStart: "#D4AF37", 
     handleGradientEnd: "#AA8C2C",
   },
+  footer: {
+    textIdle: "#4B5563",
+    textHover: "#111827",
+    heading: "#111827",
+    bg: "#F9FAFB",
+  }
 };
 
 // Export LightTheme as default Theme for backwards compatibility in other imports

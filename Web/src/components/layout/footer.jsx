@@ -11,6 +11,7 @@ import {
   Mail,
   Phone,
 } from "lucide-react";
+import { Link } from "react-router-dom";
 import { ThemeContext } from "../../context/ThemeContext";
 
 // --- Expanded E-commerce Links ---
@@ -18,32 +19,30 @@ const FOOTER_LINKS = [
   {
     title: "Shop",
     links: [
-      "New Arrivals",
-      "Best Sellers",
-      "Men",
-      "Women",
-      "Accessories",
-      "Sale",
+      { name: "New Arrivals", path: "/shop" },
+      { name: "Best Sellers", path: "/shop" },
+      { name: "Hardware", path: "/shop" },
+      { name: "Apparel", path: "/shop" },
+      { name: "Accessories", path: "/shop" },
     ],
   },
   {
     title: "Support",
     links: [
-      "Help Center",
-      "Shipping & Delivery",
-      "Returns & Exchanges",
-      "Order Status",
-      "Size Guide",
+      { name: "Help Center", path: "/contact" },
+      { name: "Shipping & Delivery", path: "/contact" },
+      { name: "Returns & Exchanges", path: "/contact" },
+      { name: "Order Status", path: "/contact" },
+      { name: "Size Guide", path: "/contact" },
     ],
   },
   {
     title: "Legal & Corp",
     links: [
-      "About Us",
-      "Careers",
-      "Privacy Policy",
-      "Terms of Service",
-      "Cookie Policy",
+      { name: "About Us", path: "/about" },
+      { name: "Careers", path: "/contact" },
+      { name: "Privacy Policy", path: "/contact" },
+      { name: "Terms of Service", path: "/contact" },
     ],
   },
 ];
@@ -112,7 +111,7 @@ const Footer = () => {
               </h2>
               <p
                 className="text-sm mb-6 max-w-md"
-                style={{ color: theme.navbar.textIdle }}
+                style={{ color: theme.footer.textIdle }}
               >
                 Join our newsletter for exclusive drops, early access to sales,
                 and behind-the-scenes content. Powered by innovation.
@@ -159,21 +158,23 @@ const Footer = () => {
             {/* Dynamic Links Columns */}
             {FOOTER_LINKS.map((section, idx) => (
               <motion.div key={idx} variants={itemVariants}>
-                <h3 className="font-bold mb-6 text-sm uppercase tracking-wider opacity-80">
+                <h3 
+                  className="font-bold mb-6 text-sm uppercase tracking-wider opacity-80"
+                  style={{ color: theme.footer.heading }}
+                >
                   {section.title}
                 </h3>
                 <ul className="space-y-4">
                   {section.links.map((link, lIdx) => (
                     <li key={lIdx}>
-                      <motion.a
-                        href="#"
-                        className="text-sm block w-fit"
-                        style={{ color: theme.navbar.textIdle }}
-                        whileHover={{ x: 4, color: theme.text }}
+                      <motion.div
+                        className="text-sm block w-fit cursor-pointer"
+                        style={{ color: theme.footer.textIdle }}
+                        whileHover={{ x: 4, color: theme.footer.textHover }}
                         transition={{ duration: 0.2 }}
                       >
-                        {link}
-                      </motion.a>
+                        <Link to={link.path}>{link.name}</Link>
+                      </motion.div>
                     </li>
                   ))}
                 </ul>
@@ -182,7 +183,10 @@ const Footer = () => {
 
             {/* Static Contact Column */}
             <motion.div variants={itemVariants}>
-              <h3 className="font-bold mb-6 text-sm uppercase tracking-wider opacity-80">
+              <h3 
+                className="font-bold mb-6 text-sm uppercase tracking-wider opacity-80"
+                style={{ color: theme.footer.heading }}
+              >
                 Contact
               </h3>
               <ul className="space-y-6">
@@ -192,7 +196,7 @@ const Footer = () => {
                       size={18}
                       className="mt-0.5 opacity-70 shrink-0"
                     />
-                    <span style={{ color: theme.navbar.textIdle }}>
+                    <span style={{ color: theme.footer.textIdle }}>
                       {detail.text}
                     </span>
                   </li>
@@ -210,7 +214,7 @@ const Footer = () => {
           className="border-t pt-8 flex flex-col md:flex-row justify-between items-center gap-4 text-xs"
           style={{
             borderColor: theme.navbar.border,
-            color: theme.navbar.textIdle,
+            color: theme.footer.textIdle,
           }}
         >
           <div className="flex flex-col md:flex-row items-center gap-2 md:gap-6">
@@ -242,10 +246,10 @@ const Footer = () => {
             className="text-[18vw] md:text-[14vw] font-black leading-none text-center absolute left-1/2 -translate-x-1/2 bottom-0 w-full"
             style={{
               color: theme.text,
-              opacity: 0.03,
+              opacity: 0.05,
             }}
           >
-            4I
+            4i
           </motion.h1>
         </div>
       </div>
