@@ -24,6 +24,7 @@ import {
   addReview,
 } from "@/services/api";
 import toast from "react-hot-toast";
+import SEO from "./SEO";
 
 const getImageUrl = (path) => {
   if (!path) return "";
@@ -203,6 +204,11 @@ const ProductDisplay = () => {
       className="min-h-screen w-full transition-colors duration-500 pt-10 pb-24 relative"
       style={{ backgroundColor: theme.bg, color: theme.text }}
     >
+      <SEO 
+        title={`${product.title} | 4i Global Sports Hub`} 
+        description={product.description}
+        image={getImageUrl(product.visuals?.[0]?.images?.[0])}
+      />
       <div className="max-w-[1400px] mx-auto px-6 md:px-12">
         <button
           onClick={() => navigate(-1)}

@@ -13,6 +13,7 @@ import ProductCard from "../components/ProductCard";
 import HeroCarousel from "@/components/home/HeroCarousel";
 import { Link, useLocation } from "react-router-dom";
 import { getAllProducts } from "@/services/api";
+import SEO from "@/components/SEO";
 
 const CATEGORIES = [
   "All",
@@ -180,6 +181,10 @@ const Shop = () => {
       className="min-h-screen w-full transition-colors duration-500"
       style={{ backgroundColor: theme.bg, color: theme.text }}
     >
+      <SEO 
+        title="Shop Premium Sports Gear | 4i Global Sports Hub" 
+        description="Explore our wide collection of high-performance running shoes, basketball gear, and fitness accessories at 4i Global Sports Hub. Filter by category, price, and newest arrivals."
+      />
       <style>{`
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }

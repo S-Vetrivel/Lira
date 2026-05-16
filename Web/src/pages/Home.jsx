@@ -19,6 +19,7 @@ import HeroCarousel from "@/components/home/HeroCarousel";
 import ProductCard from "@/components/ProductCard";
 import { getAllProducts } from "@/services/api";
 import { Loader2 } from "lucide-react";
+import SEO from "@/components/SEO";
 
 // Helper for image URLs (not needed for banners anymore, handled in context)
 // Product images might still need it, but we'll use it inline if needed
@@ -342,6 +343,10 @@ export default function Home() {
         color: theme.text || "#fff",
       }}
     >
+      <SEO 
+        title="4i Global Sports Hub | Premium Sports & Fitness Gear" 
+        description="Shop the latest premium sports gear, fitness equipment, and athletic apparel at 4i Global Sports Hub. Elevate your performance today." 
+      />
       <AnimatePresence mode="wait" initial={false} custom={direction}>
         {/* --- HERO (Uses HOME Banners) --- */}
         {currentSection === 0 && (
