@@ -29,6 +29,8 @@ import Checkout from "./pages/Checkout";
 import NetworkError from "./pages/NetworkError";
 import NotFound from "./pages/NotFound";
 
+import SEO from "./components/SEO";
+
 function App() {
   const { user, modalState, closeModal } = useApp();
   const { theme } = useContext(ThemeContext);
@@ -49,6 +51,7 @@ function App() {
 
   return (
     <>
+      <SEO />
       <Toaster
         position="bottom-right"
         toastOptions={{
