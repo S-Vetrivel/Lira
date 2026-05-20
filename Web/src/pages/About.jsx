@@ -83,7 +83,7 @@ export default function About() {
           >
             <h1 className="text-5xl md:text-8xl font-black tracking-tight mb-6">
               <span className="text-white lowercase">4i</span> <span className="text-white uppercase">Global</span><br />
-              <span className="uppercase text-transparent bg-clip-text bg-gradient-to-r from-orange-500 via-red-500 to-orange-600">
+              <span className="uppercase text-transparent bg-clip-text bg-gradient-to-r from-green-500 via-emerald-500 to-green-600">
                 Sports Hub
               </span>
             </h1>
@@ -96,7 +96,7 @@ export default function About() {
               transition={{ delay: 0.5 }}
               className="inline-flex items-center gap-4 px-6 py-3 bg-white/10 backdrop-blur-md rounded-full border border-white/20"
             >
-              <span className="text-sm font-bold uppercase tracking-widest text-orange-400">Our Motto:</span>
+              <span className="text-sm font-bold uppercase tracking-widest text-green-400">Our Motto:</span>
               <span className="text-lg font-medium italic text-white">"Beyond Limits"</span>
             </motion.div>
           </motion.div>
@@ -122,12 +122,12 @@ export default function About() {
             viewport={{ once: true }}
             className="space-y-8"
           >
-            <div className="inline-block p-2 px-4 rounded-lg bg-orange-500/10 border border-orange-500/20 text-orange-500 font-bold uppercase tracking-wider text-sm">
+            <div className="inline-block p-2 px-4 rounded-lg bg-green-500/10 border border-green-500/20 text-green-500 font-bold uppercase tracking-wider text-sm">
               Core Philosophy
             </div>
             <h2 className="text-4xl md:text-6xl font-black uppercase leading-tight">
               Beyond <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-red-500">Limits</span>
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-green-500 to-emerald-500">Limits</span>
             </h2>
             <p className="text-lg opacity-80 leading-relaxed font-light">
               In sports, limits are everywhere—inflated costs for premium gear, lack of access to advanced technology, and geographic barriers. 4iglobalsportshub was built to erase those boundaries.
@@ -139,7 +139,7 @@ export default function About() {
             <ul className="space-y-4">
               {["Professional-grade gear for all", "Eradicating geographic barriers", "Accessible elite technology"].map((item, i) => (
                 <li key={i} className="flex items-center gap-3 text-lg font-medium">
-                  <CheckCircle2 className="text-orange-500" size={24} />
+                  <CheckCircle2 className="text-green-500" size={24} />
                   {item}
                 </li>
               ))}
@@ -170,7 +170,7 @@ export default function About() {
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-20 space-y-4">
             <h2 className="text-3xl md:text-5xl font-black uppercase tracking-tighter">The Swiss-Indian Synergy</h2>
-            <div className="h-1.5 w-32 bg-orange-500 mx-auto rounded-full" />
+            <div className="h-1.5 w-32 bg-green-500 mx-auto rounded-full" />
             <p className="max-w-2xl mx-auto opacity-70">Bridging two distinct cultures to deliver a unique, world-class competitive advantage.</p>
           </div>
 
@@ -194,7 +194,7 @@ export default function About() {
                 </div>
                 
                 <div className="relative z-10 h-full p-10 flex flex-col justify-end items-start text-left text-white">
-                  <div className="mb-6 p-4 rounded-2xl bg-orange-500/20 border border-orange-500/30 text-orange-500">
+                  <div className="mb-6 p-4 rounded-2xl bg-green-500/20 border border-green-500/30 text-green-500">
                     <card.icon size={32} />
                   </div>
                   <h3 className="text-3xl font-black uppercase mb-4">{card.title}</h3>
@@ -213,7 +213,7 @@ export default function About() {
             <h2 className="text-4xl md:text-6xl font-black uppercase tracking-tight">Engineered for<br />Performance</h2>
             <p className="max-w-md opacity-70">From racquets to apparel, we focus on every detail that enhances your real gameplay experience.</p>
           </div>
-          <Link to="/shop" className="group flex items-center gap-2 text-lg font-bold uppercase tracking-widest text-orange-500">
+          <Link to="/shop" className="group flex items-center gap-2 text-lg font-bold uppercase tracking-widest text-green-500">
             Explore Gear <ArrowRight className="group-hover:translate-x-2 transition-transform" />
           </Link>
         </div>
@@ -225,7 +225,7 @@ export default function About() {
           >
             <div className="relative z-10">
               <div className="flex items-center gap-3 mb-8">
-                <Trophy className="text-orange-400" size={32} />
+                <Trophy className="text-green-400" size={32} />
                 <span className="text-sm font-bold tracking-widest uppercase opacity-60">High-Performance Hardware</span>
               </div>
               <h3 className="text-4xl md:text-5xl font-black uppercase mb-6 leading-tight">Racquets with <br />Explosive Power</h3>
@@ -243,8 +243,8 @@ export default function About() {
             className="md:col-span-5 p-8 md:p-12 rounded-[2rem] border border-current/10 bg-current/[0.03] backdrop-blur-md flex flex-col justify-between min-h-[400px]"
           >
             <div className="space-y-6">
-              <div className="p-4 bg-orange-500/10 rounded-2xl w-fit">
-                <Shield className="text-orange-500" size={32} />
+              <div className="p-4 bg-green-500/10 rounded-2xl w-fit">
+                <Shield className="text-green-500" size={32} />
               </div>
               <h3 className="text-3xl font-black uppercase">Premium Technical Apparel</h3>
               <p className="opacity-70">Footwork is everything. Our specialized socks provide shock absorption, moisture management, and arch support.</p>
@@ -262,9 +262,9 @@ export default function About() {
       </section>
 
       {/* --- GLOBAL VISION --- */}
-      <section className="py-32 px-6 bg-gradient-to-b from-transparent to-orange-500/10 relative">
+      <section className="py-32 px-6 bg-gradient-to-b from-transparent to-green-500/10 relative">
         <div className="max-w-4xl mx-auto text-center space-y-12 relative z-10">
-          <Globe className="mx-auto text-orange-500 mb-8" size={64} />
+          <Globe className="mx-auto text-green-500 mb-8" size={64} />
           <h2 className="text-4xl md:text-6xl font-black uppercase tracking-tighter">Our Global Vision</h2>
           <p className="text-xl md:text-2xl font-light leading-relaxed italic opacity-90">
             "To be the world’s most trusted, player-centric sports platform, celebrated for democratizing access to elite gear. We build a global community where borders don't exist and performance reigns supreme."
@@ -294,7 +294,7 @@ export default function About() {
             <p className="text-xl opacity-80 max-w-2xl mx-auto">Grab your gear, break through your limits, and join the global 4iglobalsportshub community.</p>
             <div className="flex flex-wrap justify-center gap-6">
               <Link to="/shop">
-                <button className="px-10 py-5 bg-orange-500 text-white rounded-full font-black uppercase tracking-widest hover:scale-105 transition-transform shadow-xl shadow-orange-500/20">
+                <button className="px-10 py-5 bg-green-500 text-white rounded-full font-black uppercase tracking-widest hover:scale-105 transition-transform shadow-xl shadow-green-500/20">
                   Shop Professional Gear
                 </button>
               </Link>
