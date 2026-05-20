@@ -106,26 +106,6 @@ const ProductCard = (props) => {
           </div>
         )}
 
-        <div className="absolute top-3 right-3 z-20 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-          <button
-            className="p-2 backdrop-blur-md rounded-full transition-colors hover:scale-110"
-            style={{
-              backgroundColor: theme.card?.iconBtnBg || "rgba(255,255,255,0.8)",
-              color: theme.card?.iconBtnColor || "#000",
-            }}
-          >
-            <Heart size={18} />
-          </button>
-          <button
-            className="p-2 backdrop-blur-md rounded-full transition-colors hover:scale-110"
-            style={{
-              backgroundColor: theme.card?.iconBtnBg || "rgba(255,255,255,0.8)",
-              color: theme.card?.iconBtnColor || "#000",
-            }}
-          >
-            <Eye size={18} />
-          </button>
-        </div>
 
         <div className="w-full h-full cursor-pointer">
           <img
