@@ -449,8 +449,8 @@ export default function Home() {
                       x: springX,
                       display: "flex",
                       gap: isMobile ? `${gap}px` : "2rem",
-                      paddingLeft: isMobile ? "2rem" : "32vw",
-                      paddingRight: "2rem",
+                      paddingLeft: `calc(50vw - ${cardWidth / 2}px)`,
+                      paddingRight: `calc(50vw - ${cardWidth / 2}px)`,
                       alignItems: "center",
                     },
                   }}
