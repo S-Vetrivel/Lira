@@ -132,7 +132,7 @@ const ProductCard = (props) => {
             src={getImageUrl(image1)}
             alt={title}
             draggable={false}
-            className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 hover:opacity-0 group-hover:scale-110 opacity-90"
+            className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:opacity-0 group-hover:scale-110 opacity-90"
           />
           <img
             src={getImageUrl(image2)}

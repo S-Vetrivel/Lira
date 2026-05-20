@@ -46,10 +46,8 @@ const sectionVariants = {
 };
 
 // --- CAROUSEL ITEM COMPONENT ---
-const CarouselItem = ({ product, index, x, isClickBlockedRef }) => {
-  const CARD_WIDTH = 300;
-  const GAP = 32;
-  const ITEM_STRIDE = CARD_WIDTH + GAP;
+const CarouselItem = ({ product, index, x, isClickBlockedRef, cardWidth = 300, gap = 32 }) => {
+  const ITEM_STRIDE = cardWidth + gap;
   const itemOffset = index * ITEM_STRIDE;
   const dynamicPos = useTransform(x, (latest) => latest + itemOffset);
 
@@ -75,7 +73,7 @@ const CarouselItem = ({ product, index, x, isClickBlockedRef }) => {
 
   return (
     <motion.div
-      style={{ width: CARD_WIDTH, scale, opacity, filter: blurFilter, zIndex }}
+      style={{ width: cardWidth, scale, opacity, filter: blurFilter, zIndex }}
       className="flex-shrink-0 relative transition-colors duration-300"
     >
       <motion.div
@@ -119,6 +117,19 @@ export default function Home() {
   const [direction, setDirection] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
   const [isZooming, setIsZooming] = useState(false);
+  const [windowWidth, setWindowWidth] = useState(
+    typeof window !== "undefined" ? window.innerWidth : 1200
+  );
+
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  const isMobile = windowWidth < 768;
+  const cardWidth = isMobile ? 260 : 300;
+  const gap = isMobile ? 16 : 32;
 
   // --- DATA STATE ---
   const [trendingProducts, setTrendingProducts] = useState([]);
@@ -384,7 +395,7 @@ export default function Home() {
             onMouseLeave={handleMouseUpDrag}
             className="absolute inset-0 w-full h-full flex flex-col justify-center z-20 cursor-grab active:cursor-grabbing"
           >
-            <div className="absolute left-0 top-0 bottom-0 w-[30%] hidden md:flex flex-col justify-center px-12 z-30 pointer-events-none">
+            <div className="absolute left-0 top-0 bottom-0 w-[25%] lg:w-[30%] hidden md:flex flex-col justify-center px-6 lg:px-12 z-0 pointer-events-none">
               <motion.div
                 style={{
                   x: textX,
@@ -397,7 +408,7 @@ export default function Home() {
                   initial={{ opacity: 0, x: -50 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: 0.3, duration: 0.8 }}
-                  className="text-6xl font-black uppercase tracking-tighter leading-none"
+                  className="text-4xl lg:text-6xl font-black uppercase tracking-tighter leading-none"
                 >
                   Trending
                   <br />
@@ -409,7 +420,7 @@ export default function Home() {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 0.6 }}
                   transition={{ delay: 0.5 }}
-                  className="text-lg font-mono mt-4 tracking-widest"
+                  className="text-base lg:text-lg font-mono mt-4 tracking-widest"
                 >
                   WINTER COLLECTION
                 </motion.p>
@@ -437,9 +448,9 @@ export default function Home() {
                     style: {
                       x: springX,
                       display: "flex",
-                      gap: "2rem",
-                      paddingLeft: "calc(50vw - 150px)",
-                      paddingRight: "calc(50vw - 150px)",
+                      gap: isMobile ? `${gap}px` : "2rem",
+                      paddingLeft: `calc(50vw - ${cardWidth / 2}px)`,
+                      paddingRight: `calc(50vw - ${cardWidth / 2}px)`,
                       alignItems: "center",
                     },
                   }}
@@ -451,6 +462,8 @@ export default function Home() {
                       index={index}
                       x={springX}
                       isClickBlockedRef={isClickBlocked}
+                      cardWidth={cardWidth}
+                      gap={gap}
                     />
                   ))}
                   <div
