@@ -276,7 +276,7 @@ const ProductDisplay = () => {
                     </span>
                   </div>
                 </div>
-                <h1 className="text-4xl md:text-5xl font-black uppercase leading-none">
+                <h1 className="text-4xl md:text-5xl font-black leading-none">
                   {product.title}
                 </h1>
                 <div className="flex items-center gap-4">
