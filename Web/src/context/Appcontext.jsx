@@ -71,6 +71,19 @@ export const AppProvider = ({ children }) => {
   // Task drawer & modal states
   const [selectedTaskKeyOrId, setSelectedTaskKeyOrId] = useState(null);
   const [isCreateTaskModalOpen, setIsCreateTaskModalOpen] = useState(false);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+
+  // Global hotkey for Command Palette (Cmd+K / Ctrl+K)
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setIsCommandPaletteOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   // Save user to localStorage
   useEffect(() => {
@@ -219,6 +232,8 @@ export const AppProvider = ({ children }) => {
       setSelectedTaskKeyOrId,
       isCreateTaskModalOpen,
       setIsCreateTaskModalOpen,
+      isCommandPaletteOpen,
+      setIsCommandPaletteOpen,
       refreshProjects,
       refreshDepartments,
       refreshTeam,
@@ -239,6 +254,7 @@ export const AppProvider = ({ children }) => {
       unreadCount,
       selectedTaskKeyOrId,
       isCreateTaskModalOpen,
+      isCommandPaletteOpen,
       refreshProjects,
       refreshDepartments,
       refreshTeam,

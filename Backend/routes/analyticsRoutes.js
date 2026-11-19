@@ -3,6 +3,7 @@ const router = express.Router();
 const { protect } = require("../middleware/authMiddleware");
 const { getManagerOverview } = require("../controllers/analyticsController");
 
-router.get("/overview", protect(["admin", "manager"]), getManagerOverview);
+// All authenticated roles (admin, manager, employee) can access analytics overview tailored to their role
+router.get("/overview", protect(), getManagerOverview);
 
 module.exports = router;

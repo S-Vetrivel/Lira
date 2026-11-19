@@ -27,6 +27,7 @@ export default function Header() {
     unreadCount,
     refreshNotifications,
     setIsCreateTaskModalOpen,
+    setIsCommandPaletteOpen,
     setSelectedTaskKeyOrId,
     handleDemoLogin,
     handleLogout,
@@ -34,8 +35,6 @@ export default function Header() {
 
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
-  const [showSearch, setShowSearch] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
 
   const navItems = [
     { label: "Board", path: "/" },
@@ -44,15 +43,6 @@ export default function Header() {
     { label: "Team", path: "/team" },
     { label: "Projects", path: "/projects" },
   ];
-
-  const handleSearchSubmit = (e) => {
-    e.preventDefault();
-    if (searchQuery.trim()) {
-      setSelectedTaskKeyOrId(searchQuery.trim());
-      setSearchQuery("");
-      setShowSearch(false);
-    }
-  };
 
   const handleMarkAllRead = async () => {
     await markAllNotificationsRead();
@@ -162,45 +152,32 @@ export default function Header() {
 
       {/* 3. Right: Search, Theme Toggle, New Task, Notifications, Profile */}
       <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
-        {/* Search */}
-        <div className="relative">
-          {showSearch ? (
-            <form onSubmit={handleSearchSubmit} className="flex items-center">
-              <input
-                type="text"
-                autoFocus
-                placeholder="Search ticket..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onBlur={() => !searchQuery && setShowSearch(false)}
-                className={`w-48 sm:w-56 rounded-full px-3.5 py-1.5 text-xs border focus:outline-none ${
-                  isDark
-                    ? "bg-[#191a24] border-white/20 text-white placeholder-slate-400"
-                    : "bg-slate-100 border-slate-300 text-slate-900 placeholder-slate-500"
-                }`}
-              />
-              <button
-                type="button"
-                onClick={() => setShowSearch(false)}
-                className={`p-1 ml-1 ${isDark ? "text-slate-400 hover:text-white" : "text-slate-500 hover:text-slate-900"}`}
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </form>
-          ) : (
-            <button
-              onClick={() => setShowSearch(true)}
-              className={`w-9 h-9 rounded-full border flex items-center justify-center transition-all cursor-pointer ${
-                isDark
-                  ? "bg-[#191a24] border-white/10 text-slate-300 hover:text-white hover:border-white/20"
-                  : "bg-slate-100 border-slate-200 text-slate-700 hover:text-slate-900 hover:bg-slate-200"
-              }`}
-              title="Search"
-            >
-              <Search className="w-4 h-4" />
-            </button>
-          )}
-        </div>
+        {/* Spotlight Quick Search Pill */}
+        <button
+          onClick={() => setIsCommandPaletteOpen(true)}
+          className={`group flex items-center gap-2 pl-3 pr-2.5 py-1.5 rounded-full border text-xs font-medium transition-all duration-150 cursor-pointer shadow-xs ${
+            isDark
+              ? "bg-[#191a24] border-white/10 text-slate-300 hover:text-white hover:border-white/20 hover:bg-[#20222f]"
+              : "bg-slate-100 border-slate-200 text-slate-600 hover:text-slate-900 hover:border-slate-300 hover:bg-slate-200/80"
+          }`}
+          title="Search anything (⌘K or Ctrl+K)"
+        >
+          <Search className={`w-3.5 h-3.5 transition-transform group-hover:scale-110 ${
+            isDark ? "text-slate-400 group-hover:text-blue-400" : "text-slate-500 group-hover:text-blue-600"
+          }`} />
+          <span className="hidden md:inline text-xs font-normal opacity-80">
+            Search...
+          </span>
+          <kbd
+            className={`hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-mono font-semibold rounded border ${
+              isDark
+                ? "bg-white/5 border-white/15 text-slate-400"
+                : "bg-white border-slate-300 text-slate-600 shadow-xs"
+            }`}
+          >
+            ⌘K
+          </kbd>
+        </button>
 
         {/* Theme Toggle */}
         <button

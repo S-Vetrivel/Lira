@@ -4,6 +4,7 @@ import { useApp } from "../../context/Appcontext";
 import Header from "./Header";
 import TaskDrawer from "../task/TaskDrawer";
 import CreateTaskModal from "../task/CreateTaskModal";
+import CommandPalette from "../search/CommandPalette";
 
 export function MainLayout() {
   const {
@@ -13,6 +14,8 @@ export function MainLayout() {
     setSelectedTaskKeyOrId,
     isCreateTaskModalOpen,
     setIsCreateTaskModalOpen,
+    isCommandPaletteOpen,
+    setIsCommandPaletteOpen,
     refreshProjects,
     theme,
   } = useApp();
@@ -68,6 +71,12 @@ export function MainLayout() {
         isOpen={isCreateTaskModalOpen}
         onClose={() => setIsCreateTaskModalOpen(false)}
         onCreated={() => refreshProjects()}
+      />
+
+      {/* Global Raycast/Linear Spotlight Command Palette */}
+      <CommandPalette
+        isOpen={isCommandPaletteOpen}
+        onClose={() => setIsCommandPaletteOpen(false)}
       />
     </div>
   );

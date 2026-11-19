@@ -403,18 +403,16 @@ export async function deleteUser(id) {
 // ==========================================
 // ANALYTICS & REPORTS APIs
 // ==========================================
-export async function getManagerOverview() {
+export async function getManagerOverview(projectId) {
   try {
-    const res = await api.get("/analytics/overview");
+    const params = projectId ? { projectId } : {};
+    const res = await api.get("/analytics/overview", { params });
     return {
       success: true,
-      summary: res.data.summary,
-      teamWorkload: res.data.teamWorkload,
-      projectProgress: res.data.projectProgress,
-      overdueTasks: res.data.overdueTasks,
+      ...res.data,
     };
   } catch (error) {
-    return { success: false };
+    return { success: false, message: error.message };
   }
 }
 
