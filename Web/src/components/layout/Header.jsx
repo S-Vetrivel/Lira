@@ -64,7 +64,7 @@ export default function Header() {
 
   return (
     <header
-      className={`w-full h-16 border-b px-5 sm:px-6 flex items-center justify-between z-30 shrink-0 select-none transition-colors duration-150 ${
+      className={`w-full h-14 sm:h-15 border-b px-4 sm:px-6 flex items-center justify-between z-30 shrink-0 select-none transition-colors duration-150 ${
         isDark
           ? "bg-[#0e0f16] border-white/10 text-white"
           : "bg-white border-slate-200 text-slate-900"
