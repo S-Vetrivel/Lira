@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
+import { motion } from "framer-motion";
 import { useApp } from "../../context/Appcontext";
 import {
   Bell,
@@ -117,9 +118,9 @@ export default function Header() {
         )}
       </div>
 
-      {/* 2. Center: Pill Navigation Tabs */}
+      {/* 2. Center: Pill Navigation Tabs with Sliding Morph Animation */}
       <nav
-        className={`hidden md:flex items-center p-1 rounded-full border shadow-sm ${
+        className={`hidden md:flex items-center p-1 rounded-full border shadow-sm relative ${
           isDark
             ? "bg-[#191a24] border-white/10"
             : "bg-slate-100 border-slate-200"
@@ -134,17 +135,34 @@ export default function Header() {
             <Link
               key={item.path}
               to={item.path}
-              className={`px-5 py-1.5 rounded-full text-xs font-semibold tracking-tight transition-all duration-150 ${
+              className={`relative px-5 py-1.5 rounded-full text-xs font-semibold tracking-tight transition-colors duration-150 select-none ${
                 isActive
                   ? isDark
-                    ? "bg-white text-slate-950 font-bold shadow-md shadow-white/10"
-                    : "bg-slate-900 text-white font-bold shadow-md shadow-slate-900/15"
+                    ? "text-slate-950 font-bold"
+                    : "text-white font-bold"
                   : isDark
                   ? "text-slate-400 hover:text-white"
                   : "text-slate-600 hover:text-slate-900"
               }`}
             >
-              {item.label}
+              {isActive && (
+                <motion.div
+                  layoutId="activeNavPill"
+                  transition={{
+                    type: "spring",
+                    stiffness: 480,
+                    damping: 38,
+                    mass: 0.8,
+                  }}
+                  className={`absolute inset-0 rounded-full shadow-md ${
+                    isDark
+                      ? "bg-white shadow-white/10"
+                      : "bg-slate-900 shadow-slate-900/15"
+                  }`}
+                  style={{ zIndex: 0 }}
+                />
+              )}
+              <span className="relative z-10">{item.label}</span>
             </Link>
           );
         })}

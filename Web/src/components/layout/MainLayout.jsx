@@ -1,5 +1,6 @@
 import React from "react";
-import { Outlet, Navigate } from "react-router-dom";
+import { Outlet, Navigate, useLocation, useOutlet } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import { useApp } from "../../context/Appcontext";
 import Header from "./Header";
 import TaskDrawer from "../task/TaskDrawer";
@@ -7,6 +8,8 @@ import CreateTaskModal from "../task/CreateTaskModal";
 import CommandPalette from "../search/CommandPalette";
 
 export function MainLayout() {
+  const location = useLocation();
+  const currentOutlet = useOutlet();
   const {
     user,
     isValidating,
@@ -52,9 +55,23 @@ export function MainLayout() {
       {/* 100% Full-Width Top Navigation Bar */}
       <Header />
 
-      {/* 100% Full-Width & Full-Height Content Area (Zero Gaps, Zero Overflows) */}
-      <main className="flex-1 w-full min-h-0 flex flex-col overflow-hidden">
-        <Outlet />
+      {/* 100% Full-Width & Full-Height Content Area with Fluid Page Shift Animation */}
+      <main className="flex-1 w-full min-h-0 flex flex-col overflow-hidden relative">
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={location.pathname}
+            initial={{ opacity: 0, y: 7, scale: 0.997 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -6, scale: 0.997 }}
+            transition={{
+              duration: 0.16,
+              ease: [0.22, 1, 0.36, 1],
+            }}
+            className="flex-1 w-full h-full min-h-0 flex flex-col overflow-hidden"
+          >
+            {currentOutlet}
+          </motion.div>
+        </AnimatePresence>
       </main>
 
       {/* Slide-over Task Detail Drawer */}
