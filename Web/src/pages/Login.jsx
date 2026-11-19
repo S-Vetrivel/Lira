@@ -1,257 +1,283 @@
-import React, { useState, useContext } from "react";
-import { ThemeContext } from "../context/ThemeContext";
-import { Link } from "react-router-dom";
-import { GOOGLE_AUTH_URL } from "../services/api";
-import { loginUser } from "../services/api";
+import React, { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { useApp } from "../context/Appcontext";
-import { useNavigate } from "react-router-dom";
-const Login = () => {
-  const themeContext = useContext(ThemeContext);
-  const theme = themeContext?.theme || {
-    bg: "#0f172a",
-    text: "#ffffff",
-    navbar: { textIdle: "#94a3b8" },
-    card: { btnBg: "#3b82f6", btnText: "#ffffff" },
-  };
-  const { setUser } = useApp();
-  const navigate = useNavigate();
-  const [formData, setFormData] = useState({ email: "", password: "" });
-  const [showPassword, setShowPassword] = useState(false);
+import { loginUser, demoLoginUser, googleOneTapLogin, GOOGLE_AUTH_URL } from "../services/api";
+import {
+  LogIn,
+  Zap,
+  Kanban,
+  Clock,
+  ArrowRight,
+  Eye,
+  EyeOff,
+  Sparkles,
+  BarChart2,
+  Users,
+} from "lucide-react";
+import toast from "react-hot-toast";
 
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
+export default function Login() {
+  const { user, setUser } = useApp();
+  const navigate = useNavigate();
+
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [activeDemo, setActiveDemo] = useState(null);
+
+  useEffect(() => {
+    const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    if (googleClientId && window.google) {
+      try {
+        window.google.accounts.id.initialize({
+          client_id: googleClientId,
+          callback: async (response) => {
+            if (response.credential) {
+              const res = await googleOneTapLogin(response.credential);
+              if (res.success) {
+                setUser(res.user);
+                navigate("/");
+              }
+            }
+          },
+        });
+        const btnContainer = document.getElementById("google-signin-btn");
+        if (btnContainer) {
+          window.google.accounts.id.renderButton(btnContainer, {
+            theme: "outline",
+            size: "large",
+            width: "100%",
+            shape: "pill",
+          });
+        }
+      } catch (e) {
+        console.warn("Google One Tap error:", e);
+      }
+    }
+  }, [navigate, setUser]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!email || !password) return;
 
-    const res = await loginUser(formData.email, formData.password);
+    setLoading(true);
+    const res = await loginUser(email, password);
+    setLoading(false);
 
     if (res.success) {
       setUser(res.user);
-      navigate(-1);
+      navigate("/");
     }
-
-    console.log("Login Data:", res);
   };
 
-  // Shared Styles
-  const glassInputStyle = {
-    background: "rgba(255, 255, 255, 0.05)",
-    backdropFilter: "blur(20px)",
-    WebkitBackdropFilter: "blur(20px)",
-    borderTop: "1px solid rgba(255, 255, 255, 0.4)",
-    borderLeft: "1px solid rgba(255, 255, 255, 0.4)",
-    borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
-    borderRight: "1px solid rgba(255, 255, 255, 0.1)",
-    boxShadow: "0 8px 32px 0 rgba(0, 0, 0, 0.37)",
-    color: theme.text,
-    transition: "all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
+  const handleFastDemo = async (role) => {
+    setActiveDemo(role);
+    setLoading(true);
+    const res = await demoLoginUser(role);
+    setLoading(false);
+    setActiveDemo(null);
+    if (res.success) {
+      setUser(res.user);
+      navigate("/");
+    }
   };
-
-  const glassFocusStyle = {
-    background: "rgba(255, 255, 255, 0.1)",
-    borderColor: "rgba(59, 130, 246, 0.8)",
-    boxShadow:
-      "0 0 25px rgba(59, 130, 246, 0.5), inset 0 0 15px rgba(59, 130, 246, 0.2)",
-    transform: "scale(1.02)",
-  };
-
-  const handleFocus = (e) => Object.assign(e.target.style, glassFocusStyle);
-  const handleBlur = (e) => {
-    e.target.style.background = glassInputStyle.background;
-    e.target.style.borderTop = glassInputStyle.borderTop;
-    e.target.style.borderLeft = glassInputStyle.borderLeft;
-    e.target.style.borderBottom = glassInputStyle.borderBottom;
-    e.target.style.borderRight = glassInputStyle.borderRight;
-    e.target.style.borderColor = "";
-    e.target.style.boxShadow = glassInputStyle.boxShadow;
-    e.target.style.transform = "none";
-  };
-
-  // SVG Icons
-  const EyeIcon = ({ visible }) => (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      fill="none"
-      viewBox="0 0 24 24"
-      strokeWidth={1.5}
-      stroke="currentColor"
-      className="w-5 h-5 opacity-70 hover:opacity-100 transition-opacity"
-      style={{ color: theme.text }}
-    >
-      {visible ? (
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"
-        />
-      ) : (
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88"
-        />
-      )}
-      {visible && (
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-        />
-      )}
-    </svg>
-  );
 
   return (
-    <div
-      className="animate-fade-in-up"
-      style={{
-        animationDuration: "0.8s",
-        animationFillMode: "both",
-        animationDelay: "0.1s",
-      }}
-    >
-      <div className="mb-8">
-        <h1
-          className="text-3xl md:text-4xl font-bold tracking-tight mb-2 drop-shadow-lg"
-          style={{ color: theme.text }}
-        >
-          Welcome back
-        </h1>
-        <p
-          className="text-sm font-medium"
-          style={{ color: theme.navbar.textIdle }}
-        >
-          Please enter your details to sign in.
-        </p>
-      </div>
-
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="space-y-1.5">
-          <label
-            className="text-[10px] font-bold uppercase tracking-widest opacity-80 ml-3"
-            style={{ color: theme.text }}
-          >
-            Email
-          </label>
-          <div className="relative group">
-            <input
-              type="email"
-              name="email"
-              required
-              value={formData.email}
-              onChange={handleChange}
-              style={glassInputStyle}
-              className="w-full px-5 py-4 rounded-2xl outline-none placeholder-white/90 text-sm"
-              placeholder="name@company.com"
-              onFocus={handleFocus}
-              onBlur={handleBlur}
-            />
-          </div>
-        </div>
-
-        <div className="space-y-1.5">
-          <label
-            className="text-[10px] font-bold uppercase tracking-widest opacity-80 ml-3"
-            style={{ color: theme.text }}
-          >
-            Password
-          </label>
-          <div className="relative group">
-            <input
-              type={showPassword ? "text" : "password"}
-              name="password"
-              required
-              value={formData.password}
-              onChange={handleChange}
-              style={glassInputStyle}
-              className="w-full px-5 py-4 rounded-2xl outline-none placeholder-white/90 text-sm pr-12"
-              placeholder="••••••••"
-              onFocus={handleFocus}
-              onBlur={handleBlur}
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-4 top-1/2 transform -translate-y-1/2 p-1 cursor-pointer z-10"
-            >
-              <EyeIcon visible={showPassword} />
-            </button>
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between text-xs pt-1 px-1">
-          <label className="flex items-center cursor-pointer group">
-            {/* <input
-              type="checkbox"
-              className="w-3.5 h-3.5 rounded border-gray-600 bg-white/5 text-blue-500 focus:ring-0 transition-transform active:scale-90"
-            />
-            <span
-              className="ml-2 group-hover:text-white transition-colors duration-300"
-              style={{ color: theme.navbar.textIdle }}
-            >
-              Remember me
-            </span> */}
-          </label>
-          <Link
-            to="/forgot-password"
-            replace
-            className="font-medium text-blue-500 hover:text-blue-400 transition-colors"
-          >
-            Forgot password?
-          </Link>
-        </div>
-
-        <button
-          type="submit"
-          className="w-full py-3.5 mt-2 rounded-2xl font-bold text-xs tracking-widest uppercase transition-all duration-300 transform hover:translate-y-[-2px] active:scale-[0.98] shadow-lg hover:shadow-blue-500/25"
-          style={{
-            backgroundColor: theme.card.btnBg,
-            color: theme.card.btnText,
-          }}
-        >
-          Sign In
-        </button>
-
-        <div className="space-y-4 mt-6">
-          <div className="relative flex py-1 items-center">
-            <div className="flex-grow border-t border-gray-700/50"></div>
-            <span className="flex-shrink-0 mx-3 text-gray-400 text-[10px] uppercase tracking-widest font-semibold">
-              Or
+    <div className="min-h-screen w-full bg-[#0c0d12] text-slate-100 flex items-center justify-center p-6 sm:p-10 select-none">
+      <div className="w-full max-w-5xl mx-auto flex flex-col lg:flex-row items-center justify-between gap-12">
+        {/* Left Side: Clean Brand Presentation */}
+        <div className="w-full lg:w-1/2 space-y-6 text-left">
+          <div className="flex items-center gap-2">
+            <span className="text-3xl font-black tracking-tight text-white flex items-center">
+              lira
+              <span className="w-2 h-2 rounded-full bg-purple-400 ml-1" />
             </span>
-            <div className="flex-grow border-t border-gray-700/50"></div>
+            <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-purple-500/10 text-purple-300 border border-purple-500/20">
+              Workspace
+            </span>
           </div>
-          <button
-            onClick={() => (window.location.href = GOOGLE_AUTH_URL)}
-            type="button"
-            className="w-full flex items-center justify-center gap-3 py-3.5 rounded-2xl border border-gray-700/30 bg-white/5 font-medium text-sm transition-all duration-300 hover:bg-white/10 hover:border-gray-500 active:scale-[0.98]"
-            style={{ color: theme.text }}
-          >
-            <img
-              src="https://www.svgrepo.com/show/475656/google-color.svg"
-              alt="Google"
-              className="h-4 w-4"
-            />
-            Continue with Google
-          </button>
-        </div>
-      </form>
 
-      <div className="mt-8 text-center">
-        <p className="text-xs" style={{ color: theme.navbar.textIdle }}>
-          Don't have an account?{" "}
-          <Link
-            to="/signup"
-            replace
-            className="font-bold text-blue-500 hover:text-blue-400 transition-colors"
-          >
-            Sign up
-          </Link>
-        </p>
+          <div className="space-y-3">
+            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight text-white leading-tight">
+              Modern Office & <br />
+              <span className="bg-gradient-to-r from-purple-400 via-indigo-300 to-blue-400 bg-clip-text text-transparent">
+                Task Management
+              </span>
+            </h1>
+            <p className="text-sm sm:text-base text-slate-400 max-w-md leading-relaxed">
+              Keep your team organized, prioritize urgent deliverables, log work effort, and monitor project velocity in one place.
+            </p>
+          </div>
+
+          {/* Simple feature badges (Plain English) */}
+          <div className="grid grid-cols-2 gap-3 pt-2">
+            <div className="p-3.5 rounded-2xl bg-[#14151f] border border-white/5 space-y-1">
+              <div className="flex items-center gap-2 text-purple-300 text-xs font-bold">
+                <Kanban className="w-4 h-4" />
+                <span>Interactive Board</span>
+              </div>
+              <p className="text-[11px] text-slate-400">Drag & drop cards across custom sprint columns</p>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-[#14151f] border border-white/5 space-y-1">
+              <div className="flex items-center gap-2 text-blue-300 text-xs font-bold">
+                <Sparkles className="w-4 h-4" />
+                <span>AI Task Assistant</span>
+              </div>
+              <p className="text-[11px] text-slate-400">One-click task breakdown & checklist generation</p>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-[#14151f] border border-white/5 space-y-1">
+              <div className="flex items-center gap-2 text-amber-300 text-xs font-bold">
+                <Clock className="w-4 h-4" />
+                <span>Work Logging</span>
+              </div>
+              <p className="text-[11px] text-slate-400">Compare actual hours logged against estimates</p>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-[#14151f] border border-white/5 space-y-1">
+              <div className="flex items-center gap-2 text-emerald-300 text-xs font-bold">
+                <BarChart2 className="w-4 h-4" />
+                <span>Live Analytics</span>
+              </div>
+              <p className="text-[11px] text-slate-400">Visual workload balance and project completion</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Side: Clean Glass Card */}
+        <div className="w-full lg:w-[420px]">
+          <div className="rounded-3xl bg-[#14151f] border border-white/10 p-6 sm:p-8 shadow-2xl space-y-6">
+            <div>
+              <h2 className="text-xl font-bold text-white tracking-tight">Sign In</h2>
+              <p className="text-xs text-slate-400 mt-1">Select a demo role or enter your credentials</p>
+            </div>
+
+            {/* Fast 1-Click Role Switcher */}
+            <div className="p-3 rounded-2xl bg-[#191a26] border border-white/10 space-y-2">
+              <span className="text-[11px] font-bold text-slate-300 flex items-center gap-1.5">
+                <Zap className="w-3.5 h-3.5 text-amber-400" />
+                <span>1-Click Fast Demo Login:</span>
+              </span>
+
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleFastDemo("admin")}
+                  disabled={loading}
+                  className={`py-2 px-2 rounded-xl text-xs font-bold transition-all border flex flex-col items-center gap-1 ${
+                    activeDemo === "admin"
+                      ? "bg-purple-600 text-white border-purple-500 scale-95"
+                      : "bg-purple-950/40 text-purple-300 border-purple-500/30 hover:bg-purple-900/50"
+                  }`}
+                >
+                  <span className="text-base">👑</span>
+                  <span>Admin</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleFastDemo("manager")}
+                  disabled={loading}
+                  className={`py-2 px-2 rounded-xl text-xs font-bold transition-all border flex flex-col items-center gap-1 ${
+                    activeDemo === "manager"
+                      ? "bg-blue-600 text-white border-blue-500 scale-95"
+                      : "bg-blue-950/40 text-blue-300 border-blue-500/30 hover:bg-blue-900/50"
+                  }`}
+                >
+                  <span className="text-base">👔</span>
+                  <span>Manager</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleFastDemo("employee")}
+                  disabled={loading}
+                  className={`py-2 px-2 rounded-xl text-xs font-bold transition-all border flex flex-col items-center gap-1 ${
+                    activeDemo === "employee"
+                      ? "bg-emerald-600 text-white border-emerald-500 scale-95"
+                      : "bg-emerald-950/40 text-emerald-300 border-emerald-500/30 hover:bg-emerald-900/50"
+                  }`}
+                >
+                  <span className="text-base">👨‍💻</span>
+                  <span>Employee</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="relative flex items-center justify-center">
+              <div className="border-t border-white/10 w-full" />
+              <span className="bg-[#14151f] px-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest absolute">
+                Or with email
+              </span>
+            </div>
+
+            {/* Email & Password Form */}
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="text-xs font-semibold text-slate-300 block mb-1.5">
+                  Work Email
+                </label>
+                <input
+                  type="email"
+                  placeholder="admin@incuman.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full bg-[#191a26] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 transition-all font-medium"
+                  required
+                />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-semibold text-slate-300">
+                    Password
+                  </label>
+                  <span className="text-[10px] text-slate-400 font-mono">
+                    Default: password123
+                  </span>
+                </div>
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    placeholder="••••••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full bg-[#191a26] border border-white/10 rounded-xl px-3.5 pr-10 py-2.5 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 transition-all font-medium"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs sm:text-sm font-bold rounded-xl shadow-lg shadow-blue-500/25 transition-all flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <span>{loading ? "Signing In..." : "Sign In"}</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </form>
+
+            <div className="text-center pt-2">
+              <p className="text-xs text-slate-400">
+                Don't have an account?{" "}
+                <Link to="/signup" className="text-purple-400 hover:underline font-semibold">
+                  Create Account
+                </Link>
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
-};
-
-export default Login;
+}

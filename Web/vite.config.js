@@ -5,14 +5,30 @@ import path from "path";
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
-
+  server: {
+    port: 5173,
+    host: "0.0.0.0",
+    proxy: {
+      "/api": {
+        target: "http://127.0.0.1:5000",
+        changeOrigin: true,
+      },
+      "/uploads": {
+        target: "http://127.0.0.1:5000",
+        changeOrigin: true,
+      },
+      "/socket.io": {
+        target: "http://127.0.0.1:5000",
+        ws: true,
+        changeOrigin: true,
+      },
+    },
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "src"),
       "@components": path.resolve(__dirname, "src/components"),
       "@context": path.resolve(__dirname, "src/context"),
-      // "@hooks": path.resolve(__dirname, "src/hooks"),
-      // "@layout": path.resolve(__dirname, "src/components/layout"),
       "@pages": path.resolve(__dirname, "src/pages"),
     },
   },

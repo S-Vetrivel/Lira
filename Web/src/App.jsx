@@ -1,109 +1,52 @@
-import "./App.css";
-import { useContext, useEffect } from "react";
-import { Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
-
-// CONTEXT
-import { ThemeContext } from "./context/ThemeContext";
-import { useApp } from "./context/Appcontext";
-
-// COMPONENTS
-import ScrollToTop from "./components/ScrollToTop";
-import ProductDisplay from "./components/ProductDisplay";
-import AuthLayout from "./components/layout/AuthLayout";
-import Modal from "./components/layout/Modal";
+import { MainLayout } from "./components/layout/MainLayout";
 
 // PAGES
-import Home from "./pages/Home";
-import Shop from "./pages/Shop";
-import Gallery from "./pages/Gallery";
-import About from "./pages/About";
-import Contact from "./pages/Contact";
-import Cart from "./pages/Cart";
-import Profile from "./pages/Profile";
+import Board from "./pages/Board";
+import MyWork from "./pages/MyWork";
+import Analytics from "./pages/Analytics";
+import Team from "./pages/Team";
+import Projects from "./pages/Projects";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
-import { MainLayout } from "./components/layout/MainLayout";
-import ForgetPassword from "./pages/ForgetPassword";
-import Checkout from "./pages/Checkout";
-import NetworkError from "./pages/NetworkError";
-import NotFound from "./pages/NotFound";
-
-import SEO from "./components/SEO";
 
 function App() {
-  const { user, modalState, closeModal } = useApp();
-  const { theme } = useContext(ThemeContext);
-  const location = useLocation();
-
-  useEffect(() => {
-    document.documentElement.style.backgroundColor = theme.bg;
-    document.body.style.backgroundColor = theme.bg;
-    document.documentElement.style.color = theme.text;
-  }, [theme]);
-
-  // --- AUTOMATICALLY CLOSE MODAL ON ROUTE CHANGE ---
-  // ✅ FIX: Removed modalState.isOpen from dependency array.
-  // This ensures it only runs when location.pathname changes, not when the modal opens.
-  useEffect(() => {
-    closeModal();
-  }, [location.pathname, closeModal]);
-
   return (
     <>
-      <SEO />
       <Toaster
         position="bottom-right"
         toastOptions={{
-          style: { background: "#333", color: "#fff" },
-          success: { duration: 3000 },
+          style: {
+            background: "#0f172a",
+            color: "#f8fafc",
+            borderRadius: "0.75rem",
+            fontSize: "0.875rem",
+          },
+          success: {
+            duration: 3500,
+            iconTheme: {
+              primary: "#3b82f6",
+              secondary: "#ffffff",
+            },
+          },
         }}
       />
 
-      <ScrollToTop />
-
-      {/* --- GLOBAL MODAL MOUNT --- */}
-      <Modal
-        isOpen={modalState.isOpen}
-        onClose={closeModal}
-        title={modalState.title}
-        description={modalState.description}
-        theme={theme}
-      >
-        {modalState.children}
-      </Modal>
-
       <Routes>
-        <Route element={<AuthLayout />}>
-          <Route
-            path="/login"
-            element={user ? <Navigate to="/" replace /> : <Login />}
-          />
-          <Route
-            path="/signup"
-            element={user ? <Navigate to="/" replace /> : <Signup />}
-          />
-          <Route
-            path="/forgot-password"
-            element={user ? <Navigate to="/" replace /> : <ForgetPassword />}
-          />
-        </Route>
+        {/* Public Auth Routes */}
+        <Route path="/login" element={<Login />} />
+        <Route path="/signup" element={<Signup />} />
 
+        {/* Authenticated Workspace Routes */}
         <Route element={<MainLayout />}>
-          <Route path="/" element={<Home />} />
-          <Route path="/shop" element={<Shop />} />
-          <Route path="/shop/:id" element={<ProductDisplay />} />
-          <Route path="/gallery" element={<Gallery />} />
-          <Route path="/about" element={<About />} />
-          <Route path="/contact" element={<Contact />} />
-          <Route path="/cart" element={<Cart />} />
-          <Route path="/checkout" element={<Checkout />} />
-          <Route
-            path="/profile"
-            element={user ? <Profile /> : <Navigate to="/" replace />}
-          />
-          <Route path="/network-error" element={<NetworkError />} />
-          <Route path="*" element={<NotFound />} />
+          <Route path="/" element={<Board />} />
+          <Route path="/board" element={<Board />} />
+          <Route path="/my-work" element={<MyWork />} />
+          <Route path="/analytics" element={<Analytics />} />
+          <Route path="/team" element={<Team />} />
+          <Route path="/projects" element={<Projects />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
     </>

@@ -1,23 +1,21 @@
 module.exports = {
   apps: [
     {
-      name: "api",
+      name: "lira-cluster-api",
       script: "index.js",
-      exec_mode: "fork",
-      instances: 1,
-      max_memory_restart: "400M",
-      node_args: ["--max-old-space-size=512"],
+      instances: "max",
+      exec_mode: "cluster",
+      max_memory_restart: "500M",
       env: {
         NODE_ENV: "production",
       },
     },
     {
-      name: "worker",
+      name: "lira-queue-workers",
       script: "./workers/index.js",
-      exec_mode: "fork",
-      instances: 1,
+      instances: 2,
+      exec_mode: "cluster",
       max_memory_restart: "600M",
-      node_args: ["--max-old-space-size=768"],
       env: {
         NODE_ENV: "production",
       },

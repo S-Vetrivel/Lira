@@ -1,31 +1,143 @@
 @import "tailwindcss";
 
-/* --- 1. Hide Scrollbars --- */
-/* For Chrome, Safari, Edge */
+@custom-variant dark (&:where(.dark, .dark *));
+@custom-variant light (&:where(.light, .light *));
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html.dark {
+    color-scheme: dark;
+  }
+
+  html.light {
+    color-scheme: light;
+  }
+
+  body {
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    overflow-x: hidden;
+  }
+
+  code, pre, .font-mono {
+    font-family: 'JetBrains Mono', monospace;
+  }
+}
+
+/* ====================================================
+   DASHBOARD DESIGN SYSTEM (Fitonist / Luxury Dark & Light)
+   ==================================================== */
+
+/* Hatch pattern for bar charts (exact match to reference image) */
+.hatched-bar {
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.08),
+    rgba(255, 255, 255, 0.08) 5px,
+    transparent 5px,
+    transparent 10px
+  );
+}
+
+.hatched-bar-light {
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(0, 0, 0, 0.05),
+    rgba(0, 0, 0, 0.05) 5px,
+    transparent 5px,
+    transparent 10px
+  );
+}
+
+/* Dark theme card */
+.dash-card {
+  background: #14151c;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 16px 40px -12px rgba(0, 0, 0, 0.45);
+  border-radius: 1.75rem;
+  transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.dash-card:hover {
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+/* Light theme card */
+.light .dash-card {
+  background: #ffffff;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  box-shadow: 0 10px 30px -5px rgba(15, 23, 42, 0.05);
+  border-radius: 1.75rem;
+}
+
+.light .dash-card:hover {
+  border-color: rgba(99, 102, 241, 0.35);
+  box-shadow: 0 14px 34px -4px rgba(99, 102, 241, 0.08);
+}
+
+/* Pill navigation buttons */
+.pill-tab {
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.pill-tab-active-dark {
+  background: #ffffff;
+  color: #0b0c10;
+  font-weight: 700;
+  box-shadow: 0 4px 14px 0 rgba(255, 255, 255, 0.25);
+}
+
+.pill-tab-active-light {
+  background: #0f172a;
+  color: #ffffff;
+  font-weight: 700;
+  box-shadow: 0 4px 14px 0 rgba(15, 23, 42, 0.2);
+}
+
+/* Glassmorphism Design Utilities */
+.glass-panel {
+  background: rgba(20, 21, 28, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.light .glass-panel {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+}
+
+.glass-dropdown {
+  background: #171821;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 20px 50px -10px rgba(0, 0, 0, 0.6);
+}
+
+.light .glass-dropdown {
+  background: #ffffff;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  box-shadow: 0 20px 40px -8px rgba(15, 23, 42, 0.15);
+}
+
+/* Custom Minimal Scrollbar */
 ::-webkit-scrollbar {
-  display: none;
+  width: 6px;
+  height: 6px;
 }
 
-/* For Firefox, IE, Edge Legacy */
-* {
-  scrollbar-width: none;
-  -ms-overflow-style: none;
+::-webkit-scrollbar-track {
+  background: transparent;
 }
 
-/* --- 2. Global Smooth Color Transitions --- */
-/* Target every element, including before/after pseudo-elements */
-*, *::before, *::after {
-  /* We list specific color properties to avoid animating layout (width/height) which causes lag */
-  transition-property: background-color, color, border-color, fill, stroke, outline-color, text-decoration-color, box-shadow;
-  transition-duration: 0.3s;
-  transition-timing-function: ease;
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.25);
+  border-radius: 9999px;
 }
 
-/* --- 3. Base Settings --- */
-html,
-body {
-  /* Smooth scrolling for anchor links */
-  scroll-behavior: smooth;
-  /* Ensure the base page background transitions smoothly */
-  transition: background-color 0.3s ease, color 0.3s ease; 
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.5);
 }

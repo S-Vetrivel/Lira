@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const passport = require("passport");
-const { OAuth2Client } = require("google-auth-library"); // 1. Import Google Library
+const { OAuth2Client } = require("google-auth-library");
 const generateTokenAndSetCookie = require("../utils/generateToken");
 const { protect } = require("../middleware/authMiddleware");
 const {
@@ -9,27 +9,22 @@ const {
   Signup,
   Logout,
   Me,
+  DemoLogin,
   resetPassword,
 } = require("../controllers/authControllers");
-const { findOrCreateGoogleUser } = require("../services/authService"); // 2. Import Helper
+const { findOrCreateGoogleUser } = require("../services/authService");
 
-// Initialize Google Client for One Tap verification
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
-// ==============================================
-// 1. MANUAL AUTH ROUTES
-// ==============================================
+// 1. Manual Auth Routes
 router.post("/signup", Signup);
 router.post("/login", Login);
 router.get("/logout", Logout);
 router.get("/me", protect(), Me);
+router.post("/demo-login", DemoLogin);
 router.post("/reset-password", resetPassword);
 
-// ==============================================
-// 2. GOOGLE OAUTH ROUTES (Standard Redirect)
-// ==============================================
-
-// A. Trigger Route
+// 2. Google OAuth Routes (Standard Redirect)
 router.get(
   "/google",
   passport.authenticate("google", {
@@ -38,49 +33,45 @@ router.get(
   })
 );
 
-// B. Callback Route
 router.get(
   "/google/callback",
   passport.authenticate("google", {
     session: false,
-    failureRedirect: `${process.env.CLIENT_URL}/login`,
+    failureRedirect: `${process.env.FRONTEND_URL || "http://localhost:5173"}/login?error=google_failed`,
   }),
   (req, res) => {
-    // req.user is populated by Passport strategy
-
-    // 1. Use Utility to Set Cookie
     generateTokenAndSetCookie(res, req.user._id);
-
-    // 2. Redirect to Frontend (Dashboard/Home)
-    const clientUrl = process.env.CLIENT_URL || "http://localhost:5173";
+    const clientUrl = process.env.FRONTEND_URL || process.env.CLIENT_URL || "http://localhost:5173";
     res.redirect(clientUrl);
   }
 );
 
-// ==============================================
-// 3. GOOGLE ONE TAP ROUTE (Popup/No-Redirect)
-// ==============================================
+// 3. Google One Tap Route
 router.post("/google/onetap", async (req, res) => {
   const { token } = req.body;
 
   try {
-    // A. Verify the ID Token sent from Frontend
     const ticket = await client.verifyIdToken({
       idToken: token,
       audience: process.env.GOOGLE_CLIENT_ID,
     });
-    const payload = ticket.getPayload(); // { email, name, picture, sub, ... }
-
-    // B. Find or Create User (Reusing the logic)
+    const payload = ticket.getPayload();
     const user = await findOrCreateGoogleUser(payload);
+    const jwtToken = generateTokenAndSetCookie(res, user._id);
 
-    // C. Set the Cookie (CRITICAL: Matches your existing auth logic)
-    generateTokenAndSetCookie(res, user._id);
-
-    // D. Respond with User Data (Frontend updates state immediately)
     res.status(200).json({
       success: true,
-      user,
+      token: jwtToken,
+      user: {
+        _id: user._id,
+        id: user._id,
+        email: user.email,
+        fullname: user.fullname,
+        role: user.role,
+        departmentName: user.departmentName || "General",
+        jobTitle: user.jobTitle,
+        avatar: user.avatar || user.profilePicture,
+      },
       message: "Google One Tap Login Successful",
     });
   } catch (error) {

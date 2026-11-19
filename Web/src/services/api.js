@@ -1,11 +1,11 @@
 import axios from "axios";
 import toast from "react-hot-toast";
 
-// 1. Configuration Constants
-const API_URL = import.meta.env.VITE_API_URL || "/api";
+// 1. API URL configuration
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 export const GOOGLE_AUTH_URL = `${API_URL}/auth/google`;
 
-// 2. Create Axios Instance
+// 2. Axios instance with credentials
 const api = axios.create({
   baseURL: API_URL,
   withCredentials: true,
@@ -14,931 +14,418 @@ const api = axios.create({
   },
 });
 
-// 3. Response Interceptor (Global Error Handling)
+// 3. Response Interceptor for Error Handling
 api.interceptors.response.use(
-  (response) => {
-    return response;
-  },
+  (response) => response,
   (error) => {
-    // ==============================================================
-    // 🛑 SILENT ROUTES: Don't show popups for these endpoints
-    // ==============================================================
-    const silentRoutes = ["/auth/me", "/gallery"];
-
-    // Check if the current request URL matches any silent route
-    if (
-      error.config &&
-      silentRoutes.some((route) => error.config.url.includes(route))
-    ) {
-      return Promise.reject(error);
-    }
-    // ==============================================================
-
-    // A. Network / Connection Errors
-    if (!error.response) {
-      if (window.location.pathname !== "/network-error") {
-        window.location.href = "/network-error";
-      }
+    const silentRoutes = ["/auth/me", "/notifications"];
+    if (error.config && silentRoutes.some((route) => error.config.url?.includes(route))) {
       return Promise.reject(error);
     }
 
-    // B. Extract message
-    const { status, data } = error.response;
-    const backendMessage = data?.message || "An unexpected error occurred.";
+    const { status, data } = error.response || {};
+    const message = data?.message || "An unexpected error occurred.";
 
-    // C. Handle specific status codes
     if (status === 401) {
-      toast.error(backendMessage);
-
-      setTimeout(() => {
-        // Prevent redirect loop if already on login page
-        if (window.location.pathname !== "/login") {
-          window.location.href = "/login";
-        }
-      }, 1000);
-    } else if (status === 403) {
-      toast.error(backendMessage);
-    } else if (status === 404) {
-      toast.error(backendMessage);
+      if (window.location.pathname !== "/login") {
+        toast.error(message);
+        window.location.href = "/login";
+      }
+    } else if (status >= 400 && status < 500) {
+      toast.error(message);
     } else if (status >= 500) {
-      toast.error(backendMessage);
-    } else {
-      toast.error(backendMessage);
+      toast.error("Server error. Please try again shortly.");
     }
 
     return Promise.reject(error);
   }
 );
 
-// 4. Login Function
+export default api;
+
+// ==========================================
+// AUTHENTICATION APIs
+// ==========================================
 export async function loginUser(email, password) {
   try {
-    const response = await api.post("/auth/login", { email, password });
-    toast.success(response.data.message || "Login Successful!");
-    return {
-      success: true,
-      user: response.data.user,
-      message: response.data.message,
-    };
+    const res = await api.post("/auth/login", { email, password });
+    toast.success(res.data.message || "Welcome back!");
+    return { success: true, user: res.data.user };
   } catch (error) {
-    return {
-      success: false,
-      message: error.response?.data?.message || "Login failed.",
-    };
+    return { success: false, message: error.response?.data?.message || "Login failed" };
   }
 }
 
-// 5. SignUp Function
-export async function SignUp(name, email, password, confirmPassword) {
-  if (password !== confirmPassword) {
-    toast.error("Passwords do not match!");
-    return { success: false, message: "Passwords do not match" };
-  }
-
+export async function signUpUser(formData) {
   try {
-    const response = await api.post("/auth/signup", {
-      fullname: name,
-      username: email.split("@")[0],
-      email,
-      password,
-      confirmPassword,
-    });
-    toast.success(response.data.message || "Account created successfully!");
-    return {
-      success: true,
-      user: response.data.user,
-      message: response.data.message,
-    };
+    const res = await api.post("/auth/signup", formData);
+    toast.success(res.data.message || "Account created successfully!");
+    return { success: true, user: res.data.user };
   } catch (error) {
-    return {
-      success: false,
-      message: error.response?.data?.message || "Signup failed.",
-    };
+    return { success: false, message: error.response?.data?.message || "Signup failed" };
   }
 }
 
-// 6. Check Auth Function (Silent)
+export async function demoLoginUser(role) {
+  try {
+    const res = await api.post("/auth/demo-login", { role });
+    toast.success(res.data.message || `Switched to demo ${role}`);
+    return { success: true, user: res.data.user };
+  } catch (error) {
+    return { success: false, message: error.response?.data?.message || "Demo login failed" };
+  }
+}
+
 export async function checkAuth() {
   try {
-    const response = await api.get("/auth/me");
-    return {
-      isAuthenticated: true,
-      user: response.data.user,
-    };
+    const res = await api.get("/auth/me");
+    return { isAuthenticated: true, user: res.data.user };
   } catch (error) {
-    // CASE 1: Server responded, but said "Unauthorized" (401)
-    if (error.response && error.response.status === 401) {
-      return {
-        isAuthenticated: false,
-        user: null,
-      };
-    }
-
-    // CASE 2: Network Error or Server Down (No response or 500s)
-    // We throw the error so the Provider knows to retry
-    throw error;
+    return { isAuthenticated: false, user: null };
   }
 }
 
-// 7. Logout Function
-export async function logout() {
+export async function logoutUser() {
   try {
     await api.get("/auth/logout");
-    toast.success("Logged out successfully");
+    toast.success("Logged out");
     return { success: true };
   } catch (error) {
     return { success: false };
   }
 }
 
-// 8. Reset Password Function
-export async function ResetPassword(email) {
-  try {
-    await api.post("/auth/reset-password", {
-      email,
-    });
-    toast.success("Email sent successfully!");
-    return { success: true };
-  } catch (error) {
-    return { success: false };
-  }
-}
-
-// 9. Personal Info Update Function
-export async function UpdatePersonalInfo(data) {
-  try {
-    const res = await api.put("/profile/info", data);
-
-    toast.success(res.data?.message || "Profile updated successfully!");
-
-    return {
-      success: true,
-      user: res.data?.user,
-      message: res.data?.message,
-    };
-  } catch (error) {
-    // Error toast handled by interceptor usually, but safe to return logic here
-    return {
-      success: false,
-      message: error.response?.data?.message || "Update failed",
-    };
-  }
-}
-
-// 10. Upload Profile Picture Function (NEW)
-export async function uploadProfileImage(file) {
-  try {
-    const formData = new FormData();
-    formData.append("image", file);
-
-    const res = await api.post("/profile/profile-image", formData, {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
-    });
-
-    toast.success(res.data?.message || "Upload started! Updating soon...");
-
-    return {
-      success: true,
-      message: res.data?.message,
-    };
-  } catch (error) {
-    console.error("Profile Upload Error:", error);
-    // Error is typically shown by interceptor, but we return false to handle loading states
-    return {
-      success: false,
-      message: error.response?.data?.message || "Upload failed",
-    };
-  }
-}
-
-// 11. Google One Tap Login Function
 export async function googleOneTapLogin(token) {
   try {
-    const response = await api.post("/auth/google/onetap", { token });
-
-    toast.success(response.data.message || "Google Login Successful!");
-
-    return {
-      success: true,
-      user: response.data.user,
-    };
+    const res = await api.post("/auth/google/onetap", { token });
+    toast.success(res.data.message || "Google Login Successful!");
+    return { success: true, user: res.data.user };
   } catch (error) {
-    return {
-      success: false,
-      message: error.response?.data?.message || "Google Login Failed",
-    };
+    return { success: false, message: error.response?.data?.message || "Google login failed" };
   }
 }
 
-// ==============================================================
-// 12. GALLERY FUNCTIONS (Admin)
-// ==============================================================
-export async function getallGallery() {
+// ==========================================
+// PROJECTS APIs
+// ==========================================
+export async function getProjects() {
   try {
-    const response = await api.get("/gallery");
-    return {
-      success: true,
-      data: response.data,
-    };
+    const res = await api.get("/projects");
+    return { success: true, projects: res.data.projects || [] };
   } catch (error) {
-    return {
-      success: false,
-      message: error.response?.data?.message || "Failed to fetch gallery",
-    };
+    return { success: false, projects: [] };
   }
 }
 
-// A. Fetch All Images
-export async function getGallery() {
+export async function getProjectById(id) {
   try {
-    const response = await api.get("/admin/gallery");
-    return {
-      success: true,
-      data: response.data,
-    };
+    const res = await api.get(`/projects/${id}`);
+    return { success: true, project: res.data.project };
   } catch (error) {
-    return {
-      success: false,
-      message: error.response?.data?.message || "Failed to fetch gallery",
-    };
+    return { success: false };
   }
 }
 
-// B. Upload Images (Bulk)
-export async function uploadGalleryImages(formData) {
+export async function createProject(data) {
   try {
-    const response = await api.post("/admin/gallery", formData, {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
-    });
-
-    return {
-      success: true,
-      data: response.data.data,
-    };
+    const res = await api.post("/projects", data);
+    toast.success(`Project ${res.data.project.name} (${res.data.project.prefix}) created!`);
+    return { success: true, project: res.data.project };
   } catch (error) {
-    console.error("Upload Error:", error);
-    return {
-      success: false,
-      message: error.response?.data?.message || "Upload failed",
-    };
+    return { success: false, message: error.response?.data?.message };
   }
 }
 
-// C. Delete Images (Bulk)
-export async function deleteGalleryImages(ids) {
+export async function updateProject(id, data) {
   try {
-    const response = await api.post("/admin/gallery/delete-batch", { ids });
-    toast.success(response.data.message || "Images deleted");
+    const res = await api.put(`/projects/${id}`, data);
+    toast.success("Project updated");
+    return { success: true, project: res.data.project };
+  } catch (error) {
+    return { success: false };
+  }
+}
+
+export async function deleteProject(id) {
+  try {
+    await api.delete(`/projects/${id}`);
+    toast.success("Project removed");
     return { success: true };
   } catch (error) {
     return { success: false };
   }
 }
 
-// D. Save Order
-export async function reorderGalleryImages(items) {
+// ==========================================
+// DEPARTMENTS APIs
+// ==========================================
+export async function getDepartments() {
   try {
-    const response = await api.put("/admin/gallery/reorder", { items });
-    return { success: true };
+    const res = await api.get("/departments");
+    return { success: true, departments: res.data.departments || [] };
+  } catch (error) {
+    return { success: false, departments: [] };
+  }
+}
+
+export async function createDepartment(data) {
+  try {
+    const res = await api.post("/departments", data);
+    toast.success("Department created");
+    return { success: true, department: res.data.department };
   } catch (error) {
     return { success: false };
   }
 }
 
-// E. Update Image Details (Title)
-export async function updateGalleryImageDetails(id, title) {
+// ==========================================
+// TASKS APIs (Tickets, Kanban & Drawer)
+// ==========================================
+export async function getTasks(filters = {}) {
   try {
-    const response = await api.put(`/admin/gallery/${id}`, { title });
-    toast.success("Image updated");
-    return { success: true, data: response.data };
+    const res = await api.get("/tasks", { params: filters });
+    return { success: true, tasks: res.data.tasks || [] };
+  } catch (error) {
+    return { success: false, tasks: [] };
+  }
+}
+
+export async function getMyTasks() {
+  try {
+    const res = await api.get("/tasks/my-work");
+    return { success: true, stats: res.data.stats, grouped: res.data.grouped };
+  } catch (error) {
+    return { success: false, stats: {}, grouped: {} };
+  }
+}
+
+export async function getTaskDetails(keyOrId) {
+  try {
+    const res = await api.get(`/tasks/${keyOrId}`);
+    return {
+      success: true,
+      task: res.data.task,
+      comments: res.data.comments || [],
+      history: res.data.history || [],
+    };
   } catch (error) {
     return { success: false };
   }
 }
 
-// ==============================================================
-// 13. PRODUCT FUNCTIONS (Public)
-// ==============================================================
-
-// A. Fetch All Products (With Filters)
-export async function getAllProducts(filters = {}) {
-  // filters expected: { category, search, minPrice, maxPrice, sort }
+export async function createTask(taskData) {
   try {
-    const response = await api.get("/products", { params: filters });
-    return {
-      success: true,
-      data: response.data,
-    };
+    const res = await api.post("/tasks", taskData);
+    toast.success(`Task ${res.data.task.key} created!`);
+    return { success: true, task: res.data.task };
   } catch (error) {
-    return {
-      success: false,
-      message: error.response?.data?.message || "Failed to load products",
-    };
+    return { success: false, message: error.response?.data?.message };
   }
 }
 
-// B. Fetch Single Product by ID
-export async function getProductById(id) {
+export async function updateTask(id, updates) {
   try {
-    const response = await api.get(`/products/${id}`);
-    return {
-      success: true,
-      data: response.data,
-    };
+    const res = await api.put(`/tasks/${id}`, updates);
+    return { success: true, task: res.data.task };
   } catch (error) {
-    return {
-      success: false,
-      message: error.response?.data?.message || "Product not found",
-    };
+    return { success: false };
   }
 }
 
-// C. Get Recommendations
-export async function getProductRecommendations(currentId, category) {
+export async function updateTaskStatus(id, status, order) {
   try {
-    const response = await api.get("/products/recommendations", {
-      params: { currentId, category },
-    });
-    return {
-      success: true,
-      data: response.data,
-    };
+    const res = await api.patch(`/tasks/${id}/status`, { status, order });
+    return { success: true, task: res.data.task };
   } catch (error) {
-    // Fail silently for recommendations (don't break the page)
-    console.error("Recommendation Error:", error);
-    return { success: false, data: [] };
-  }
-}
-// ==============================================================
-// PRODUCT MANAGEMENT (Admin)
-// ==============================================================
-
-export async function getAlladminProducts() {
-  try {
-    const response = await api.get("/admin/products");
-    return { success: true, data: response.data };
-  } catch (error) {
-    return {
-      success: false,
-      message: error.response?.data?.message || "Error",
-    };
+    return { success: false };
   }
 }
 
-// ==============================================================
-// ADMIN FUNCTIONS (Fixed Uploads)
-// ==============================================================
-
-// 1. Create Product
-export async function createProduct(formData) {
+export async function addWorkLog(id, hours, note, date) {
   try {
-    // Let Axios/Browser handle the boundary
-    const response = await api.post("/admin/products", formData, {
+    const res = await api.post(`/tasks/${id}/worklog`, { hours, note, date });
+    toast.success(`Logged ${hours}h work!`);
+    return { success: true, task: res.data.task, loggedHours: res.data.loggedHours };
+  } catch (error) {
+    return { success: false };
+  }
+}
+
+export async function addSubtask(taskId, title, assignee) {
+  try {
+    const res = await api.post(`/tasks/${taskId}/subtasks`, { title, assignee });
+    return { success: true, subtasks: res.data.subtasks };
+  } catch (error) {
+    return { success: false };
+  }
+}
+
+export async function toggleSubtask(taskId, subtaskId) {
+  try {
+    const res = await api.patch(`/tasks/${taskId}/subtasks/${subtaskId}/toggle`);
+    return { success: true, subtasks: res.data.subtasks };
+  } catch (error) {
+    return { success: false };
+  }
+}
+
+export async function deleteSubtask(taskId, subtaskId) {
+  try {
+    const res = await api.delete(`/tasks/${taskId}/subtasks/${subtaskId}`);
+    return { success: true, subtasks: res.data.subtasks };
+  } catch (error) {
+    return { success: false };
+  }
+}
+
+export async function uploadTaskAttachment(taskId, file) {
+  try {
+    const formData = new FormData();
+    formData.append("file", file);
+    const res = await api.post(`/tasks/${taskId}/attachments`, formData, {
       headers: { "Content-Type": "multipart/form-data" },
     });
-    return { success: true, data: response.data };
+    toast.success("Attachment uploaded");
+    return { success: true, attachments: res.data.attachments };
   } catch (error) {
-    console.error("Create Error:", error.response?.data);
-    return {
-      success: false,
-      message: error.response?.data?.error || "Creation failed",
-    };
+    return { success: false };
   }
 }
 
-// 2. Update Product
-export async function updateProduct(id, formData) {
+export async function deleteTask(id) {
   try {
-    const response = await api.put(`/admin/products/${id}`, formData, {
-      headers: { "Content-Type": "multipart/form-data" },
-    });
-    return { success: true, data: response.data };
-  } catch (error) {
-    console.error("Update Error:", error.response?.data);
-    return {
-      success: false,
-      message: error.response?.data?.error || "Update failed",
-    };
-  }
-}
-
-// 3. Delete Product
-export async function deleteProduct(id) {
-  try {
-    await api.delete(`/admin/products/${id}`);
-    return { success: true };
-  } catch (error) {
-    return {
-      success: false,
-      message: error.response?.data?.message || "Delete failed",
-    };
-  }
-}
-
-// ==============================================================
-// 14. CART FUNCTIONS
-// ==============================================================
-
-// A. Get Cart
-export async function getCart() {
-  try {
-    // Ensure your backend has router.get("/", ...) mounted at /api/cart
-    const response = await api.get("/cart");
-    return {
-      success: true,
-      cart: response.data.cart,
-    };
-  } catch (error) {
-    return {
-      success: false,
-      message: error.response?.data?.message || "Failed to load cart",
-    };
-  }
-}
-
-// B. Add Item to Cart (Toasts handled here)
-export async function addToCart(productId, color, size, quantity = 1) {
-  try {
-    const response = await api.post("/cart/add", {
-      productId,
-      color,
-      size,
-      quantity,
-    });
-
-    // ✅ API handles the success toast directly
-    toast.success(response.data.message || "Added to cart successfully");
-
-    return {
-      success: true,
-      cart: response.data.cart,
-    };
-  } catch (error) {
-    // Error toasts are handled by your global axios interceptor
-    return {
-      success: false,
-      message: error.response?.data?.message || "Failed to add item",
-    };
-  }
-}
-
-// C. Update Item Quantity
-export async function updateCartItem(itemId, quantity) {
-  try {
-    const response = await api.put("/cart/update", { itemId, quantity });
-    return {
-      success: true,
-      cart: response.data.cart,
-    };
-  } catch (error) {
-    return {
-      success: false,
-      message: error.response?.data?.message || "Failed to update cart",
-    };
-  }
-}
-
-// D. Remove Item
-export async function removeFromCart(itemId) {
-  try {
-    const response = await api.delete(`/cart/item/${itemId}`);
-    toast.success("Item removed");
-    return {
-      success: true,
-      cart: response.data.cart,
-    };
-  } catch (error) {
-    return {
-      success: false,
-      message: error.response?.data?.message || "Failed to remove item",
-    };
-  }
-}
-
-// E. Clear Cart
-export async function clearCart() {
-  try {
-    await api.delete("/cart");
+    const res = await api.delete(`/tasks/${id}`);
+    toast.success(res.data.message || "Task deleted");
     return { success: true };
   } catch (error) {
     return { success: false };
   }
 }
 
-// ==============================================================
-// 15. ADDRESS FUNCTIONS
-// ==============================================================
-
-// A. Get All Addresses
-export async function getAddresses() {
+// ==========================================
+// COMMENTS APIs
+// ==========================================
+export async function getComments(taskId) {
   try {
-    const response = await api.get("/address");
-    return {
-      success: true,
-      addresses: response.data.addresses,
-    };
+    const res = await api.get(`/comments/${taskId}`);
+    return { success: true, comments: res.data.comments || [] };
   } catch (error) {
-    return {
-      success: false,
-      message: error.response?.data?.message || "Failed to load addresses",
-    };
+    return { success: false, comments: [] };
   }
 }
 
-// B. Add Address
-export async function addAddress(addressData) {
+export async function addComment(taskId, text) {
   try {
-    const response = await api.post("/address", addressData);
-    toast.success("Address added successfully");
-    return {
-      success: true,
-      addresses: response.data.addresses,
-    };
+    const res = await api.post(`/comments/${taskId}`, { text });
+    toast.success("Comment posted");
+    return { success: true, comment: res.data.comment };
   } catch (error) {
-    return {
-      success: false,
-      message: error.response?.data?.message || "Failed to add address",
-    };
+    return { success: false };
   }
 }
 
-// C. Update Address
-export async function updateAddress(id, addressData) {
+// ==========================================
+// NOTIFICATIONS APIs
+// ==========================================
+export async function getNotifications() {
   try {
-    const response = await api.put(`/address/${id}`, addressData);
-    toast.success("Address updated");
+    const res = await api.get("/notifications");
     return {
       success: true,
-      addresses: response.data.addresses,
+      unreadCount: res.data.unreadCount || 0,
+      notifications: res.data.notifications || [],
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.response?.data?.message || "Failed to update address",
-    };
+    return { success: false, unreadCount: 0, notifications: [] };
   }
 }
 
-// D. Set Primary Address
-export async function setPrimaryAddress(id) {
+export async function markNotificationRead(id) {
   try {
-    const response = await api.put(`/address/${id}/primary`);
-    toast.success("Primary address updated");
-    return {
-      success: true,
-      addresses: response.data.addresses,
-    };
+    await api.patch(`/notifications/${id}/read`);
+    return { success: true };
   } catch (error) {
-    return {
-      success: false,
-      message: error.response?.data?.message || "Failed to set primary",
-    };
+    return { success: false };
   }
 }
 
-// E. Delete Address
-export async function deleteAddress(id) {
+export async function markAllNotificationsRead() {
   try {
-    const response = await api.delete(`/address/${id}`);
-    toast.success("Address deleted");
-    return {
-      success: true,
-      addresses: response.data.addresses,
-    };
+    await api.post("/notifications/read-all");
+    return { success: true };
   } catch (error) {
-    return {
-      success: false,
-      message: error.response?.data?.message || "Failed to delete address",
-    };
+    return { success: false };
   }
 }
 
-// ==============================================================
-// 16. ORDER FUNCTIONS
-// ==============================================================
-
-// --- USER ORDER OPERATIONS ---
-
-// A. Create Order
-export async function createOrder(orderData) {
+// ==========================================
+// USER & TEAM DIRECTORY APIs
+// ==========================================
+export async function getTeamMembers() {
   try {
-    // orderData should include: items, addressId, paymentMethod, totalAmount
-    const response = await api.post("/orders", orderData);
-    toast.success("Order placed successfully!");
-    return {
-      success: true,
-      orderId: response.data.orderId,
-      order: response.data.order,
-    };
+    const res = await api.get("/users/team");
+    return { success: true, members: res.data.members || [] };
   } catch (error) {
-    return {
-      success: false,
-      message: error.response?.data?.message || "Failed to place order",
-    };
+    return { success: false, members: [] };
   }
 }
 
-// B. Get My Orders
-export async function getMyOrders() {
+export async function createUser(data) {
   try {
-    const response = await api.get("/orders/my-orders");
-    return {
-      success: true,
-      orders: response.data.orders,
-      count: response.data.count,
-    };
+    const res = await api.post("/users", data);
+    toast.success(`Account for ${res.data.user.fullname} created!`);
+    return { success: true, user: res.data.user };
   } catch (error) {
-    return {
-      success: false,
-      message: error.response?.data?.message || "Failed to fetch orders",
-    };
+    return { success: false };
   }
 }
 
-// C. Get Single Order Details
-export async function getOrderById(id) {
+export async function updateUser(id, data) {
   try {
-    const response = await api.get(`/orders/${id}`);
-    return {
-      success: true,
-      order: response.data.order,
-    };
+    const res = await api.put(`/users/${id}`, data);
+    toast.success("User updated");
+    return { success: true, user: res.data.user };
   } catch (error) {
-    return {
-      success: false,
-      message: error.response?.data?.message || "Order not found",
-    };
+    return { success: false };
   }
 }
 
-// D. Cancel Order (User)
-export async function cancelOrder(id, reason) {
+export async function deleteUser(id) {
   try {
-    const response = await api.put(`/orders/${id}/cancel`, { reason });
-    toast.success(response.data.message || "Order cancelled");
-    return {
-      success: true,
-      status: response.data.status,
-    };
+    await api.delete(`/users/${id}`);
+    toast.success("User deactivated");
+    return { success: true };
   } catch (error) {
-    return {
-      success: false,
-      message: error.response?.data?.message || "Cancellation failed",
-    };
+    return { success: false };
   }
 }
 
-// --- ADMIN ORDER OPERATIONS ---
-
-// E. Admin Update Order Status
-export async function adminUpdateOrderStatus(
-  id,
-  status,
-  trackingNumber = null
-) {
+// ==========================================
+// ANALYTICS & REPORTS APIs
+// ==========================================
+export async function getManagerOverview() {
   try {
-    const payload = { status };
-    if (trackingNumber) payload.trackingNumber = trackingNumber;
-
-    const response = await api.put(`/admin/order/${id}`, payload);
-    toast.success("Order status updated");
+    const res = await api.get("/analytics/overview");
     return {
       success: true,
-      order: response.data.order,
+      summary: res.data.summary,
+      teamWorkload: res.data.teamWorkload,
+      projectProgress: res.data.projectProgress,
+      overdueTasks: res.data.overdueTasks,
     };
   } catch (error) {
-    return {
-      success: false,
-      message: error.response?.data?.message || "Update failed",
-    };
+    return { success: false };
   }
 }
 
-// ==============================================================
-// 17. USER MANAGEMENT FUNCTIONS (Admin)
-// ==============================================================
-
-/**
- * Fetch all users for the admin dashboard
- * Endpoint: GET /api/admin/users/all
- */
-export async function getAllUsers() {
+// ==========================================
+// AI ASSISTANT APIs (Gemini 1.5 Flash)
+// ==========================================
+export async function getAITaskBreakdown(title, description) {
   try {
-    const response = await api.get("/admin/users/all");
-    return {
-      success: true,
-      data: response.data.data, // Accessing the data array from your controller's response
-    };
+    const res = await api.post("/ai/breakdown", { title, description });
+    return { success: true, aiSuggestion: res.data.aiSuggestion };
   } catch (error) {
-    // Interceptor handles the toast, but we return failure for the UI state
-    return {
-      success: false,
-      message: error.response?.data?.message || "Failed to fetch users",
-    };
+    return { success: false };
   }
 }
-
-/**
- * Update a user's role (e.g., from 'user' to 'admin')
- * Endpoint: PUT /api/admin/users/role/:id
- */
-export async function updateUserRole(userId, roleData) {
-  try {
-    // roleData should be { role: 'admin' } or { role: 'user' }
-    const response = await api.put(`/admin/users/role/${userId}`, roleData);
-
-    // We don't necessarily need a toast here if the UI provides immediate feedback,
-    // but it's good practice for admin actions.
-    toast.success(response.data.message || "User role updated");
-
-    return {
-      success: true,
-      data: response.data.data,
-    };
-  } catch (error) {
-    return {
-      success: false,
-      message: error.response?.data?.message || "Failed to update role",
-    };
-  }
-}
-
-/**
- * Delete a user account permanently
- * Endpoint: DELETE /api/admin/users/:id
- */
-export async function deleteUser(userId) {
-  try {
-    const response = await api.delete(`/admin/users/${userId}`);
-
-    // Toast is handled here to confirm deletion to the admin
-    toast.success(response.data.message || "User deleted successfully");
-
-    return {
-      success: true,
-    };
-  } catch (error) {
-    return {
-      success: false,
-      message: error.response?.data?.message || "Failed to delete user",
-    };
-  }
-}
-
-// Fetch full details for a single user (Admin)
-export async function getUserDetailsForAdmin(userId) {
-  try {
-    const response = await api.get(`/admin/users/inspect/${userId}`);
-    return {
-      success: true,
-      data: response.data.data,
-    };
-  } catch (error) {
-    return {
-      success: false,
-      message: error.response?.data?.message || "Failed to inspect user",
-    };
-  }
-}
-
-// Get all orders (Admin/Staff only)
-export const getAllOrdersAdmin = async () => {
-  try {
-    const response = await api.get("/admin/orders/all"); // Ensure this route exists in backend
-    return response.data;
-  } catch (error) {
-    return {
-      success: false,
-      message: error.response?.data?.message || "Failed to fetch orders",
-    };
-  }
-};
-
-// Update Order Status (Admin/Staff)
-export const updateOrderStatus = async (
-  orderId,
-  { status, trackingNumber }
-) => {
-  try {
-    const response = await api.put(`/admin/orders/${orderId}`, {
-      status,
-      trackingNumber,
-    });
-    return response.data;
-  } catch (error) {
-    return {
-      success: false,
-      message: error.response?.data?.message || "Failed to update order",
-    };
-  }
-};
-
-// ==============================================================
-// REVIEW FUNCTIONS
-// ==============================================================
-
-// A. Get Reviews for a Product
-export async function getProductReviews(productId) {
-  try {
-    const response = await api.get(`/reviews/${productId}`); // Ensure route matches backend
-    return {
-      success: true,
-      reviews: response.data.reviews,
-    };
-  } catch (error) {
-    return {
-      success: false,
-      message: error.response?.data?.message || "Failed to load reviews",
-    };
-  }
-}
-
-// B. Add a Review
-export async function addReview(productId, rating, comment) {
-  try {
-    const response = await api.post("/reviews", { productId, rating, comment });
-    toast.success("Review posted successfully!");
-    return {
-      success: true,
-      data: response.data,
-    };
-  } catch (error) {
-    return {
-      success: false,
-      message: error.response?.data?.message || "Failed to post review",
-    };
-  }
-}
-
-// ==============================================================
-// BANNER ENDPOINTS (Corrected)
-// ==============================================================
-
-// --- BANNER ENDPOINTS ---
-
-export const getBanners = async (page = "") => {
-  try {
-    const endpoint = page ? `/banners?page=${page}` : "/banners";
-    const response = await api.get(endpoint);
-    return { success: true, data: response.data };
-  } catch (error) {
-    return { success: false, message: error.response?.data?.message };
-  }
-};
-
-// 2. Create Banner (Upload)
-export const createBanner = async (formData) => {
-  try {
-    // 🛑 CRITICAL FIX: Overriding the default JSON header
-    // We set 'Content-Type': undefined so the browser generates the multipart boundary
-    const response = await api.post("/admin/banners", formData, {
-      headers: {
-        "Content-Type": undefined,
-      },
-    });
-    return { success: true, data: response.data };
-  } catch (error) {
-    console.error("Banner Upload Error:", error);
-    return {
-      success: false,
-      message: error.response?.data?.message || "Failed to create banner",
-    };
-  }
-};
-
-export const deleteBanner = async (id) => {
-  try {
-    const response = await api.delete(`/admin/banners/${id}`);
-    return { success: true, data: response.data };
-  } catch (error) {
-    return { success: false, message: error.response?.data?.message };
-  }
-};
-
-// NEW: Update Title/Subtitle
-export const updateBannerDetails = async (id, data) => {
-  try {
-    const isFormData = data instanceof FormData;
-    const config = isFormData ? { headers: { "Content-Type": "multipart/form-data" } } : {};
-    const response = await api.put(`/admin/banners/${id}`, data, config);
-    return { success: true, data: response.data };
-  } catch (error) {
-    return { success: false, message: error.response?.data?.message };
-  }
-};
-
-// NEW: Reorder
-export const reorderBanners = async (items) => {
-  try {
-    const response = await api.put("/admin/banners/reorder", { items });
-    return { success: true, data: response.data };
-  } catch (error) {
-    return { success: false, message: error.response?.data?.message };
-  }
-};
-
-export default api;

@@ -1,36 +1,44 @@
 require("dotenv").config();
 const connectMongo = require("../config/connectMongo");
-const { mediaQueue } = require("../services/queue"); // Import queue to check jobs
+const { connection } = require("../services/queue");
 
 const startWorkers = async () => {
   try {
-    console.log("🔄 Connecting to Database for Workers...");
-
-    // 1. Connect to MongoDB FIRST
+    console.log("🔄 [Worker Engine] Connecting to MongoDB and Redis...");
     await connectMongo();
-    console.log("✅ Database connected");
+    console.log("✅ [Worker Engine] MongoDB ready");
 
-    // 2. Check for Failed/Stalled Jobs and Retry them
-    // This handles "pending works" that might have failed if the server crashed previously
-    const failedJobs = await mediaQueue.getJobs(["failed"]);
-    if (failedJobs.length > 0) {
-      console.log(
-        `⚠️ Found ${failedJobs.length} failed jobs. Retrying them now...`
-      );
-      for (const job of failedJobs) {
-        await job.retry();
-      }
-      console.log("✅ Failed jobs have been re-queued.");
-    }
+    // Initialize all background BullMQ workers
+    const websocketWorker = require("./websocketWorker");
+    const notificationWorker = require("./notificationWorker");
+    const activityWorker = require("./activityWorker");
+    const taskMetricsWorker = require("./taskMetricsWorker");
+    const aiWorker = require("./aiWorker");
 
-    console.log("🔄 Starting worker processor...");
+    console.log("🚀 [Worker Engine] 5 Background Queue Workers active:");
+    console.log("   ⚡ 1. WebSocket Broadcast Worker (concurrency: 10)");
+    console.log("   🔔 2. Notification Processor Worker (concurrency: 5)");
+    console.log("   📝 3. Audit Activity Log Worker (concurrency: 5)");
+    console.log("   📊 4. Task Metrics & Analytics Worker (concurrency: 3)");
+    console.log("   🧠 5. Google AI Task Worker (concurrency: 2)");
 
-    // 3. Import the worker ONLY after DB is connected
-    require("./mediaWorker");
-    require("./orderWorker");
-    require("./notificationWorker");
+    // Graceful shutdown
+    const shutdown = async () => {
+      console.log("🛑 Stopping background workers...");
+      await Promise.allSettled([
+        websocketWorker.close(),
+        notificationWorker.close(),
+        activityWorker.close(),
+        taskMetricsWorker.close(),
+        aiWorker.close(),
+        connection.quit(),
+      ]);
+      console.log("✅ All background workers gracefully closed");
+      process.exit(0);
+    };
 
-    console.log("✅ All workers initialized and listening for new jobs...");
+    process.on("SIGTERM", shutdown);
+    process.on("SIGINT", shutdown);
   } catch (error) {
     console.error("❌ Worker startup failed:", error);
     process.exit(1);

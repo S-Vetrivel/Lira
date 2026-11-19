@@ -5,44 +5,51 @@ const cookieParser = require("cookie-parser");
 const bodyParser = require("body-parser");
 const passport = require("passport");
 const { createServer } = require("http");
+const path = require("path");
+const fs = require("fs");
 
 require("./config/passport")(passport);
 const connectMongo = require("./config/connectMongo");
+const { initSocket } = require("./config/socket");
+const seedDatabase = require("./utils/seeder");
 
 const app = express();
 const server = createServer(app);
 
 // -----------------
-// FEATURE TOGGLE
+// INITIALIZE WEBSOCKET WITH REDIS ADAPTER
 // -----------------
-const USE_MINIO = process.env.USE_MINIO === "true";
-
-// -----------------
-// CONDITIONAL MINIO LOAD
-// -----------------
-let minioClient, BUCKET_NAME;
-if (USE_MINIO) {
-  const minio = require("./config/minio");
-  minioClient = minio;
-  BUCKET_NAME = process.env.MINIO_BUCKET_NAME;
-}
-
-// -----------------
-// DIAGNOSTIC MIDDLEWARE (TOP)
-// -----------------
-app.use((req, res, next) => {
-  res.setHeader("X-Backend-Hit", "true");
-  // Log all requests to console
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
-  next();
-});
+initSocket(server);
 
 // -----------------
 // MIDDLEWARE
 // -----------------
+app.use((req, res, next) => {
+  res.setHeader("X-Backend-Hit", "true");
+  if (req.method !== "GET" || !req.url.includes("/api/notifications")) {
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  }
+  next();
+});
+
+const allowedOrigins = [
+  process.env.CLIENT_URL,
+  process.env.FRONTEND_URL,
+  "http://localhost:5173",
+  "http://localhost:5174",
+  "http://127.0.0.1:5173",
+  "http://127.0.0.1:5174",
+].filter(Boolean);
+
 app.use(
   cors({
-    origin: process.env.CLIENT_URL || "http://localhost:5173",
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps, curl, or same-origin)
+      if (!origin || allowedOrigins.includes(origin) || process.env.NODE_ENV !== "production") {
+        return callback(null, true);
+      }
+      return callback(null, true); // Permissive in development
+    },
     credentials: true,
   })
 );
@@ -54,49 +61,30 @@ app.use(bodyParser.json({ limit: "50mb" }));
 app.use(passport.initialize());
 
 // -----------------
+// STATIC UPLOADS DIRECTORY
+// -----------------
+const uploadDir = path.join(__dirname, "uploads");
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+app.use("/api/uploads", express.static(uploadDir));
+app.use("/uploads", express.static(uploadDir));
+
+// -----------------
 // ROUTES
 // -----------------
-
-// 1. Minio Proxy for uploads
-app.get(/^\/(?:api\/)?uploads\/(.+)$/, async (req, res) => {
-  if (!USE_MINIO || !minioClient) {
-    return res.status(404).send("Storage provider not enabled");
-  }
-
-  const objectName = req.params[0];
-  try {
-    const stream = await minioClient.getObject(BUCKET_NAME, objectName);
-    stream.pipe(res);
-  } catch (err) {
-    res.status(404).send("File not found");
-  }
-});
-
-// 2. Health & Ping (Bypass DB)
 app.get("/api/ping", (req, res) => res.send("pong"));
-app.get("/api/health", (req, res) => res.json({ status: "alive" }));
+app.get("/api/health", (req, res) => res.json({ status: "alive", pid: process.pid }));
 
-// 3. Main API Routes
+// Main API Routes
 app.use("/api", require("./routes/index"));
 
-// 4. Catch-all for unmatched /api routes
+// 404 handler for API routes
 app.use("/api", (req, res) => {
-  console.log(`[404 DEBUG] Unmatched API path: ${req.originalUrl}`);
   res.status(404).json({
     success: false,
     message: `Route ${req.originalUrl} not found on this server`,
   });
-});
-
-// -----------------
-// STARTUP
-// -----------------
-const port = 5000; // Forced to 5000 to match Nginx proxy_pass and avoid conflict with Nginx on 3000
-
-// Listen IMMEDIATELY so we can debug connectivity
-server.listen(port, "0.0.0.0", () => {
-  console.log(`☑️ Backend server listening on port ${port}`);
-  console.log(`>>> DIAGNOSTIC: Try visiting /api/ping <<<`);
 });
 
 // -----------------
@@ -112,21 +100,21 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Background DB Connection (Don't let it crash the server)
+// -----------------
+// STARTUP & DB INITIALIZATION
+// -----------------
+const port = process.env.PORT || 5000;
+
+server.listen(port, "0.0.0.0", () => {
+  console.log(`☑️ Lira Backend API listening on http://0.0.0.0:${port} (PID: ${process.pid})`);
+});
+
+// Connect to MongoDB & Seed initial office workspace
 (async () => {
   try {
     await connectMongo();
-    console.log("✅ MongoDB initialization complete");
+    await seedDatabase();
   } catch (err) {
-    console.error("❌ MONGODB INITIALIZATION FAILED:", err.message);
-    // We stay alive so the user can still hit /api/ping to verify Nginx
+    console.error("❌ MONGODB / SEED INITIALIZATION FAILED:", err.message);
   }
 })();
-
-// -----------------
-// GRACEFUL SHUTDOWN
-// -----------------
-const mongoose = require("mongoose");
-mongoose.connection.on("disconnected", () => {
-  console.warn("⚠️ MongoDB disconnected");
-});

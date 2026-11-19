@@ -1,52 +1,48 @@
 const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
 
-const AddressSchema = new Schema({
-  primary: { type: Boolean, default: false },
-  door: { type: String },
-  street: { type: String },
-  area: { type: String },
-  landmark: { type: String },
-  city: { type: String, required: true },
-  district: { type: String },
-  state: { type: String, required: true },
-  country: { type: String, default: "India" },
-  zip: { type: String, required: true },
-  location: {
-    lat: Number,
-    lng: Number,
-  },
-});
-
 const UserSchema = new Schema(
   {
-    googleId: { type: String, unique: true, sparse: true },
-    username: { type: String },
-    fullname: { type: String },
-
-    age: Number,
-    gender: { type: String, enum: ["Male", "Female", "Other"] },
-
-    email: { type: String, required: true },
-    password: { type: String },
-    phone: {
+    fullname: { type: String, required: true, trim: true },
+    email: {
       type: String,
-      validate: {
-        validator: function (v) {
-          return /^[6-9]\d{9}$/.test(v);
-        },
-        message: (props) =>
-          `${props.value} is not a valid 10-digit Indian mobile number!`,
-      },
+      required: true,
+      unique: true,
+      lowercase: true,
+      trim: true,
     },
-    addresses: [AddressSchema],
-    createdAt: { type: Date, default: Date.now },
-    profilePicture: String,
-    role: { type: String, default: "user", enum: ["admin", "user", "staff"] },
+    password: { type: String },
+    role: {
+      type: String,
+      enum: ["admin", "manager", "employee"],
+      default: "employee",
+    },
+    department: {
+      type: Schema.Types.ObjectId,
+      ref: "Department",
+    },
+    departmentName: { type: String, default: "General" },
+    jobTitle: { type: String, default: "Team Member" },
+    avatar: { type: String },
+    profilePicture: { type: String },
+    googleId: { type: String, sparse: true },
+    phone: { type: String },
+    status: {
+      type: String,
+      enum: ["active", "away", "on_leave"],
+      default: "active",
+    },
+    isActive: { type: Boolean, default: true },
+    bio: { type: String },
   },
   {
     timestamps: true,
   }
 );
+
+// Virtual for avatar or profile picture
+UserSchema.virtual("displayAvatar").get(function () {
+  return this.avatar || this.profilePicture || "";
+});
 
 module.exports = mongoose.model("User", UserSchema);

@@ -1,72 +1,56 @@
 const mongoose = require("mongoose");
+const { spawn } = require("child_process");
+const fs = require("fs");
+
+let mongodProcess = null;
+
+const startLocalMongo = async () => {
+  return new Promise((resolve) => {
+    const mongoScript = "/home/v3/Documents/Lira/start-mongo.sh";
+    if (fs.existsSync(mongoScript)) {
+      console.log("Starting local mongod daemon...");
+      mongodProcess = spawn("/bin/bash", [mongoScript], {
+        detached: true,
+        stdio: "ignore",
+      });
+      mongodProcess.unref();
+      setTimeout(resolve, 1500);
+    } else {
+      resolve();
+    }
+  });
+};
 
 const connectMongo = async () => {
-  try {
-    const uri =
-      process.env.MONGO_DB?.trim() || "mongodb://127.0.0.1:27017/ecommerce";
+  const uri = process.env.MONGO_DB?.trim() || "mongodb://127.0.0.1:27017/sass";
 
-    if (!process.env.MONGO_DB) {
-      console.warn(
-        "⚠️  MONGO_DB not set — using fallback mongodb://127.0.0.1:27017/ecommerce"
-      );
-    }
-
-    // Instrument query exec to log slow queries (>100ms)
-    const origExec = mongoose.Query.prototype.exec;
-    mongoose.Query.prototype.exec = async function (...args) {
-      const start = Date.now();
+  const tryConnect = async (attempts = 3) => {
+    for (let i = 0; i < attempts; i++) {
       try {
-        const res = await origExec.apply(this, args);
-        const duration = Date.now() - start;
-        if (duration > 100) {
-          console.warn(
-            `🐢 Slow query: ${this.model.collection.name}.${
-              this.op
-            } ${JSON.stringify(this.getQuery())} took ${duration}ms`
-          );
-        }
-        return res;
+        await mongoose.connect(uri, {
+          family: 4,
+          maxPoolSize: 50,
+          minPoolSize: 5,
+          serverSelectionTimeoutMS: 4000,
+          socketTimeoutMS: 45000,
+        });
+        console.log("✅ MongoDB connected successfully to", uri);
+        return;
       } catch (err) {
-        throw err;
+        console.warn(`Connection attempt ${i + 1} failed: ${err.message}`);
+        if (i === 0) {
+          await startLocalMongo();
+        }
+        await new Promise((r) => setTimeout(r, 1000));
       }
-    };
+    }
+    throw new Error("Could not connect to MongoDB after multiple attempts");
+  };
 
-    await mongoose.connect(uri, {
-      // force IPv4 (prevents ::1/IPv6 ECONNREFUSED)
-      family: 4,
+  await tryConnect();
 
-      // pool + timeouts
-      maxPoolSize: 50,
-      minPoolSize: 5,
-      serverSelectionTimeoutMS: 5000,
-      socketTimeoutMS: 45000,
-
-      // safe writes
-      retryWrites: true,
-      writeConcern: { w: "majority" },
-    });
-
-    console.log("✅ MongoDB connected & pool ready");
-
-    mongoose.connection.on("connected", () =>
-      console.log("ℹ️ MongoDB connection established")
-    );
-    mongoose.connection.on("reconnected", () =>
-      console.log("♻️ MongoDB reconnected")
-    );
-    mongoose.connection.on("disconnected", () =>
-      console.warn("⚠️ MongoDB disconnected")
-    );
-    mongoose.connection.on("close", () =>
-      console.warn("⚠️ MongoDB connection closed")
-    );
-    mongoose.connection.on("error", (err) =>
-      console.error("❌ MongoDB connection error:", err)
-    );
-  } catch (err) {
-    console.error("❌ MongoDB connection failed:", err.message || err);
-    process.exit(1); // keep if you want the process to stop on DB failure
-  }
+  mongoose.connection.on("disconnected", () => console.warn("⚠️ MongoDB disconnected"));
+  mongoose.connection.on("error", (err) => console.error("❌ MongoDB connection error:", err));
 };
 
 module.exports = connectMongo;
