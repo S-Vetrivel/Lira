@@ -1,4 +1,5 @@
-require("dotenv").config();
+const path = require("path");
+require("dotenv").config({ path: path.resolve(__dirname, "../.env") });
 const connectMongo = require("../config/connectMongo");
 const { connection } = require("../services/queue");
 
@@ -14,23 +15,37 @@ const startWorkers = async () => {
     const activityWorker = require("./activityWorker");
     const taskMetricsWorker = require("./taskMetricsWorker");
     const aiWorker = require("./aiWorker");
+    const fileSharingWorker = require("./fileSharingWorker");
+    const routineSchedulerWorker = require("./routineSchedulerWorker");
+    const { enqueueRoutineJob } = require("../services/queue");
 
-    console.log("🚀 [Worker Engine] 5 Background Queue Workers active:");
+    console.log("🚀 [Worker Engine] 7 Background Queue Workers active:");
     console.log("   ⚡ 1. WebSocket Broadcast Worker (concurrency: 10)");
     console.log("   🔔 2. Notification Processor Worker (concurrency: 5)");
     console.log("   📝 3. Audit Activity Log Worker (concurrency: 5)");
     console.log("   📊 4. Task Metrics & Analytics Worker (concurrency: 3)");
     console.log("   🧠 5. Google AI Task Worker (concurrency: 2)");
+    console.log("   📁 6. File Sharing & Verification Worker (concurrency: 5)");
+    console.log("   ⏰ 7. Routine Scheduler & Escalation Worker (concurrency: 2)");
+
+    // Schedule recurring routine trigger every 60 seconds
+    const routineInterval = setInterval(() => {
+      enqueueRoutineJob();
+    }, 60000);
+    enqueueRoutineJob(); // trigger immediate initial check
 
     // Graceful shutdown
     const shutdown = async () => {
       console.log("🛑 Stopping background workers...");
+      clearInterval(routineInterval);
       await Promise.allSettled([
         websocketWorker.close(),
         notificationWorker.close(),
         activityWorker.close(),
         taskMetricsWorker.close(),
         aiWorker.close(),
+        fileSharingWorker.close(),
+        routineSchedulerWorker.close(),
         connection.quit(),
       ]);
       console.log("✅ All background workers gracefully closed");

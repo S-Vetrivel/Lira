@@ -417,6 +417,173 @@ export async function getManagerOverview(projectId) {
 }
 
 // ==========================================
+// OFFICE WORKFLOW: REVIEW & REDO LOOP
+// ==========================================
+export async function submitTaskForReview(id) {
+  try {
+    const res = await api.post(`/tasks/${id}/submit-for-review`);
+    toast.success("Submitted for manager review");
+    return { success: true, task: res.data.task };
+  } catch (error) {
+    return { success: false, message: error.response?.data?.message };
+  }
+}
+
+export async function approveTask(id) {
+  try {
+    const res = await api.post(`/tasks/${id}/approve`);
+    toast.success("Task approved and marked completed!");
+    return { success: true, task: res.data.task };
+  } catch (error) {
+    return { success: false, message: error.response?.data?.message };
+  }
+}
+
+export async function requestTaskRevision(id, reviewFeedback) {
+  try {
+    const res = await api.post(`/tasks/${id}/redo`, { reviewFeedback });
+    toast.success("Revision requested with feedback");
+    return { success: true, task: res.data.task };
+  } catch (error) {
+    return { success: false, message: error.response?.data?.message };
+  }
+}
+
+export async function updateSubtaskProof(taskId, subtaskId, proofUrl, proofType = "link") {
+  try {
+    const res = await api.patch(`/tasks/${taskId}/subtasks/${subtaskId}/proof`, {
+      proofUrl,
+      proofType,
+    });
+    toast.success("Proof of work submitted");
+    return { success: true, subtasks: res.data.subtasks };
+  } catch (error) {
+    return { success: false, message: error.response?.data?.message };
+  }
+}
+
+export async function bulkUpdateTasks(taskIds, updates) {
+  try {
+    const res = await api.post("/tasks/bulk-update", { taskIds, updates });
+    toast.success(`Updated ${res.data.modifiedCount} tasks`);
+    return { success: true, ...res.data };
+  } catch (error) {
+    return { success: false, message: error.response?.data?.message };
+  }
+}
+
+// ==========================================
+// CROSS-DEPARTMENT REQUESTS & APPROVALS
+// ==========================================
+export async function getRequests(filters = {}) {
+  try {
+    const res = await api.get("/requests", { params: filters });
+    return { success: true, requests: res.data.requests || [] };
+  } catch (error) {
+    return { success: false, requests: [] };
+  }
+}
+
+export async function getRequestById(id) {
+  try {
+    const res = await api.get(`/requests/${id}`);
+    return { success: true, request: res.data.request };
+  } catch (error) {
+    return { success: false };
+  }
+}
+
+export async function createRequest(data) {
+  try {
+    const res = await api.post("/requests", data);
+    toast.success(`Request ${res.data.request.requestCode} submitted!`);
+    return { success: true, request: res.data.request };
+  } catch (error) {
+    return { success: false, message: error.response?.data?.message };
+  }
+}
+
+export async function approveRequestStage(id, notes) {
+  try {
+    const res = await api.post(`/requests/${id}/approve-stage`, { notes });
+    toast.success("Stage approved!");
+    return { success: true, request: res.data.request, task: res.data.task };
+  } catch (error) {
+    return { success: false, message: error.response?.data?.message };
+  }
+}
+
+export async function rejectRequest(id, notes) {
+  try {
+    const res = await api.post(`/requests/${id}/reject`, { notes });
+    toast.success("Request rejected");
+    return { success: true, request: res.data.request };
+  } catch (error) {
+    return { success: false, message: error.response?.data?.message };
+  }
+}
+
+// ==========================================
+// RESUMABLE CHUNK UPLOADS & FILE SHARING
+// ==========================================
+export async function getChunkStatus(uploadId) {
+  try {
+    const res = await api.get(`/files/chunk/status/${uploadId}`);
+    return res.data;
+  } catch (error) {
+    return { success: false, uploadedChunks: [] };
+  }
+}
+
+export async function uploadSingleChunk(formData, onUploadProgress) {
+  return await api.post("/files/chunk/upload", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+    onUploadProgress,
+  });
+}
+
+// ==========================================
+// E2EE CHAT & ROOM APIs
+// ==========================================
+export async function getChatMessages(roomId, limit = 50, before = null) {
+  try {
+    const res = await api.get(`/chat/rooms/${roomId}/messages`, {
+      params: { limit, before },
+    });
+    return { success: true, messages: res.data.messages || [] };
+  } catch (error) {
+    return { success: false, messages: [] };
+  }
+}
+
+export async function sendChatMessage(data) {
+  try {
+    const res = await api.post("/chat/messages", data);
+    return { success: true, message: res.data.message };
+  } catch (error) {
+    return { success: false, message: error.response?.data?.message };
+  }
+}
+
+export async function markChatRoomRead(roomId) {
+  try {
+    await api.post(`/chat/rooms/${roomId}/read`);
+    return { success: true };
+  } catch (error) {
+    return { success: false };
+  }
+}
+
+export async function getChatConversations() {
+  try {
+    const res = await api.get("/chat/conversations");
+    return { success: true, colleagues: res.data.colleagues || [] };
+  } catch (error) {
+    return { success: false, colleagues: [] };
+  }
+}
+
+// ==========================================
 // AI ASSISTANT APIs (Gemini 1.5 Flash)
 // ==========================================
 export async function getAITaskBreakdown(title, description) {

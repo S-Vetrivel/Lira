@@ -10,6 +10,9 @@ import {
   Zap,
   Layers,
   ArrowUpRight,
+  Table,
+  Calendar,
+  FileCheck2,
 } from "lucide-react";
 
 export default function Sidebar() {
@@ -23,14 +26,32 @@ export default function Sidebar() {
       roles: ["admin", "manager", "employee"],
     },
     {
+      to: "/table",
+      label: "Grid / Spreadsheet",
+      icon: Table,
+      roles: ["admin", "manager", "employee"],
+    },
+    {
+      to: "/calendar",
+      label: "Schedule & Deadlines",
+      icon: Calendar,
+      roles: ["admin", "manager", "employee"],
+    },
+    {
+      to: "/requests",
+      label: "Requests & Sign-Offs",
+      icon: FileCheck2,
+      roles: ["admin", "manager", "employee"],
+    },
+    {
       to: "/my-work",
-      label: "My Work Queue",
+      label: "My Day Cockpit",
       icon: CheckSquare,
       roles: ["admin", "manager", "employee"],
     },
     {
       to: "/analytics",
-      label: "Manager Overview",
+      label: "Workload Overview",
       icon: BarChart3,
       roles: ["admin", "manager"],
       badge: user?.role === "employee" ? "Lead only" : null,

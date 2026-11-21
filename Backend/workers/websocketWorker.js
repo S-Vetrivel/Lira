@@ -13,7 +13,11 @@ const websocketWorker = new Worker(
     // console.log(`[WebSocket Worker] Processing job ${job.id}: ${event} for ${target} (${room})`);
 
     // 1. Direct Socket.IO emit in current process
-    if (target === "project") {
+    const { getIO } = require("../config/socket");
+    const io = getIO();
+    if (io && room) {
+      io.to(room).emit(event, data);
+    } else if (target === "project") {
       emitToProject(room, event, data);
     } else if (target === "user") {
       emitToUser(room, event, data);

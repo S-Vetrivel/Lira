@@ -4,6 +4,9 @@ import { MainLayout } from "./components/layout/MainLayout";
 
 // PAGES
 import Board from "./pages/Board";
+import TableView from "./pages/TableView";
+import CalendarView from "./pages/CalendarView";
+import Requests from "./pages/Requests";
 import MyWork from "./pages/MyWork";
 import Analytics from "./pages/Analytics";
 import Team from "./pages/Team";
@@ -42,6 +45,9 @@ function App() {
         <Route element={<MainLayout />}>
           <Route path="/" element={<Board />} />
           <Route path="/board" element={<Board />} />
+          <Route path="/table" element={<TableView />} />
+          <Route path="/calendar" element={<CalendarView />} />
+          <Route path="/requests" element={<Requests />} />
           <Route path="/my-work" element={<MyWork />} />
           <Route path="/analytics" element={<Analytics />} />
           <Route path="/team" element={<Team />} />

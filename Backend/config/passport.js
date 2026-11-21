@@ -2,6 +2,10 @@ const GoogleStrategy = require("passport-google-oauth20").Strategy;
 const User = require("../models/userModel");
 
 module.exports = (passport) => {
+  if (!process.env.GOOGLE_CLIENT_ID) {
+    console.log("ℹ️ Google OAuth client ID not set, skipping GoogleStrategy registration");
+    return;
+  }
   passport.use(
     new GoogleStrategy(
       {

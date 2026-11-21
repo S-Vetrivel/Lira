@@ -44,6 +44,30 @@ export const leaveProjectRoom = (projectId) => {
   }
 };
 
+export const joinChatRoom = (roomId) => {
+  if (socket && roomId) {
+    socket.emit("join:chat", roomId);
+  }
+};
+
+export const leaveChatRoom = (roomId) => {
+  if (socket && roomId) {
+    socket.emit("leave:chat", roomId);
+  }
+};
+
+export const announcePeer = (peerData) => {
+  if (socket) {
+    socket.emit("peer:announce", peerData);
+  }
+};
+
+export const sendPeerSignal = (targetSocketId, signal, metadata) => {
+  if (socket && targetSocketId) {
+    socket.emit("peer:signal", { targetSocketId, signal, metadata });
+  }
+};
+
 export const disconnectSocket = () => {
   if (socket) {
     socket.disconnect();

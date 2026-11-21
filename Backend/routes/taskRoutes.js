@@ -15,14 +15,24 @@ const {
   deleteSubtask,
   uploadAttachment,
   deleteTask,
+  submitForReview,
+  approveTask,
+  requestRevision,
+  updateSubtaskProof,
+  bulkUpdateTasks,
 } = require("../controllers/taskController");
 
 router.get("/", protect(), getTasks);
 router.get("/my-work", protect(), getMyTasks);
+router.post("/bulk-update", protect(), bulkUpdateTasks);
 router.get("/:keyOrId", protect(), getTaskByKeyOrId);
 router.post("/", protect(), createTask);
 router.put("/:id", protect(), updateTask);
 router.patch("/:id/status", protect(), updateTaskStatus);
+router.post("/:id/submit-for-review", protect(), submitForReview);
+router.post("/:id/approve", protect(["admin", "manager"]), approveTask);
+router.post("/:id/redo", protect(["admin", "manager"]), requestRevision);
+router.patch("/:id/subtasks/:subtaskId/proof", protect(), updateSubtaskProof);
 router.post("/:id/worklog", protect(), addWorkLog);
 router.post("/:id/subtasks", protect(), addSubtask);
 router.patch("/:id/subtasks/:subtaskId/toggle", protect(), toggleSubtask);

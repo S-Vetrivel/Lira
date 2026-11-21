@@ -12,8 +12,12 @@ import {
   Moon,
   X,
   Check,
+  MessageSquare,
+  Lock,
+  ShieldCheck,
 } from "lucide-react";
 import { markNotificationRead, markAllNotificationsRead } from "../../services/api";
+import OfficeChatDrawer from "../chat/OfficeChatDrawer";
 
 export default function Header() {
   const location = useLocation();
@@ -36,13 +40,15 @@ export default function Header() {
 
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   const navItems = [
     { label: "Board", path: "/" },
-    { label: "Analytics", path: "/analytics" },
-    { label: "My Work", path: "/my-work" },
-    { label: "Team", path: "/team" },
-    { label: "Projects", path: "/projects" },
+    { label: "Grid", path: "/table" },
+    { label: "Calendar", path: "/calendar" },
+    { label: "Requests", path: "/requests" },
+    { label: "Overview", path: "/analytics" },
+    { label: "My Day", path: "/my-work" },
   ];
 
   const handleMarkAllRead = async () => {
@@ -212,6 +218,21 @@ export default function Header() {
           ) : (
             <Moon className="w-4 h-4 text-slate-700" />
           )}
+        </button>
+
+        {/* Office E2EE Chat & File Sharing */}
+        <button
+          onClick={() => setIsChatOpen(true)}
+          className={`h-9 px-3 rounded-full border flex items-center gap-1.5 text-xs font-semibold transition-all cursor-pointer ${
+            isDark
+              ? "bg-blue-600/15 border-blue-500/30 text-blue-300 hover:bg-blue-600/25 hover:text-white"
+              : "bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100"
+          }`}
+          title="Encrypted Office Chat & Local Peer Sharing"
+        >
+          <MessageSquare className="w-3.5 h-3.5 text-blue-400" />
+          <span className="hidden lg:inline">Office Chat</span>
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
         </button>
 
         {/* Notifications */}
@@ -426,6 +447,9 @@ export default function Header() {
           )}
         </div>
       </div>
+
+      {/* Slide-over E2EE Office Chat & Local Peer Sharing Drawer */}
+      <OfficeChatDrawer isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
     </header>
   );
 }

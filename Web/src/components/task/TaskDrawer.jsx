@@ -11,6 +11,10 @@ import {
   uploadTaskAttachment,
   addComment,
   deleteTask,
+  submitTaskForReview,
+  approveTask,
+  requestTaskRevision,
+  updateSubtaskProof,
 } from "../../services/api";
 import { getSocket } from "../../services/socket";
 import {
@@ -36,6 +40,12 @@ import {
   Sparkles,
   Layers,
   Activity,
+  Shield,
+  RotateCcw,
+  CheckCircle2,
+  AlertCircle,
+  FileText,
+  Repeat,
 } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -65,6 +75,8 @@ export default function TaskDrawer({ taskKeyOrId, onClose, onTaskUpdated }) {
 
   // Copy key feedback
   const [copiedKey, setCopiedKey] = useState(false);
+  const [showRedoModal, setShowRedoModal] = useState(false);
+  const [redoFeedback, setRedoFeedback] = useState("");
 
   // File upload input ref
   const fileInputRef = useRef(null);
@@ -129,6 +141,36 @@ export default function TaskDrawer({ taskKeyOrId, onClose, onTaskUpdated }) {
     navigator.clipboard.writeText(task.key);
     setCopiedKey(true);
     setTimeout(() => setCopiedKey(false), 2000);
+  };
+
+  const handleSubmitForReview = async () => {
+    const res = await submitTaskForReview(task._id);
+    if (res.success) {
+      setTask(res.task);
+      onTaskUpdated?.(res.task);
+    }
+  };
+
+  const handleApprove = async () => {
+    const res = await approveTask(task._id);
+    if (res.success) {
+      setTask(res.task);
+      onTaskUpdated?.(res.task);
+    }
+  };
+
+  const handleRequestRedo = async () => {
+    if (!redoFeedback.trim()) {
+      toast.error("Please enter revision instructions for the assignee");
+      return;
+    }
+    const res = await requestTaskRevision(task._id, redoFeedback);
+    if (res.success) {
+      setTask(res.task);
+      setShowRedoModal(false);
+      setRedoFeedback("");
+      onTaskUpdated?.(res.task);
+    }
   };
 
   const handleStatusChange = async (newStatus) => {
@@ -365,21 +407,26 @@ export default function TaskDrawer({ taskKeyOrId, onClose, onTaskUpdated }) {
                       ? {
                           todo: "bg-[#1d1f2b] text-slate-300 border-white/10",
                           in_progress: "bg-blue-500/15 text-blue-300 border-blue-500/30",
-                          review: "bg-purple-500/15 text-purple-300 border-purple-500/30",
+                          submitted_for_review: "bg-amber-500/15 text-amber-300 border-amber-500/30",
+                          review: "bg-amber-500/15 text-amber-300 border-amber-500/30",
+                          redo_requested: "bg-rose-500/15 text-rose-300 border-rose-500/30",
                           done: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30",
-                        }[task.status]
+                        }[task.status] || "bg-[#1d1f2b] text-slate-300 border-white/10"
                       : {
                           todo: "bg-slate-100 text-slate-700 border-slate-300",
                           in_progress: "bg-blue-50 text-blue-700 border-blue-300",
-                          review: "bg-purple-50 text-purple-700 border-purple-300",
+                          submitted_for_review: "bg-amber-50 text-amber-700 border-amber-300",
+                          review: "bg-amber-50 text-amber-700 border-amber-300",
+                          redo_requested: "bg-rose-50 text-rose-700 border-rose-300",
                           done: "bg-emerald-50 text-emerald-700 border-emerald-300",
-                        }[task.status]
+                        }[task.status] || "bg-slate-100 text-slate-700 border-slate-300"
                   }`}
                 >
                   <option value="todo">To Do</option>
                   <option value="in_progress">In Progress</option>
-                  <option value="review">In Review</option>
-                  <option value="done">Done</option>
+                  <option value="submitted_for_review">Submitted for Review</option>
+                  <option value="redo_requested">Revision Requested</option>
+                  <option value="done">Done / Completed</option>
                 </select>
               </div>
 
@@ -407,6 +454,41 @@ export default function TaskDrawer({ taskKeyOrId, onClose, onTaskUpdated }) {
               </div>
             </div>
 
+            {/* Redo Modal / Prompt */}
+            {showRedoModal && (
+              <div className="p-4 bg-rose-950/60 border-b border-rose-500/30 text-rose-200 text-xs space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold flex items-center gap-1 text-rose-300">
+                    <RotateCcw className="w-4 h-4" /> Request Revision / Redo Feedback
+                  </span>
+                  <button onClick={() => setShowRedoModal(false)} className="text-rose-400 hover:text-white">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <textarea
+                  rows={2}
+                  value={redoFeedback}
+                  onChange={(e) => setRedoFeedback(e.target.value)}
+                  placeholder="Explain exactly what needs to be changed or corrected..."
+                  className="w-full bg-slate-900 border border-rose-500/30 rounded-xl p-2 text-white text-xs focus:outline-none"
+                />
+                <div className="flex justify-end gap-2">
+                  <button
+                    onClick={() => setShowRedoModal(false)}
+                    className="px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleRequestRedo}
+                    className="px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-semibold shadow-sm"
+                  >
+                    Send Revision Request
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Drawer Body: 2 Columns */}
             <div
               className={`flex-1 overflow-y-auto grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x ${
@@ -415,6 +497,51 @@ export default function TaskDrawer({ taskKeyOrId, onClose, onTaskUpdated }) {
             >
               {/* Left Column (Content, Subtasks, Attachments, Comments, History) */}
               <div className="md:col-span-2 p-6 space-y-6">
+                {/* Office Verification / Redo Loop Banners */}
+                {task.status === "redo_requested" && (
+                  <div className="p-3.5 bg-rose-500/10 border border-rose-500/30 rounded-xl text-xs space-y-1">
+                    <div className="flex items-center gap-1.5 font-bold text-rose-400">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      <span>Revision Requested by Manager</span>
+                    </div>
+                    <p className="text-rose-200/90 pl-5 whitespace-pre-wrap">{task.reviewFeedback || "Please review deliverables and resubmit."}</p>
+                  </div>
+                )}
+
+                {task.status === "submitted_for_review" && (
+                  <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 text-amber-300 font-bold">
+                      <RotateCcw className="w-4 h-4 shrink-0" />
+                      <span>Submitted for Manager Verification & Sign-Off</span>
+                    </div>
+                    {(user?.role === "admin" || user?.role === "manager") && (
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={handleApprove}
+                          className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-semibold flex items-center gap-1.5 shadow-sm transition-colors"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" /> Approve & Complete
+                        </button>
+                        <button
+                          onClick={() => setShowRedoModal(true)}
+                          className="px-3 py-1.5 bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white rounded-xl font-semibold border border-rose-500/30 flex items-center gap-1.5 transition-colors"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" /> Request Redo
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {(task.status === "in_progress" || task.status === "todo" || task.status === "redo_requested") && (
+                  <button
+                    onClick={handleSubmitForReview}
+                    className="px-3.5 py-2 bg-blue-600/15 hover:bg-blue-600 text-blue-300 hover:text-white border border-blue-500/30 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" /> Submit for Manager Verification
+                  </button>
+                )}
+
                 {/* Title */}
                 <div>
                   <h2 className="text-xl font-bold leading-snug tracking-tight">
@@ -876,6 +1003,84 @@ export default function TaskDrawer({ taskKeyOrId, onClose, onTaskUpdated }) {
                         : "bg-white border-slate-200 text-slate-800"
                     }`}
                   />
+                </div>
+
+                {/* Strict Clock Due Time */}
+                <div>
+                  <label className={`text-[11px] font-bold uppercase tracking-wider block mb-1.5 ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+                    Strict Clock Time
+                  </label>
+                  <input
+                    type="time"
+                    value={task.dueTime || ""}
+                    onChange={async (e) => {
+                      const res = await updateTask(task._id, { dueTime: e.target.value });
+                      if (res.success) setTask(res.task);
+                    }}
+                    className={`w-full text-xs font-semibold rounded-xl px-3 py-2 cursor-pointer border focus:outline-none focus:ring-2 focus:ring-indigo-500/30 ${
+                      isDark
+                        ? "bg-[#181926] border-white/10 text-slate-200"
+                        : "bg-white border-slate-200 text-slate-800"
+                    }`}
+                  />
+                </div>
+
+                {/* Confidentiality Toggle */}
+                <div className={`flex items-center justify-between p-2.5 rounded-xl border ${isDark ? "bg-white/5 border-white/10" : "bg-slate-100 border-slate-200"}`}>
+                  <div className="flex items-center gap-2">
+                    <Shield className="w-4 h-4 text-rose-400" />
+                    <div>
+                      <span className={`text-xs font-bold block ${isDark ? "text-slate-200" : "text-slate-800"}`}>Confidential Task</span>
+                      <span className="text-[10px] text-slate-400">Strict office privacy</span>
+                    </div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={Boolean(task.isConfidential)}
+                    onChange={async (e) => {
+                      const res = await updateTask(task._id, { isConfidential: e.target.checked });
+                      if (res.success) setTask(res.task);
+                    }}
+                    className="rounded border-slate-700 bg-slate-900 text-rose-500 focus:ring-0 cursor-pointer h-4 w-4"
+                  />
+                </div>
+
+                {/* Recurring Routine Engine */}
+                <div className={`p-2.5 rounded-xl border space-y-2 ${isDark ? "bg-white/5 border-white/10" : "bg-slate-100 border-slate-200"}`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-xs font-bold">
+                      <Repeat className="w-3.5 h-3.5 text-blue-400" />
+                      <span className={isDark ? "text-slate-200" : "text-slate-800"}>Recurring Routine</span>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={Boolean(task.isRecurring)}
+                      onChange={async (e) => {
+                        const res = await updateTask(task._id, { isRecurring: e.target.checked });
+                        if (res.success) setTask(res.task);
+                      }}
+                      className="rounded border-slate-700 bg-slate-900 text-blue-500 focus:ring-0 cursor-pointer h-4 w-4"
+                    />
+                  </div>
+                  {task.isRecurring && (
+                    <select
+                      value={task.recurrence?.frequency || "daily"}
+                      onChange={async (e) => {
+                        const res = await updateTask(task._id, {
+                          recurrence: { ...(task.recurrence || {}), frequency: e.target.value },
+                        });
+                        if (res.success) setTask(res.task);
+                      }}
+                      className={`w-full text-xs font-semibold rounded-lg px-2.5 py-1.5 border focus:outline-none ${
+                        isDark ? "bg-[#181926] border-white/10 text-slate-200" : "bg-white border-slate-200 text-slate-800"
+                      }`}
+                    >
+                      <option value="daily">Daily Schedule</option>
+                      <option value="weekdays">Every Weekday (Mon-Fri)</option>
+                      <option value="weekly">Weekly Routine</option>
+                      <option value="monthly">Monthly Routine</option>
+                    </select>
+                  )}
                 </div>
 
                 {/* Estimated Hours */}

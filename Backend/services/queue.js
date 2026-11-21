@@ -34,6 +34,12 @@ const taskMetricsQueue = new Queue("task-metrics-queue", { connection });
 // 5. AI Task Generation Queue
 const aiProcessingQueue = new Queue("ai-processing-queue", { connection });
 
+// 6. File Sharing & Verification Queue
+const fileSharingQueue = new Queue("file-sharing-queue", { connection });
+
+// 7. Recurring Task Routine & Deadline Escalation Queue
+const routineQueue = new Queue("routine-scheduler-queue", { connection });
+
 // Helper function to safely enqueue jobs with automatic retry options
 const enqueueWebSocketEvent = async ({ room, event, data, target = "project" }) => {
   try {
@@ -87,6 +93,30 @@ const enqueueTaskMetrics = async (payload) => {
   }
 };
 
+const enqueueFileJob = async (payload) => {
+  try {
+    return await fileSharingQueue.add("process-file", payload, {
+      removeOnComplete: 100,
+      removeOnFail: 50,
+      attempts: 3,
+    });
+  } catch (error) {
+    console.error("Failed to enqueue file job:", error.message);
+  }
+};
+
+const enqueueRoutineJob = async (payload = {}) => {
+  try {
+    return await routineQueue.add("process-routines", payload, {
+      removeOnComplete: 50,
+      removeOnFail: 20,
+      attempts: 2,
+    });
+  } catch (error) {
+    console.error("Failed to enqueue routine job:", error.message);
+  }
+};
+
 module.exports = {
   connection,
   redisConfig,
@@ -95,8 +125,12 @@ module.exports = {
   activityQueue,
   taskMetricsQueue,
   aiProcessingQueue,
+  fileSharingQueue,
+  routineQueue,
   enqueueWebSocketEvent,
   enqueueNotification,
   enqueueActivityLog,
   enqueueTaskMetrics,
+  enqueueFileJob,
+  enqueueRoutineJob,
 };

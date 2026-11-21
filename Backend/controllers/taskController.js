@@ -707,3 +707,240 @@ exports.deleteTask = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+// ----------------------------------------------------------------------
+// OFFICE GOVERNANCE: MANAGER REVIEW & REDO LOOP
+// ----------------------------------------------------------------------
+
+// 1. Submit for Review
+exports.submitForReview = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { note, proofAttachment } = req.body;
+    const task = await Task.findById(id);
+    if (!task) return res.status(404).json({ success: false, message: "Task not found" });
+
+    // Proof enforcement check
+    if (task.proofRequired) {
+      const hasProofInTask = task.proofFiles && task.proofFiles.length > 0;
+      const hasNewProof = proofAttachment && proofAttachment.url;
+      if (!hasProofInTask && !hasNewProof) {
+        return res.status(400).json({
+          success: false,
+          message: "Mandatory proof of work (receipt, document, or sign-off) is required before submitting.",
+        });
+      }
+    }
+
+    if (proofAttachment && proofAttachment.url) {
+      task.proofFiles.push(proofAttachment);
+      task.attachments.push({ ...proofAttachment, isProofOfWork: true });
+    }
+
+    task.status = "submitted_for_review";
+    task.submittedForReviewAt = new Date();
+    await task.save();
+
+    await logActivity({
+      task: task._id,
+      user: req.user._id,
+      action: "submitted_for_review",
+      details: note || "Task submitted for manager verification",
+    });
+
+    await createNotification({
+      recipient: task.reporter,
+      sender: req.user._id,
+      type: "task_updated",
+      title: "Task Submitted for Review",
+      message: `${req.user.fullname} submitted ${task.key} for your approval.`,
+      task: task._id,
+      project: task.project,
+    });
+
+    await enqueueWebSocketEvent({
+      target: "project",
+      room: task.project.toString(),
+      event: "task:status_changed",
+      data: { taskId: task._id, newStatus: "submitted_for_review", task },
+    });
+
+    res.status(200).json({ success: true, task });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// 2. Manager Approve Task
+exports.approveTask = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { note } = req.body;
+    const task = await Task.findById(id);
+    if (!task) return res.status(404).json({ success: false, message: "Task not found" });
+
+    task.status = "done";
+    task.reviewedBy = req.user._id;
+    task.reviewedAt = new Date();
+    task.reviewFeedback = note || "Approved";
+    await task.save();
+
+    await logActivity({
+      task: task._id,
+      user: req.user._id,
+      action: "task_approved",
+      details: note || "Manager verified and approved task completion",
+    });
+
+    if (task.assignee) {
+      await createNotification({
+        recipient: task.assignee,
+        sender: req.user._id,
+        type: "task_updated",
+        title: "Work Approved ✅",
+        message: `${task.key} has been reviewed and approved by ${req.user.fullname}.`,
+        task: task._id,
+        project: task.project,
+      });
+    }
+
+    await enqueueWebSocketEvent({
+      target: "project",
+      room: task.project.toString(),
+      event: "task:status_changed",
+      data: { taskId: task._id, newStatus: "done", task },
+    });
+
+    res.status(200).json({ success: true, task });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// 3. Manager Request Revision / Redo
+exports.requestRevision = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { feedback } = req.body;
+    if (!feedback || !feedback.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "Inline feedback is required when requesting a revision / redo.",
+      });
+    }
+
+    const task = await Task.findById(id);
+    if (!task) return res.status(404).json({ success: false, message: "Task not found" });
+
+    task.status = "redo_requested";
+    task.reviewedBy = req.user._id;
+    task.reviewedAt = new Date();
+    task.reviewFeedback = feedback.trim();
+    task.revisionCount = (task.revisionCount || 0) + 1;
+    await task.save();
+
+    await logActivity({
+      task: task._id,
+      user: req.user._id,
+      action: "revision_requested",
+      details: `Revision requested: "${feedback.trim()}"`,
+    });
+
+    if (task.assignee) {
+      await createNotification({
+        recipient: task.assignee,
+        sender: req.user._id,
+        type: "task_updated",
+        title: "Revision Requested 🔄",
+        message: `${req.user.fullname} requested redo on ${task.key}: "${feedback.trim()}"`,
+        task: task._id,
+        project: task.project,
+      });
+    }
+
+    await enqueueWebSocketEvent({
+      target: "project",
+      room: task.project.toString(),
+      event: "task:status_changed",
+      data: { taskId: task._id, newStatus: "redo_requested", task },
+    });
+
+    res.status(200).json({ success: true, task });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// 4. Update Checklist Step with Proof Requirement
+exports.updateSubtaskProof = async (req, res) => {
+  try {
+    const { id, subtaskId } = req.params;
+    const { proofAttachment, completed } = req.body;
+
+    const task = await Task.findById(id);
+    if (!task) return res.status(404).json({ success: false, message: "Task not found" });
+
+    const sub = task.subtasks.id(subtaskId);
+    if (!sub) return res.status(404).json({ success: false, message: "Checklist step not found" });
+
+    if (proofAttachment) {
+      sub.proofAttachment = proofAttachment;
+    }
+
+    if (completed !== undefined) {
+      if (completed && sub.requiresProof && (!sub.proofAttachment || !sub.proofAttachment.url)) {
+        return res.status(400).json({
+          success: false,
+          message: "This procedural SOP step requires proof attachment before it can be marked complete.",
+        });
+      }
+      sub.completed = Boolean(completed);
+      if (sub.completed) {
+        sub.completedAt = new Date();
+        sub.completedBy = req.user._id;
+      }
+    }
+
+    await task.save();
+
+    await enqueueWebSocketEvent({
+      target: "project",
+      room: task.project.toString(),
+      event: "task:updated",
+      data: { taskId: task._id, task },
+    });
+
+    res.status(200).json({ success: true, task });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// 5. High-Density Excel-Like Bulk Updates
+exports.bulkUpdateTasks = async (req, res) => {
+  try {
+    const { taskIds, updates } = req.body;
+    if (!Array.isArray(taskIds) || taskIds.length === 0) {
+      return res.status(400).json({ success: false, message: "taskIds array is required" });
+    }
+
+    const allowedUpdates = {};
+    if (updates.status) allowedUpdates.status = updates.status;
+    if (updates.assignee !== undefined) allowedUpdates.assignee = updates.assignee || null;
+    if (updates.priority) allowedUpdates.priority = updates.priority;
+    if (updates.dueDate !== undefined) allowedUpdates.dueDate = updates.dueDate;
+    if (updates.dueTime !== undefined) allowedUpdates.dueTime = updates.dueTime;
+    if (updates.isConfidential !== undefined) allowedUpdates.isConfidential = updates.isConfidential;
+
+    await Task.updateMany({ _id: { $in: taskIds } }, { $set: allowedUpdates });
+
+    const updatedTasks = await Task.find({ _id: { $in: taskIds } })
+      .populate("assignee", "fullname email avatar jobTitle role")
+      .populate("project", "name prefix color")
+      .lean();
+
+    res.status(200).json({ success: true, count: updatedTasks.length, tasks: updatedTasks });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};

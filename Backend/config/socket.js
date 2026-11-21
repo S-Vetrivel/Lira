@@ -4,6 +4,7 @@ const Redis = require("ioredis");
 const { redisConfig } = require("../services/queue");
 
 let io = null;
+const activePeers = new Map(); // socketId -> { userId, name, department, clientIp, joinedAt }
 
 const initSocket = (server) => {
   io = new Server(server, {
@@ -28,16 +29,16 @@ const initSocket = (server) => {
   }
 
   io.on("connection", (socket) => {
-    // console.log(`⚡ Socket connected: ${socket.id} (PID: ${process.pid})`);
+    const clientIp = socket.handshake.address || socket.conn.remoteAddress;
 
-    // User personal room
+    // 1. Personal Room
     socket.on("join:user", (userId) => {
       if (userId) {
         socket.join(`user_${userId}`);
       }
     });
 
-    // Project workspace room (Kanban boards)
+    // 2. Project Room
     socket.on("join:project", (projectId) => {
       if (projectId) {
         socket.join(`project_${projectId}`);
@@ -50,8 +51,61 @@ const initSocket = (server) => {
       }
     });
 
+    // 3. E2EE Chat Rooms
+    socket.on("join:chat", (roomId) => {
+      if (roomId) {
+        socket.join(`chat_${roomId}`);
+      }
+    });
+
+    socket.on("leave:chat", (roomId) => {
+      if (roomId) {
+        socket.leave(`chat_${roomId}`);
+      }
+    });
+
+    socket.on("chat:typing", ({ roomId, userId, userName, isTyping }) => {
+      socket.to(`chat_${roomId}`).emit("chat:typing", { userId, userName, isTyping });
+    });
+
+    // 4. Local Peer Discovery & WebRTC Route Finding for Direct File Sharing
+    socket.on("peer:announce", (peerData = {}) => {
+      const peerInfo = {
+        socketId: socket.id,
+        userId: peerData.userId,
+        name: peerData.name || "Colleague",
+        department: peerData.department || "Operations",
+        clientIp: peerData.clientIp || clientIp,
+        subnet: peerData.clientIp ? peerData.clientIp.split(".").slice(0, 3).join(".") : "local",
+        joinedAt: Date.now(),
+      };
+      activePeers.set(socket.id, peerInfo);
+
+      // Reply with active peer list
+      const peerList = Array.from(activePeers.values()).filter((p) => p.socketId !== socket.id);
+      socket.emit("peer:list", peerList);
+
+      // Broadcast to other peers
+      socket.broadcast.emit("peer:joined", peerInfo);
+    });
+
+    // WebRTC Signaling Relay
+    socket.on("peer:signal", ({ targetSocketId, signal, metadata }) => {
+      if (targetSocketId) {
+        io.to(targetSocketId).emit("peer:signal", {
+          senderSocketId: socket.id,
+          signal,
+          metadata,
+        });
+      }
+    });
+
     socket.on("disconnect", () => {
-      // Clean disconnect
+      if (activePeers.has(socket.id)) {
+        const removed = activePeers.get(socket.id);
+        activePeers.delete(socket.id);
+        socket.broadcast.emit("peer:left", { socketId: socket.id, userId: removed.userId });
+      }
     });
   });
 
