@@ -1,6 +1,6 @@
 const { Worker } = require("bullmq");
 const { redisConfig } = require("../services/queue");
-const { emitToProject, emitToUser, emitToAll } = require("../config/socket");
+const { emitToProject, emitToUser, emitToAll, getIO } = require("../config/socket");
 const Redis = require("ioredis");
 
 // Redis publisher client for cluster-wide broadcast
@@ -10,22 +10,23 @@ const websocketWorker = new Worker(
   "websocket-events-queue",
   async (job) => {
     const { room, event, data, target } = job.data;
-    // console.log(`[WebSocket Worker] Processing job ${job.id}: ${event} for ${target} (${room})`);
-
-    // 1. Direct Socket.IO emit in current process
-    const { getIO } = require("../config/socket");
     const io = getIO();
-    if (io && room) {
-      io.to(room).emit(event, data);
-    } else if (target === "project") {
-      emitToProject(room, event, data);
-    } else if (target === "user") {
+
+    if (target === "user" && room) {
       emitToUser(room, event, data);
-    } else {
+    } else if (target === "project" && room) {
+      emitToProject(room, event, data);
+    } else if (target === "chat" && room) {
+      if (io) {
+        const chatRoom = room.startsWith("chat_") ? room : `chat_${room}`;
+        io.to(chatRoom).emit(event, data);
+      }
+    } else if (target === "all") {
       emitToAll(event, data);
+    } else if (io && room) {
+      io.to(room).emit(event, data);
     }
 
-    // 2. Publish to Redis channel for multi-node cluster awareness
     try {
       await redisPublisher.publish(
         "CLUSTER_WEBSOCKET_CHANNEL",
@@ -39,13 +40,9 @@ const websocketWorker = new Worker(
   },
   {
     connection: redisConfig,
-    concurrency: 10, // High throughput concurrency
+    concurrency: 10,
   }
 );
-
-websocketWorker.on("completed", (job) => {
-  // console.log(`[WebSocket Worker] Job ${job.id} completed`);
-});
 
 websocketWorker.on("failed", (job, err) => {
   console.error(`[WebSocket Worker] Job ${job?.id} failed:`, err.message);

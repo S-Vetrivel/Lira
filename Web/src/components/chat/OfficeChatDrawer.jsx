@@ -16,6 +16,7 @@ import {
   Image as ImageIcon,
   ShieldCheck,
   Loader2,
+  FolderKanban,
 } from "lucide-react";
 import { useApp } from "../../context/Appcontext";
 import {
@@ -54,7 +55,7 @@ const CHANNELS = [
 const CHUNK_SIZE = 1024 * 1024; // 1MB
 
 export default function OfficeChatDrawer({ isOpen, onClose }) {
-  const { user, theme, chatTargetUser, setChatTargetUser } = useApp();
+  const { user, theme, projects, chatTargetUser, setChatTargetUser, chatTargetRoom, setChatTargetRoom } = useApp();
   const isDark = theme === "dark";
 
   const [colleagues, setColleagues] = useState([]);
@@ -92,7 +93,7 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
     }
   };
 
-  // Handle external direct-chat trigger (e.g., from Team page)
+  // Handle external direct-chat or room-chat trigger
   useEffect(() => {
     if (isOpen && chatTargetUser && user) {
       const targetId = chatTargetUser._id;
@@ -111,6 +112,15 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
       setChatTargetUser(null);
     }
   }, [isOpen, chatTargetUser, user, setChatTargetUser]);
+
+  useEffect(() => {
+    if (isOpen && chatTargetRoom) {
+      setSelectedRoom(chatTargetRoom);
+      setRightTab("messages");
+      setShowMobileSidebar(false);
+      setChatTargetRoom(null);
+    }
+  }, [isOpen, chatTargetRoom, setChatTargetRoom]);
 
   // 1. Fetch conversations & announce presence
   useEffect(() => {
@@ -586,7 +596,7 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
             {/* Department Channels */}
             <div className="space-y-1">
               <span className="px-2 text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                Channels
+                Department Channels
               </span>
               {CHANNELS.map((chan) => {
                 const isSelected = selectedRoom?.id === chan.id && rightTab === "messages";
@@ -616,6 +626,46 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
                 );
               })}
             </div>
+
+            {/* Project Channels */}
+            {projects?.length > 0 && (
+              <div className="space-y-1">
+                <span className="px-2 text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                  Project Rooms ({projects.length})
+                </span>
+                {projects.map((proj) => {
+                  const projRoomId = `proj_${proj._id}`;
+                  const isSelected = selectedRoom?.id === projRoomId && rightTab === "messages";
+                  return (
+                    <button
+                      key={proj._id}
+                      onClick={() =>
+                        selectChannel({
+                          id: projRoomId,
+                          name: proj.prefix,
+                          label: proj.name,
+                          type: "department",
+                        })
+                      }
+                      className={`w-full px-2.5 py-2 rounded-xl text-xs font-semibold flex items-center justify-between transition-all cursor-pointer ${
+                        isSelected
+                          ? "bg-indigo-600 text-white shadow-sm"
+                          : isDark
+                          ? "text-slate-300 hover:bg-white/5 hover:text-white"
+                          : "text-slate-700 hover:bg-slate-200/70 hover:text-slate-900"
+                      }`}
+                    >
+                      <span className="flex items-center gap-2 truncate">
+                        <FolderKanban className="w-3.5 h-3.5 opacity-75 shrink-0" />
+                        <span className="truncate">
+                          {proj.prefix} · {proj.name}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
 
             {/* Direct Messages */}
             <div className="space-y-1">

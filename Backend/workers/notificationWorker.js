@@ -5,7 +5,7 @@ const Notification = require("../models/notificationModel");
 const notificationWorker = new Worker(
   "notification-queue",
   async (job) => {
-    const { recipient, sender, task, type, message } = job.data;
+    const { recipient, sender, task, type, title, message } = job.data;
     if (!recipient) return { skipped: true, reason: "No recipient" };
 
     // 1. Create notification in MongoDB
@@ -13,7 +13,8 @@ const notificationWorker = new Worker(
       recipient,
       sender,
       task,
-      type,
+      type: type || "system",
+      title,
       message,
     });
 

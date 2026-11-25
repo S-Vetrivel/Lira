@@ -73,9 +73,17 @@ export const AppProvider = ({ children }) => {
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatTargetUser, setChatTargetUser] = useState(null);
+  const [chatTargetRoom, setChatTargetRoom] = useState(null);
 
   const openDirectChat = useCallback((colleague) => {
+    setChatTargetRoom(null);
     setChatTargetUser(colleague || null);
+    setIsChatOpen(true);
+  }, []);
+
+  const openRoomChat = useCallback((room) => {
+    setChatTargetUser(null);
+    setChatTargetRoom(room || null);
     setIsChatOpen(true);
   }, []);
 
@@ -252,7 +260,10 @@ export const AppProvider = ({ children }) => {
       setIsChatOpen,
       chatTargetUser,
       setChatTargetUser,
+      chatTargetRoom,
+      setChatTargetRoom,
       openDirectChat,
+      openRoomChat,
       refreshProjects,
       refreshDepartments,
       refreshTeam,
@@ -275,7 +286,9 @@ export const AppProvider = ({ children }) => {
       isCommandPaletteOpen,
       isChatOpen,
       chatTargetUser,
+      chatTargetRoom,
       openDirectChat,
+      openRoomChat,
       refreshProjects,
       refreshDepartments,
       refreshTeam,

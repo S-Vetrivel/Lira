@@ -2,6 +2,7 @@ const Message = require("../models/messageModel");
 const User = require("../models/userModel");
 const { enqueueWebSocketEvent } = require("../services/queue");
 const { emitToUser, getIO } = require("../config/socket");
+const { createNotification } = require("../utils/notificationHelper");
 
 const USER_POPULATE_FIELDS =
   "fullname email avatar profilePicture role department departmentName publicId jobTitle status";
@@ -59,6 +60,16 @@ exports.sendMessage = async (req, res) => {
           roomId,
           chatType,
         });
+        createNotification({
+          recipient: recipientId.toString(),
+          sender: req.user._id,
+          type: "chat_message",
+          title: "New Direct Message",
+          message:
+            Array.isArray(attachments) && attachments.length > 0
+              ? `${req.user.fullname || req.user.email} shared a file in Direct Messages.`
+              : `${req.user.fullname || req.user.email} sent you a direct message.`,
+        }).catch(() => {});
       }
     }
 

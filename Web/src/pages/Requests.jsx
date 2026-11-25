@@ -19,6 +19,7 @@ import {
   getDepartments,
 } from "../services/api";
 import { formatINR, formatDateIN, getDisplayName } from "../utils/formatters";
+import SideDrawer from "../components/common/SideDrawer";
 import toast from "react-hot-toast";
 
 export default function Requests() {
@@ -366,187 +367,197 @@ export default function Requests() {
         )}
       </div>
 
-      {/* Modal: Create Request */}
-      {showCreateModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div
-            className={`border rounded-3xl w-full max-w-lg p-6 space-y-4 shadow-2xl animate-in fade-in zoom-in-95 duration-150 ${
-              isDark ? "bg-[#15161f] border-white/10 text-slate-100" : "bg-white border-slate-200 text-slate-900"
-            }`}
-          >
-            <div className={`flex items-center justify-between pb-3 border-b ${isDark ? "border-white/10" : "border-slate-100"}`}>
-              <h2 className="text-sm font-bold flex items-center gap-2">
-                <FileCheck2 className="w-4 h-4 text-indigo-500" />
-                <span>Submit Formal Inter-Department Request</span>
-              </h2>
-              <button
-                onClick={() => setShowCreateModal(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-200 cursor-pointer"
+      {/* Side Drawer: Create Request */}
+      <SideDrawer
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        title="Submit Formal Inter-Department Request"
+        subtitle="Route an official approval, procurement, or policy request"
+        icon={FileCheck2}
+        widthClass="max-w-lg"
+      >
+        <form onSubmit={handleCreateRequest} className="space-y-4 text-xs">
+          <div>
+            <label className={`block font-semibold mb-1.5 ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+              Request Title *
+            </label>
+            <input
+              type="text"
+              required
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="e.g. Q4 Cloud Infrastructure Budget Approval"
+              className={`w-full border rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-indigo-500 ${
+                isDark
+                  ? "bg-[#12131b] border-white/10 text-white placeholder-slate-500"
+                  : "bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400"
+              }`}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={`block font-semibold mb-1.5 ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+                Request Type
+              </label>
+              <select
+                value={requestType}
+                onChange={(e) => setRequestType(e.target.value)}
+                className={`w-full border rounded-xl px-3 py-2.5 focus:outline-none focus:border-indigo-500 ${
+                  isDark ? "bg-[#12131b] border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
+                }`}
               >
-                <X className="w-4 h-4" />
-              </button>
+                <option value="budget_approval">Budget Approval</option>
+                <option value="asset_requisition">Asset Requisition</option>
+                <option value="travel_request">Travel Request</option>
+                <option value="vendor_payment">Vendor Payment</option>
+                <option value="compliance_signoff">Compliance Sign-Off</option>
+                <option value="general_request">General Request</option>
+              </select>
             </div>
 
-            <form onSubmit={handleCreateRequest} className="space-y-3.5 text-xs">
-              <div>
-                <label className={`block font-semibold mb-1 ${isDark ? "text-slate-300" : "text-slate-700"}`}>
-                  Request Title *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="e.g. Q4 Cloud Infrastructure Budget Approval"
-                  className={`w-full border rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-indigo-500 ${
-                    isDark
-                      ? "bg-[#12131b] border-white/10 text-white placeholder-slate-500"
-                      : "bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400"
-                  }`}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className={`block font-semibold mb-1 ${isDark ? "text-slate-300" : "text-slate-700"}`}>
-                    Request Type
-                  </label>
-                  <select
-                    value={requestType}
-                    onChange={(e) => setRequestType(e.target.value)}
-                    className={`w-full border rounded-xl px-3 py-2.5 focus:outline-none focus:border-indigo-500 ${
-                      isDark ? "bg-[#12131b] border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
-                    }`}
-                  >
-                    <option value="budget_approval">Budget Approval</option>
-                    <option value="asset_requisition">Asset Requisition</option>
-                    <option value="travel_request">Travel Request</option>
-                    <option value="vendor_payment">Vendor Payment</option>
-                    <option value="compliance_signoff">Compliance Sign-Off</option>
-                    <option value="general_request">General Request</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className={`block font-semibold mb-1 ${isDark ? "text-slate-300" : "text-slate-700"}`}>
-                    Target Department
-                  </label>
-                  <select
-                    value={targetDepartment}
-                    onChange={(e) => setTargetDepartment(e.target.value)}
-                    className={`w-full border rounded-xl px-3 py-2.5 focus:outline-none focus:border-indigo-500 ${
-                      isDark ? "bg-[#12131b] border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
-                    }`}
-                  >
-                    {departments.map((dept) => (
-                      <option key={dept._id} value={dept._id}>
-                        {dept.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className={`block font-semibold mb-1 ${isDark ? "text-slate-300" : "text-slate-700"}`}>
-                    Amount (₹ INR)
-                  </label>
-                  <div className="relative">
-                    <IndianRupee className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                    <input
-                      type="number"
-                      min="0"
-                      value={amount}
-                      onChange={(e) => setAmount(e.target.value)}
-                      placeholder="e.g. 25000"
-                      className={`w-full border rounded-xl pl-8 pr-3 py-2.5 focus:outline-none focus:border-indigo-500 ${
-                        isDark
-                          ? "bg-[#12131b] border-white/10 text-white placeholder-slate-500"
-                          : "bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400"
-                      }`}
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className={`block font-semibold mb-1 ${isDark ? "text-slate-300" : "text-slate-700"}`}>
-                    Urgency
-                  </label>
-                  <select
-                    value={urgency}
-                    onChange={(e) => setUrgency(e.target.value)}
-                    className={`w-full border rounded-xl px-3 py-2.5 focus:outline-none focus:border-indigo-500 ${
-                      isDark ? "bg-[#12131b] border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
-                    }`}
-                  >
-                    <option value="urgent">Urgent (Immediate)</option>
-                    <option value="high">High Priority</option>
-                    <option value="medium">Medium</option>
-                    <option value="low">Standard / Low</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className={`block font-semibold mb-1 ${isDark ? "text-slate-300" : "text-slate-700"}`}>
-                  Details & Justification
-                </label>
-                <textarea
-                  rows={3}
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Explain why this sign-off is required and deliverables expected..."
-                  className={`w-full border rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-indigo-500 resize-none ${
-                    isDark
-                      ? "bg-[#12131b] border-white/10 text-white placeholder-slate-500"
-                      : "bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400"
-                  }`}
-                />
-              </div>
-
-              <div className={`flex items-center justify-end gap-2 pt-3 border-t ${isDark ? "border-white/10" : "border-slate-100"}`}>
-                <button
-                  type="button"
-                  onClick={() => setShowCreateModal(false)}
-                  className={`px-4 py-2 rounded-xl font-semibold transition-colors cursor-pointer ${
-                    isDark ? "text-slate-400 hover:bg-white/5" : "text-slate-600 hover:bg-slate-100"
-                  }`}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold transition-colors shadow-md shadow-blue-500/20 cursor-pointer"
-                >
-                  {submitting ? "Submitting..." : "Submit Request"}
-                </button>
-              </div>
-            </form>
+            <div>
+              <label className={`block font-semibold mb-1.5 ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+                Target Department
+              </label>
+              <select
+                value={targetDepartment}
+                onChange={(e) => setTargetDepartment(e.target.value)}
+                className={`w-full border rounded-xl px-3 py-2.5 focus:outline-none focus:border-indigo-500 ${
+                  isDark ? "bg-[#12131b] border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
+                }`}
+              >
+                {departments.map((dept) => (
+                  <option key={dept._id} value={dept._id}>
+                    {dept.name}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
-        </div>
-      )}
 
-      {/* Modal: Approve / Reject Confirmation */}
-      {actionModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div
-            className={`border rounded-3xl w-full max-w-md p-6 space-y-4 shadow-2xl ${
-              isDark ? "bg-[#15161f] border-white/10 text-slate-100" : "bg-white border-slate-200 text-slate-900"
-            }`}
-          >
-            <h3 className="text-sm font-bold">
-              {actionModal.type === "approve"
-                ? `Approve Stage: ${actionModal.request.requestCode}`
-                : `Reject Request: ${actionModal.request.requestCode}`}
-            </h3>
-            <p className={`text-xs ${isDark ? "text-slate-400" : "text-slate-600"}`}>
-              {actionModal.request.title}
-            </p>
-            <form onSubmit={submitAction} className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={`block font-semibold mb-1.5 ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+                Amount (₹ INR)
+              </label>
+              <div className="relative">
+                <IndianRupee className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="number"
+                  min="0"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  placeholder="e.g. 25000"
+                  className={`w-full border rounded-xl pl-8 pr-3 py-2.5 focus:outline-none focus:border-indigo-500 ${
+                    isDark
+                      ? "bg-[#12131b] border-white/10 text-white placeholder-slate-500"
+                      : "bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400"
+                  }`}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className={`block font-semibold mb-1.5 ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+                Urgency
+              </label>
+              <select
+                value={urgency}
+                onChange={(e) => setUrgency(e.target.value)}
+                className={`w-full border rounded-xl px-3 py-2.5 focus:outline-none focus:border-indigo-500 ${
+                  isDark ? "bg-[#12131b] border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
+                }`}
+              >
+                <option value="urgent">Urgent (Immediate)</option>
+                <option value="high">High Priority</option>
+                <option value="medium">Medium</option>
+                <option value="low">Standard / Low</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className={`block font-semibold mb-1.5 ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+              Details & Justification
+            </label>
+            <textarea
+              rows={4}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Explain why this sign-off is required and deliverables expected..."
+              className={`w-full border rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-indigo-500 resize-none ${
+                isDark
+                  ? "bg-[#12131b] border-white/10 text-white placeholder-slate-500"
+                  : "bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400"
+              }`}
+            />
+          </div>
+
+          <div className={`flex items-center justify-end gap-2 pt-4 border-t ${isDark ? "border-white/10" : "border-slate-100"}`}>
+            <button
+              type="button"
+              onClick={() => setShowCreateModal(false)}
+              className={`px-4 py-2 rounded-xl font-semibold transition-colors cursor-pointer ${
+                isDark ? "text-slate-400 hover:bg-white/5" : "text-slate-600 hover:bg-slate-100"
+              }`}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={submitting}
+              className={`px-5 py-2 rounded-xl font-semibold transition-colors cursor-pointer ${
+                isDark
+                  ? "bg-white text-slate-950 hover:bg-slate-200"
+                  : "bg-slate-900 text-white hover:bg-slate-800"
+              }`}
+            >
+              {submitting ? "Submitting..." : "Submit Request"}
+            </button>
+          </div>
+        </form>
+      </SideDrawer>
+
+      {/* Side Drawer: Approve / Reject Confirmation */}
+      <SideDrawer
+        isOpen={Boolean(actionModal)}
+        onClose={() => setActionModal(null)}
+        title={
+          actionModal?.type === "approve"
+            ? `Approve Stage: ${actionModal?.request?.requestCode || ""}`
+            : `Reject Request: ${actionModal?.request?.requestCode || ""}`
+        }
+        subtitle={actionModal?.request?.title}
+        icon={actionModal?.type === "approve" ? CheckCircle2 : XCircle}
+        widthClass="max-w-md"
+      >
+        {actionModal && (
+          <form onSubmit={submitAction} className="space-y-4">
+            <div
+              className={`p-3.5 rounded-xl border text-xs space-y-1 ${
+                isDark ? "bg-white/[0.02] border-white/[0.08]" : "bg-slate-50 border-slate-200"
+              }`}
+            >
+              <p className={isDark ? "text-slate-400" : "text-slate-500"}>
+                Requested by:{" "}
+                <strong className={isDark ? "text-white" : "text-slate-900"}>
+                  {getDisplayName(actionModal.request.requester)}
+                </strong>
+              </p>
+              {actionModal.request.amount > 0 && (
+                <p className="text-emerald-500 font-bold font-mono">
+                  Amount: {formatINR(actionModal.request.amount)}
+                </p>
+              )}
+            </div>
+
+            <div>
+              <label className={`block text-xs font-semibold mb-1.5 ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+                {actionModal.type === "approve" ? "Sign-Off Notes (Optional)" : "Rejection Reason *"}
+              </label>
               <textarea
-                rows={3}
+                rows={4}
                 value={actionNotes}
                 onChange={(e) => setActionNotes(e.target.value)}
                 placeholder={
@@ -561,34 +572,37 @@ export default function Requests() {
                     : "bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400"
                 }`}
               />
-              <div className="flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setActionModal(null)}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={processingAction}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold text-white cursor-pointer ${
-                    actionModal.type === "approve"
-                      ? "bg-emerald-600 hover:bg-emerald-500"
-                      : "bg-rose-600 hover:bg-rose-500"
-                  }`}
-                >
-                  {processingAction
-                    ? "Processing..."
-                    : actionModal.type === "approve"
-                    ? "Confirm Approval"
-                    : "Confirm Rejection"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+            </div>
+
+            <div className={`flex justify-end gap-2 pt-3 border-t ${isDark ? "border-white/10" : "border-slate-100"}`}>
+              <button
+                type="button"
+                onClick={() => setActionModal(null)}
+                className={`px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer ${
+                  isDark ? "text-slate-400 hover:bg-white/5" : "text-slate-600 hover:bg-slate-100"
+                }`}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={processingAction}
+                className={`px-4 py-2 rounded-xl text-xs font-bold text-white cursor-pointer ${
+                  actionModal.type === "approve"
+                    ? "bg-emerald-600 hover:bg-emerald-500"
+                    : "bg-rose-600 hover:bg-rose-500"
+                }`}
+              >
+                {processingAction
+                  ? "Processing..."
+                  : actionModal.type === "approve"
+                  ? "Confirm Approval"
+                  : "Confirm Rejection"}
+              </button>
+            </div>
+          </form>
+        )}
+      </SideDrawer>
     </div>
   );
 }

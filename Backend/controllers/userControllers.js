@@ -7,10 +7,15 @@ const { enqueueWebSocketEvent } = require("../services/queue");
 const { sendPushToUser, sendPushToAdmins } = require("../services/pushService");
 const { createNotification } = require("../utils/notificationHelper");
 
-// Get all active team members with open tasks count (for Team Directory)
+// Get team members with open tasks count (Admin can pass ?includeInactive=true for full user management)
 exports.getTeamMembers = async (req, res) => {
   try {
-    const users = await User.find({ isActive: true, status: "active" })
+    const includeInactive = req.query.includeInactive === "true" && req.user?.role === "admin";
+    const filter = includeInactive
+      ? {}
+      : { isActive: true, status: { $in: ["active", "away", "on_leave"] } };
+
+    const users = await User.find(filter)
       .select("-password")
       .populate("department", "name code color")
       .sort({ fullname: 1 })
@@ -117,7 +122,7 @@ exports.createUser = async (req, res) => {
 exports.updateUser = async (req, res) => {
   try {
     const { id } = req.params;
-    const { fullname, role, department, departmentName, jobTitle, phone, status, isActive } = req.body;
+    const { fullname, role, department, departmentName, jobTitle, phone, status, isActive, bio } = req.body;
 
     // Only Admin can change role or active status
     if ((role || isActive !== undefined) && req.user.role !== "admin") {
@@ -127,10 +132,19 @@ exports.updateUser = async (req, res) => {
     const updates = {};
     if (fullname) updates.fullname = fullname.trim();
     if (role) updates.role = role;
-    if (department !== undefined) updates.department = department || null;
+    if (department !== undefined) {
+      updates.department = department || null;
+      if (department) {
+        const deptDoc = await Department.findById(department);
+        if (deptDoc) updates.departmentName = deptDoc.name;
+      } else {
+        updates.departmentName = "General";
+      }
+    }
     if (departmentName) updates.departmentName = departmentName;
-    if (jobTitle) updates.jobTitle = jobTitle;
+    if (jobTitle !== undefined) updates.jobTitle = jobTitle;
     if (phone !== undefined) updates.phone = phone;
+    if (bio !== undefined) updates.bio = bio;
     if (status) updates.status = status;
     if (isActive !== undefined) updates.isActive = isActive;
 
@@ -139,6 +153,16 @@ exports.updateUser = async (req, res) => {
       .populate("department");
 
     if (!user) return res.status(404).json({ success: false, message: "User not found" });
+
+    if (req.user._id.toString() !== user._id.toString()) {
+      await createNotification({
+        recipient: user._id,
+        sender: req.user._id,
+        type: "system",
+        title: "Account Updated",
+        message: `${req.user.fullname} updated your account details (${user.role} • ${user.departmentName}).`,
+      });
+    }
 
     res.status(200).json({ success: true, user });
   } catch (error) {

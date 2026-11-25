@@ -201,6 +201,8 @@ exports.Login = async (req, res) => {
         department: user.department,
         jobTitle: user.jobTitle,
         avatar: user.avatar || user.profilePicture,
+        phone: user.phone,
+        bio: user.bio,
         joinRequest: user.joinRequest,
       },
     });
@@ -258,6 +260,7 @@ exports.Me = async (req, res) => {
         jobTitle: user.jobTitle,
         avatar: user.avatar || user.profilePicture,
         phone: user.phone,
+        bio: user.bio,
         joinRequest: user.joinRequest,
       },
     });

@@ -139,33 +139,39 @@ export default function CreateTaskModal({ isOpen, onClose, onCreated }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4">
-      {/* Frosted Backdrop */}
+    <div className="fixed inset-0 z-50 overflow-hidden flex justify-end">
+      {/* Subtle Backdrop */}
       <div
         onClick={onClose}
-        className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity animate-in fade-in"
+        className="fixed inset-0 bg-black/45 backdrop-blur-[2px] transition-opacity animate-in fade-in duration-150"
       />
 
-      {/* Modal Dialog */}
+      {/* Slide-over Side Drawer */}
       <div
-        className={`relative w-full max-w-2xl rounded-3xl shadow-2xl border overflow-hidden z-10 animate-in zoom-in-95 duration-200 ${
+        className={`relative w-full max-w-xl h-full flex flex-col z-10 border-l shadow-2xl animate-in slide-in-from-right duration-200 ${
           isDark
-            ? "bg-[#161722] border-white/10 text-slate-100"
+            ? "bg-[#0f1016] border-white/[0.08] text-slate-100"
             : "bg-white border-slate-200 text-slate-900"
         }`}
       >
         {/* Header */}
         <div
-          className={`px-6 py-4.5 border-b flex items-center justify-between ${
-            isDark ? "bg-[#181926]/90 border-white/10" : "bg-slate-50/80 border-slate-200"
+          className={`px-6 py-4 border-b flex items-center justify-between shrink-0 ${
+            isDark ? "bg-[#12131c] border-white/[0.08]" : "bg-slate-50/80 border-slate-200"
           }`}
         >
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center font-bold text-lg shadow-md shadow-indigo-500/20">
-              <Plus className="w-5 h-5" />
+            <div
+              className={`w-9 h-9 rounded-xl border flex items-center justify-center ${
+                isDark
+                  ? "bg-white/[0.04] border-white/[0.08] text-indigo-400"
+                  : "bg-indigo-50 border-indigo-200 text-indigo-600"
+              }`}
+            >
+              <Plus className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="text-base font-bold leading-tight">
+              <h2 className="text-sm sm:text-base font-bold leading-tight">
                 Create New Task
               </h2>
               <p className={`text-xs mt-0.5 ${isDark ? "text-slate-400" : "text-slate-500"}`}>
@@ -176,16 +182,16 @@ export default function CreateTaskModal({ isOpen, onClose, onCreated }) {
 
           <button
             onClick={onClose}
-            className={`p-2 rounded-xl transition-colors ${
+            className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
               isDark ? "text-slate-400 hover:text-white hover:bg-white/10" : "text-slate-400 hover:text-slate-700 hover:bg-slate-100"
             }`}
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4.5 max-h-[calc(85vh-8rem)] overflow-y-auto">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4.5">
           {/* Project & Task Type row */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             <div>

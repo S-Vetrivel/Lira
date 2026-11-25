@@ -3,6 +3,7 @@ import { useApp } from "../context/Appcontext";
 import {
   getTeamMembers,
   createUser,
+  updateUser,
   deleteUser,
   getPendingJoinRequests,
   approveJoinRequest,
@@ -28,9 +29,12 @@ import {
   Copy,
   Sparkles,
   MessageSquare,
+  SlidersHorizontal,
+  Phone,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import UserAvatar from "../components/common/UserAvatar";
+import SideDrawer from "../components/common/SideDrawer";
 
 export default function Team() {
   const { user, departments, refreshDepartments, theme, openDirectChat } = useApp();
@@ -53,6 +57,45 @@ export default function Team() {
   const [jobTitle, setJobTitle] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [actionId, setActionId] = useState(null);
+
+  // Selected member SideDrawer
+  const [selectedMember, setSelectedMember] = useState(null);
+  const [editRole, setEditRole] = useState("employee");
+  const [editDeptId, setEditDeptId] = useState("");
+  const [editJobTitle, setEditJobTitle] = useState("");
+  const [editStatus, setEditStatus] = useState("active");
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  const openMemberDrawer = (member) => {
+    setSelectedMember(member);
+    setEditRole(member.role || "employee");
+    setEditDeptId(member.department?._id || member.department || "");
+    setEditJobTitle(member.jobTitle || "");
+    setEditStatus(member.status || "active");
+  };
+
+  const handleSaveMemberUpdate = async (e) => {
+    e.preventDefault();
+    if (!selectedMember) return;
+    setSavingEdit(true);
+    const matchedDept = (departments || []).find((d) => d._id === editDeptId);
+    const res = await updateUser(selectedMember._id, {
+      role: editRole,
+      department: editDeptId || null,
+      departmentName: matchedDept ? matchedDept.name : "General",
+      jobTitle: editJobTitle.trim(),
+      status: editStatus,
+    });
+    setSavingEdit(false);
+    if (res.success) {
+      toast.success("Member details updated");
+      setSelectedMember(res.user);
+      fetchMembers();
+      refreshDepartments?.();
+    } else {
+      toast.error(res.message || "Failed to update member");
+    }
+  };
 
   const fetchMembers = async () => {
     setLoading(true);
@@ -524,6 +567,19 @@ export default function Team() {
                     </span>
 
                     <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => openMemberDrawer(member)}
+                        className={`text-xs font-semibold px-2.5 py-1 rounded-lg border flex items-center gap-1 transition-colors cursor-pointer ${
+                          isDark
+                            ? "bg-white/[0.03] border-white/10 text-slate-300 hover:bg-white/[0.08] hover:text-white"
+                            : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100"
+                        }`}
+                        title="View & manage profile"
+                      >
+                        <SlidersHorizontal className="w-3 h-3" />
+                        <span>Details</span>
+                      </button>
+
                       {member._id !== user?._id && (
                         <button
                           onClick={() => openDirectChat(member)}
@@ -557,134 +613,307 @@ export default function Team() {
         </>
       )}
 
-      {/* Add User Modal */}
-      {showAddUserModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div
-            className={`w-full max-w-md rounded-3xl p-6 shadow-2xl border space-y-4 ${
-              isDark ? "bg-[#15161f] border-white/10 text-white" : "bg-white border-slate-200 text-slate-900"
-            }`}
-          >
-            <div className="flex items-center justify-between pb-3 border-b border-white/10">
-              <h3 className="text-base font-bold">Add Team Member Directly</h3>
-              <button
-                onClick={() => setShowAddUserModal(false)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg"
+      {/* Add User Side Drawer */}
+      <SideDrawer
+        isOpen={showAddUserModal}
+        onClose={() => setShowAddUserModal(false)}
+        title="Add Team Member"
+        subtitle="Create a new workspace account directly"
+        icon={UserPlus}
+        widthClass="max-w-md"
+      >
+        <form onSubmit={handleCreateUser} className="space-y-4">
+          <div>
+            <label className="text-xs font-semibold block mb-1.5">Full Name *</label>
+            <input
+              type="text"
+              placeholder="Rahul Sharma"
+              value={fullname}
+              onChange={(e) => setFullname(e.target.value)}
+              className={`w-full border rounded-xl px-3.5 py-2.5 text-xs focus:outline-none focus:border-indigo-500 ${
+                isDark ? "bg-[#12131b] border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
+              }`}
+              required
+            />
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold block mb-1.5">Work Email *</label>
+            <input
+              type="email"
+              placeholder="rahul@company.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className={`w-full border rounded-xl px-3.5 py-2.5 text-xs focus:outline-none focus:border-indigo-500 ${
+                isDark ? "bg-[#12131b] border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
+              }`}
+              required
+            />
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold block mb-1.5">Initial Password</label>
+            <input
+              type="password"
+              placeholder="Default: Lira@2026"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className={`w-full border rounded-xl px-3.5 py-2.5 text-xs focus:outline-none focus:border-indigo-500 ${
+                isDark ? "bg-[#12131b] border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
+              }`}
+            />
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold block mb-1.5">Job Title</label>
+            <input
+              type="text"
+              placeholder="e.g. Senior Frontend Engineer"
+              value={jobTitle}
+              onChange={(e) => setJobTitle(e.target.value)}
+              className={`w-full border rounded-xl px-3.5 py-2.5 text-xs focus:outline-none focus:border-indigo-500 ${
+                isDark ? "bg-[#12131b] border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
+              }`}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-semibold block mb-1.5">Role</label>
+              <select
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
+                className={`w-full border rounded-xl px-3.5 py-2.5 text-xs font-semibold focus:outline-none ${
+                  isDark ? "bg-[#12131b] border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
+                }`}
               >
-                <X className="w-4 h-4" />
-              </button>
+                <option value="employee">Employee</option>
+                <option value="manager">Manager / Lead</option>
+                <option value="admin">Admin</option>
+              </select>
             </div>
 
-            <form onSubmit={handleCreateUser} className="space-y-3.5">
-              <div>
-                <label className="text-xs font-semibold block mb-1">Full Name *</label>
-                <input
-                  type="text"
-                  placeholder="Rahul Sharma"
-                  value={fullname}
-                  onChange={(e) => setFullname(e.target.value)}
-                  className={`w-full border rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:border-indigo-500 ${
-                    isDark ? "bg-[#12131b] border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
-                  }`}
-                  required
-                />
-              </div>
+            <div>
+              <label className="text-xs font-semibold block mb-1.5">Department</label>
+              <select
+                value={departmentId}
+                onChange={(e) => setDepartmentId(e.target.value)}
+                className={`w-full border rounded-xl px-3.5 py-2.5 text-xs focus:outline-none ${
+                  isDark ? "bg-[#12131b] border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
+                }`}
+              >
+                <option value="">General</option>
+                {departments.map((d) => (
+                  <option key={d._id} value={d._id}>
+                    {d.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
 
-              <div>
-                <label className="text-xs font-semibold block mb-1">Work Email *</label>
-                <input
-                  type="email"
-                  placeholder="rahul@company.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className={`w-full border rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:border-indigo-500 ${
-                    isDark ? "bg-[#12131b] border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
-                  }`}
-                  required
-                />
-              </div>
+          <div className={`pt-4 flex justify-end gap-2 border-t ${isDark ? "border-white/10" : "border-slate-100"}`}>
+            <button
+              type="button"
+              onClick={() => setShowAddUserModal(false)}
+              className={`px-4 py-2 text-xs font-semibold rounded-xl cursor-pointer ${
+                isDark ? "text-slate-400 hover:bg-white/5" : "text-slate-600 hover:bg-slate-100"
+              }`}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={submitting}
+              className={`px-5 py-2 text-xs font-semibold rounded-xl cursor-pointer ${
+                isDark ? "bg-white text-slate-950 hover:bg-slate-200" : "bg-slate-900 text-white hover:bg-slate-800"
+              }`}
+            >
+              {submitting ? "Saving..." : "Create Account"}
+            </button>
+          </div>
+        </form>
+      </SideDrawer>
 
-              <div>
-                <label className="text-xs font-semibold block mb-1">Initial Password</label>
-                <input
-                  type="password"
-                  placeholder="Default: Lira@2026"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className={`w-full border rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:border-indigo-500 ${
-                    isDark ? "bg-[#12131b] border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
-                  }`}
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold block mb-1">Job Title</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Senior Frontend Engineer"
-                  value={jobTitle}
-                  onChange={(e) => setJobTitle(e.target.value)}
-                  className={`w-full border rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:border-indigo-500 ${
-                    isDark ? "bg-[#12131b] border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
-                  }`}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-semibold block mb-1">Role</label>
-                  <select
-                    value={role}
-                    onChange={(e) => setRole(e.target.value)}
-                    className={`w-full border rounded-xl px-3.5 py-2 text-xs font-semibold focus:outline-none ${
-                      isDark ? "bg-[#12131b] border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
+      {/* Member Details & Management Side Drawer */}
+      <SideDrawer
+        isOpen={Boolean(selectedMember)}
+        onClose={() => setSelectedMember(null)}
+        title={selectedMember?.fullname || "Team Member"}
+        subtitle={selectedMember?.email}
+        icon={Users}
+        badge={
+          selectedMember?.publicId && (
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+              {selectedMember.publicId}
+            </span>
+          )
+        }
+        widthClass="max-w-lg"
+      >
+        {selectedMember && (
+          <div className="space-y-5">
+            <div
+              className={`p-4 rounded-xl border flex items-center gap-4 ${
+                isDark ? "bg-white/[0.02] border-white/[0.08]" : "bg-slate-50 border-slate-200"
+              }`}
+            >
+              <UserAvatar
+                user={selectedMember}
+                className="w-16 h-16 rounded-2xl border border-white/10 shrink-0"
+                textClass="text-lg"
+              />
+              <div className="min-w-0 flex-1 space-y-1">
+                <h3 className="text-base font-bold truncate">{selectedMember.fullname}</h3>
+                <p className={`text-xs truncate ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+                  {selectedMember.jobTitle || "Team Member"} · {selectedMember.department?.name || selectedMember.departmentName || "General"}
+                </p>
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <span
+                    className={`inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${
+                      selectedMember.status === "on_leave"
+                        ? "bg-rose-500/10 text-rose-400 border border-rose-500/20"
+                        : selectedMember.status === "away"
+                        ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
+                        : "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
                     }`}
                   >
-                    <option value="employee">Employee</option>
-                    <option value="manager">Manager / Lead</option>
-                    <option value="admin">Admin</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-xs font-semibold block mb-1">Department</label>
-                  <select
-                    value={departmentId}
-                    onChange={(e) => setDepartmentId(e.target.value)}
-                    className={`w-full border rounded-xl px-3.5 py-2 text-xs focus:outline-none ${
-                      isDark ? "bg-[#12131b] border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
-                    }`}
-                  >
-                    <option value="">General</option>
-                    {departments.map((d) => (
-                      <option key={d._id} value={d._id}>
-                        {d.name}
-                      </option>
-                    ))}
-                  </select>
+                    <span
+                      className={`w-1.5 h-1.5 rounded-full ${
+                        selectedMember.status === "on_leave"
+                          ? "bg-rose-400"
+                          : selectedMember.status === "away"
+                          ? "bg-amber-400"
+                          : "bg-emerald-400"
+                      }`}
+                    />
+                    {selectedMember.status === "on_leave"
+                      ? "On Leave"
+                      : selectedMember.status === "away"
+                      ? "Away"
+                      : "Available"}
+                  </span>
+                  {selectedMember.phone && (
+                    <span className={`text-[11px] flex items-center gap-1 ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+                      <Phone className="w-3 h-3" /> {selectedMember.phone}
+                    </span>
+                  )}
                 </div>
               </div>
-
-              <div className={`pt-3 flex justify-end gap-2 border-t ${isDark ? "border-white/10" : "border-slate-100"}`}>
+              {selectedMember._id !== user?._id && (
                 <button
                   type="button"
-                  onClick={() => setShowAddUserModal(false)}
-                  className="px-4 py-2 text-xs font-semibold rounded-xl text-slate-400 hover:text-slate-200"
+                  onClick={() => {
+                    openDirectChat(selectedMember);
+                    setSelectedMember(null);
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer shrink-0 ${
+                    isDark ? "bg-white text-slate-950 hover:bg-slate-200" : "bg-slate-900 text-white hover:bg-slate-800"
+                  }`}
                 >
-                  Cancel
+                  <MessageSquare className="w-3.5 h-3.5" />
+                  <span>Message</span>
                 </button>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="px-5 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-xs font-bold rounded-xl shadow-md shadow-blue-500/20 cursor-pointer"
-                >
-                  {submitting ? "Saving..." : "Create Account"}
-                </button>
+              )}
+            </div>
+
+            {selectedMember.bio && (
+              <div
+                className={`p-3.5 rounded-xl border text-xs ${
+                  isDark ? "bg-white/[0.02] border-white/[0.06] text-slate-300" : "bg-slate-50 border-slate-200 text-slate-600"
+                }`}
+              >
+                {selectedMember.bio}
               </div>
-            </form>
+            )}
+
+            {canManage && (
+              <form onSubmit={handleSaveMemberUpdate} className="space-y-3.5 pt-2 border-t border-white/[0.08]">
+                <h4 className={`text-xs font-bold uppercase tracking-wider ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+                  Manage Assignment & Role
+                </h4>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-semibold block mb-1.5">Role</label>
+                    <select
+                      value={editRole}
+                      onChange={(e) => setEditRole(e.target.value)}
+                      disabled={user?.role !== "admin"}
+                      className={`w-full border rounded-xl px-3 py-2 text-xs focus:outline-none ${
+                        isDark ? "bg-[#12131b] border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
+                      }`}
+                    >
+                      <option value="employee">Employee</option>
+                      <option value="manager">Manager</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold block mb-1.5">Department</label>
+                    <select
+                      value={editDeptId}
+                      onChange={(e) => setEditDeptId(e.target.value)}
+                      className={`w-full border rounded-xl px-3 py-2 text-xs focus:outline-none ${
+                        isDark ? "bg-[#12131b] border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
+                      }`}
+                    >
+                      <option value="">General</option>
+                      {departments.map((d) => (
+                        <option key={d._id} value={d._id}>
+                          {d.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-semibold block mb-1.5">Job Title</label>
+                    <input
+                      type="text"
+                      value={editJobTitle}
+                      onChange={(e) => setEditJobTitle(e.target.value)}
+                      className={`w-full border rounded-xl px-3 py-2 text-xs focus:outline-none ${
+                        isDark ? "bg-[#12131b] border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
+                      }`}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold block mb-1.5">Availability Status</label>
+                    <select
+                      value={editStatus}
+                      onChange={(e) => setEditStatus(e.target.value)}
+                      className={`w-full border rounded-xl px-3 py-2 text-xs focus:outline-none ${
+                        isDark ? "bg-[#12131b] border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
+                      }`}
+                    >
+                      <option value="active">Available</option>
+                      <option value="away">Away</option>
+                      <option value="on_leave">On Leave</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex justify-end pt-2">
+                  <button
+                    type="submit"
+                    disabled={savingEdit}
+                    className={`px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer ${
+                      isDark ? "bg-white text-slate-950 hover:bg-slate-200" : "bg-slate-900 text-white hover:bg-slate-800"
+                    }`}
+                  >
+                    {savingEdit ? "Saving..." : "Save Changes"}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
-        </div>
-      )}
+        )}
+      </SideDrawer>
     </div>
   );
 }

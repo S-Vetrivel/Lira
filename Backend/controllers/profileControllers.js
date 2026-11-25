@@ -27,7 +27,7 @@ const sanitizeUser = (userDoc) => {
 exports.PersonalInfo = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { fullName, fullname, phone, jobTitle, bio, password } = req.body;
+    const { fullName, fullname, phone, jobTitle, bio, status, password } = req.body;
 
     const user = await User.findById(userId).populate("department");
     if (!user) {
@@ -45,6 +45,10 @@ exports.PersonalInfo = async (req, res) => {
 
     if (bio !== undefined) {
       user.bio = bio.trim();
+    }
+
+    if (status !== undefined && ["active", "away", "on_leave"].includes(status)) {
+      user.status = status;
     }
 
     if (phone !== undefined) {

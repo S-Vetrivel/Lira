@@ -1,6 +1,16 @@
 const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
 
+const ProjectFileSchema = new Schema({
+  filename: { type: String, required: true },
+  originalName: { type: String, required: true },
+  url: { type: String, required: true },
+  size: { type: Number, default: 0 },
+  mimetype: { type: String },
+  uploadedBy: { type: Schema.Types.ObjectId, ref: "User" },
+  uploadedAt: { type: Date, default: Date.now },
+});
+
 const ProjectSchema = new Schema(
   {
     name: { type: String, required: true, trim: true },
@@ -15,6 +25,7 @@ const ProjectSchema = new Schema(
     department: { type: Schema.Types.ObjectId, ref: "Department" },
     lead: { type: Schema.Types.ObjectId, ref: "User" },
     members: [{ type: Schema.Types.ObjectId, ref: "User" }],
+    files: [ProjectFileSchema],
     status: {
       type: String,
       enum: ["active", "archived", "completed"],

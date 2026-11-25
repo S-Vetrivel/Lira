@@ -234,6 +234,50 @@ export async function deleteProject(id) {
   }
 }
 
+export async function addProjectMember(projectId, userId) {
+  try {
+    const res = await api.post(`/projects/${projectId}/members`, { userId });
+    toast.success("Member added to project");
+    return { success: true, project: res.data.project };
+  } catch (error) {
+    return { success: false, message: error.response?.data?.message };
+  }
+}
+
+export async function removeProjectMember(projectId, userId) {
+  try {
+    const res = await api.delete(`/projects/${projectId}/members/${userId}`);
+    toast.success("Member removed from project");
+    return { success: true, project: res.data.project };
+  } catch (error) {
+    return { success: false };
+  }
+}
+
+export async function uploadProjectFile(projectId, file) {
+  try {
+    const formData = new FormData();
+    formData.append("file", file);
+    const res = await api.post(`/projects/${projectId}/files`, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    toast.success("File shared with project team");
+    return { success: true, project: res.data.project, files: res.data.files };
+  } catch (error) {
+    return { success: false, message: error.response?.data?.message };
+  }
+}
+
+export async function deleteProjectFile(projectId, fileId) {
+  try {
+    const res = await api.delete(`/projects/${projectId}/files/${fileId}`);
+    toast.success("Project file removed");
+    return { success: true, project: res.data.project, files: res.data.files };
+  } catch (error) {
+    return { success: false };
+  }
+}
+
 // ==========================================
 // DEPARTMENTS APIs
 // ==========================================
@@ -251,6 +295,36 @@ export async function createDepartment(data) {
     const res = await api.post("/departments", data);
     toast.success("Department created");
     return { success: true, department: res.data.department };
+  } catch (error) {
+    return { success: false };
+  }
+}
+
+export async function updateDepartment(id, data) {
+  try {
+    const res = await api.put(`/departments/${id}`, data);
+    toast.success("Department updated");
+    return { success: true, department: res.data.department };
+  } catch (error) {
+    return { success: false };
+  }
+}
+
+export async function addDepartmentMember(departmentId, userId, jobTitle) {
+  try {
+    const res = await api.post(`/departments/${departmentId}/members`, { userId, jobTitle });
+    toast.success("Staff assigned to department");
+    return { success: true, user: res.data.user };
+  } catch (error) {
+    return { success: false, message: error.response?.data?.message };
+  }
+}
+
+export async function removeDepartmentMember(departmentId, userId) {
+  try {
+    const res = await api.delete(`/departments/${departmentId}/members/${userId}`);
+    toast.success("Staff removed from department");
+    return { success: true, user: res.data.user };
   } catch (error) {
     return { success: false };
   }
@@ -439,9 +513,11 @@ export async function markAllNotificationsRead() {
 // ==========================================
 // USER & TEAM DIRECTORY APIs
 // ==========================================
-export async function getTeamMembers() {
+export async function getTeamMembers(includeInactive = false) {
   try {
-    const res = await api.get("/users/team");
+    const res = await api.get("/users/team", {
+      params: includeInactive ? { includeInactive: "true" } : {},
+    });
     return { success: true, members: res.data.members || [] };
   } catch (error) {
     return { success: false, members: [] };
@@ -518,6 +594,22 @@ export async function getManagerOverview(projectId) {
     };
   } catch (error) {
     return { success: false, message: error.message };
+  }
+}
+
+export async function getActionLogs(params = {}) {
+  try {
+    const res = await api.get("/analytics/action-logs", { params });
+    return {
+      success: true,
+      logs: res.data.logs || [],
+      total: res.data.total || 0,
+      page: res.data.page || 1,
+      totalPages: res.data.totalPages || 1,
+      metrics: res.data.metrics || {},
+    };
+  } catch (error) {
+    return { success: false, logs: [], total: 0, page: 1, totalPages: 1 };
   }
 }
 

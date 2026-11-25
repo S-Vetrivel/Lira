@@ -1,26 +1,40 @@
 const Project = require("../models/projectModel");
 const Task = require("../models/taskModel");
+const minioService = require("../services/minioService");
+const { createNotification, notifyUsers } = require("../utils/notificationHelper");
+const { enqueueWebSocketEvent, enqueueFileJob } = require("../services/queue");
 
-// Get all projects
+const MEMBER_FIELDS = "fullname email avatar profilePicture role jobTitle departmentName publicId status";
+
 exports.getProjects = async (req, res) => {
   try {
     const projects = await Project.find({ status: { $ne: "archived" } })
       .populate("department", "name code color")
-      .populate("lead", "fullname email avatar profilePicture")
-      .populate("members", "fullname email avatar profilePicture role")
+      .populate("lead", MEMBER_FIELDS)
+      .populate("members", MEMBER_FIELDS)
+      .populate("files.uploadedBy", "fullname email avatar profilePicture")
       .sort({ createdAt: -1 })
       .lean();
 
-    // Attach task completion statistics to each project
     const projectsWithStats = await Promise.all(
       projects.map(async (project) => {
-        const totalTasks = await Task.countDocuments({ project: project._id });
-        const doneTasks = await Task.countDocuments({ project: project._id, status: "done" });
-        const inProgressTasks = await Task.countDocuments({ project: project._id, status: "in_progress" });
-        const reviewTasks = await Task.countDocuments({ project: project._id, status: "review" });
-        const todoTasks = await Task.countDocuments({ project: project._id, status: "todo" });
+        const [totalTasks, doneTasks, inProgressTasks, reviewTasks, todoTasks] =
+          await Promise.all([
+            Task.countDocuments({ project: project._id }),
+            Task.countDocuments({ project: project._id, status: "done" }),
+            Task.countDocuments({
+              project: project._id,
+              status: { $in: ["in_progress", "redo_requested"] },
+            }),
+            Task.countDocuments({
+              project: project._id,
+              status: { $in: ["review", "submitted_for_review"] },
+            }),
+            Task.countDocuments({ project: project._id, status: "todo" }),
+          ]);
 
-        const progressPercent = totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0;
+        const progressPercent =
+          totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0;
 
         return {
           ...project,
@@ -42,27 +56,37 @@ exports.getProjects = async (req, res) => {
   }
 };
 
-// Get single project
 exports.getProjectById = async (req, res) => {
   try {
     const { id } = req.params;
     const project = await Project.findById(id)
       .populate("department", "name code color")
-      .populate("lead", "fullname email avatar profilePicture")
-      .populate("members", "fullname email avatar profilePicture role")
+      .populate("lead", MEMBER_FIELDS)
+      .populate("members", MEMBER_FIELDS)
+      .populate("files.uploadedBy", "fullname email avatar profilePicture")
       .lean();
 
     if (!project) {
       return res.status(404).json({ success: false, message: "Project not found" });
     }
 
-    const totalTasks = await Task.countDocuments({ project: project._id });
-    const doneTasks = await Task.countDocuments({ project: project._id, status: "done" });
-    const inProgressTasks = await Task.countDocuments({ project: project._id, status: "in_progress" });
-    const reviewTasks = await Task.countDocuments({ project: project._id, status: "review" });
-    const todoTasks = await Task.countDocuments({ project: project._id, status: "todo" });
+    const [totalTasks, doneTasks, inProgressTasks, reviewTasks, todoTasks] =
+      await Promise.all([
+        Task.countDocuments({ project: project._id }),
+        Task.countDocuments({ project: project._id, status: "done" }),
+        Task.countDocuments({
+          project: project._id,
+          status: { $in: ["in_progress", "redo_requested"] },
+        }),
+        Task.countDocuments({
+          project: project._id,
+          status: { $in: ["review", "submitted_for_review"] },
+        }),
+        Task.countDocuments({ project: project._id, status: "todo" }),
+      ]);
 
-    const progressPercent = totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0;
+    const progressPercent =
+      totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0;
 
     res.status(200).json({
       success: true,
@@ -83,18 +107,24 @@ exports.getProjectById = async (req, res) => {
   }
 };
 
-// Create project (Admin or Manager)
 exports.createProject = async (req, res) => {
   try {
-    const { name, prefix, description, department, lead, members, color, startDate, targetDate } = req.body;
+    const { name, prefix, description, department, lead, members, color, startDate, targetDate } =
+      req.body;
 
     if (!name || !prefix) {
-      return res.status(400).json({ success: false, message: "Name and Key Prefix (e.g. ENG) are required" });
+      return res.status(400).json({
+        success: false,
+        message: "Name and Key Prefix (e.g. ENG) are required",
+      });
     }
 
     const cleanPrefix = prefix.toUpperCase().trim().replace(/[^A-Z0-9]/g, "");
     if (!cleanPrefix || cleanPrefix.length < 2) {
-      return res.status(400).json({ success: false, message: "Prefix must be at least 2 alphanumeric characters" });
+      return res.status(400).json({
+        success: false,
+        message: "Prefix must be at least 2 alphanumeric characters",
+      });
     }
 
     const existing = await Project.findOne({ prefix: cleanPrefix });
@@ -105,23 +135,34 @@ exports.createProject = async (req, res) => {
       });
     }
 
+    const memberIds =
+      Array.isArray(members) && members.length > 0 ? members : [req.user._id];
+
     const project = await Project.create({
       name: name.trim(),
       prefix: cleanPrefix,
       description: description || "",
       department: department || null,
       lead: lead || req.user._id,
-      members: members && members.length > 0 ? members : [req.user._id],
+      members: memberIds,
       color: color || "#4F46E5",
-      taskSequence: 100, // Tasks will start at ENG-101
+      taskSequence: 100,
       startDate: startDate || new Date(),
       targetDate: targetDate || null,
     });
 
     const populated = await Project.findById(project._id)
       .populate("department", "name code color")
-      .populate("lead", "fullname email avatar")
-      .populate("members", "fullname email avatar role");
+      .populate("lead", MEMBER_FIELDS)
+      .populate("members", MEMBER_FIELDS);
+
+    await notifyUsers({
+      recipients: memberIds,
+      sender: req.user._id,
+      type: "project_update",
+      title: "Added to Project",
+      message: `${req.user.fullname} added you to project [${cleanPrefix}] ${name.trim()}.`,
+    });
 
     res.status(201).json({ success: true, project: populated });
   } catch (error) {
@@ -129,30 +170,30 @@ exports.createProject = async (req, res) => {
   }
 };
 
-// Update project
 exports.updateProject = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, description, department, lead, members, color, status, startDate, targetDate } = req.body;
+    const updates = {};
+    const allowed = [
+      "name",
+      "description",
+      "department",
+      "lead",
+      "members",
+      "color",
+      "status",
+      "startDate",
+      "targetDate",
+    ];
+    allowed.forEach((field) => {
+      if (req.body[field] !== undefined) updates[field] = req.body[field];
+    });
 
-    const project = await Project.findByIdAndUpdate(
-      id,
-      {
-        name,
-        description,
-        department,
-        lead,
-        members,
-        color,
-        status,
-        startDate,
-        targetDate,
-      },
-      { new: true }
-    )
+    const project = await Project.findByIdAndUpdate(id, updates, { new: true })
       .populate("department", "name code color")
-      .populate("lead", "fullname email avatar")
-      .populate("members", "fullname email avatar role");
+      .populate("lead", MEMBER_FIELDS)
+      .populate("members", MEMBER_FIELDS)
+      .populate("files.uploadedBy", "fullname email avatar profilePicture");
 
     if (!project) {
       return res.status(404).json({ success: false, message: "Project not found" });
@@ -164,13 +205,176 @@ exports.updateProject = async (req, res) => {
   }
 };
 
-// Delete project (Admin only)
 exports.deleteProject = async (req, res) => {
   try {
     const { id } = req.params;
     await Project.findByIdAndDelete(id);
     await Task.deleteMany({ project: id });
     res.status(200).json({ success: true, message: "Project and associated tasks removed" });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// Add member to project
+exports.addProjectMember = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { userId } = req.body;
+    if (!userId) {
+      return res.status(400).json({ success: false, message: "userId is required" });
+    }
+
+    const project = await Project.findByIdAndUpdate(
+      id,
+      { $addToSet: { members: userId } },
+      { new: true }
+    )
+      .populate("department", "name code color")
+      .populate("lead", MEMBER_FIELDS)
+      .populate("members", MEMBER_FIELDS)
+      .populate("files.uploadedBy", "fullname email avatar profilePicture");
+
+    if (!project) {
+      return res.status(404).json({ success: false, message: "Project not found" });
+    }
+
+    await createNotification({
+      recipient: userId,
+      sender: req.user._id,
+      type: "project_update",
+      title: "Project Access Granted",
+      message: `${req.user.fullname} added you to [${project.prefix}] ${project.name}.`,
+    });
+
+    await enqueueWebSocketEvent({
+      target: "project",
+      room: project._id.toString(),
+      event: "project:updated",
+      data: project,
+    });
+
+    res.status(200).json({ success: true, project });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// Remove member from project
+exports.removeProjectMember = async (req, res) => {
+  try {
+    const { id, userId } = req.params;
+    const project = await Project.findByIdAndUpdate(
+      id,
+      { $pull: { members: userId } },
+      { new: true }
+    )
+      .populate("department", "name code color")
+      .populate("lead", MEMBER_FIELDS)
+      .populate("members", MEMBER_FIELDS)
+      .populate("files.uploadedBy", "fullname email avatar profilePicture");
+
+    if (!project) {
+      return res.status(404).json({ success: false, message: "Project not found" });
+    }
+
+    await createNotification({
+      recipient: userId,
+      sender: req.user._id,
+      type: "project_update",
+      title: "Project Membership Updated",
+      message: `${req.user.fullname} removed you from [${project.prefix}] ${project.name}.`,
+    });
+
+    res.status(200).json({ success: true, project });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// Upload shared file to project
+exports.uploadProjectFile = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const file = req.file;
+    if (!file) {
+      return res.status(400).json({ success: false, message: "No file provided" });
+    }
+
+    const project = await Project.findById(id);
+    if (!project) {
+      return res.status(404).json({ success: false, message: "Project not found" });
+    }
+
+    const fileUrl = `/v3/uploads/${file.filename}`;
+    project.files.push({
+      filename: file.filename,
+      originalName: file.originalname,
+      url: fileUrl,
+      size: file.size,
+      mimetype: file.mimetype,
+      uploadedBy: req.user._id,
+      uploadedAt: new Date(),
+    });
+    await project.save();
+
+    minioService
+      .uploadFile(file.filename, file.path, file.mimetype)
+      .catch(() => {});
+    enqueueFileJob({
+      fileName: file.filename,
+      originalName: file.originalname,
+      size: file.size,
+      userId: req.user._id,
+      projectId: project._id,
+    }).catch(() => {});
+
+    const populated = await Project.findById(project._id)
+      .populate("department", "name code color")
+      .populate("lead", MEMBER_FIELDS)
+      .populate("members", MEMBER_FIELDS)
+      .populate("files.uploadedBy", "fullname email avatar profilePicture");
+
+    await notifyUsers({
+      recipients: project.members,
+      sender: req.user._id,
+      type: "file_shared",
+      title: "Project File Shared",
+      message: `${req.user.fullname} shared "${file.originalname}" in [${project.prefix}] ${project.name}.`,
+    });
+
+    await enqueueWebSocketEvent({
+      target: "project",
+      room: project._id.toString(),
+      event: "project:updated",
+      data: populated,
+    });
+
+    res.status(200).json({ success: true, project: populated, files: populated.files });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// Delete shared file from project
+exports.deleteProjectFile = async (req, res) => {
+  try {
+    const { id, fileId } = req.params;
+    const project = await Project.findById(id);
+    if (!project) {
+      return res.status(404).json({ success: false, message: "Project not found" });
+    }
+
+    project.files.pull({ _id: fileId });
+    await project.save();
+
+    const populated = await Project.findById(project._id)
+      .populate("department", "name code color")
+      .populate("lead", MEMBER_FIELDS)
+      .populate("members", MEMBER_FIELDS)
+      .populate("files.uploadedBy", "fullname email avatar profilePicture");
+
+    res.status(200).json({ success: true, project: populated, files: populated.files });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
