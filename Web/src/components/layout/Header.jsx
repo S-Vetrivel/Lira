@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { markNotificationRead, markAllNotificationsRead } from "../../services/api";
 import UserAvatar from "../common/UserAvatar";
+import LiraLogo from "../common/LiraLogo";
 
 export default function Header() {
   const location = useLocation();
@@ -82,15 +83,8 @@ export default function Header() {
     >
       {/* 1. Left: Brand & Active Project Selector */}
       <div className="flex items-center gap-2.5 shrink-0">
-        <Link to="/" className="flex items-center gap-2 group">
-          <span
-            className={`text-xl font-black tracking-tight flex items-center ${
-              isDark ? "text-white" : "text-slate-900"
-            }`}
-          >
-            lira
-            <span className="w-1.5 h-1.5 rounded-full bg-purple-500 ml-0.5" />
-          </span>
+        <Link to="/" className="flex items-center group">
+          <LiraLogo size="sm" isDark={isDark} />
         </Link>
 
         {/* Project Selector Pill */}

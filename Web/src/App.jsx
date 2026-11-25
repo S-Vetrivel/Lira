@@ -1,9 +1,17 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
+import { useApp } from "./context/Appcontext";
 import { MainLayout } from "./components/layout/MainLayout";
-import { ProtectedRoute, PublicOnlyRoute, JoinRequestGuard } from "./components/auth/AuthGuards";
+import {
+  ProtectedRoute,
+  PublicOnlyRoute,
+  JoinRequestGuard,
+  AuthLoadingScreen,
+  isPendingOrRestricted,
+} from "./components/auth/AuthGuards";
 
 // PAGES
+import Landing from "./pages/Landing";
 import Board from "./pages/Board";
 import TableView from "./pages/TableView";
 import CalendarView from "./pages/CalendarView";
@@ -16,6 +24,34 @@ import Profile from "./pages/Profile";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import JoinRequestStatus from "./pages/JoinRequestStatus";
+
+/**
+ * Root `/` entry guard:
+ * - Shows public Lira Landing page to unauthenticated visitors
+ * - Routes pending/declined applicants to `/join-request`
+ * - Renders the main Workspace Board for approved authenticated members
+ */
+function HomeEntry() {
+  const { user, isValidating } = useApp();
+
+  if (isValidating) {
+    return <AuthLoadingScreen />;
+  }
+
+  if (!user) {
+    return <Landing />;
+  }
+
+  if (isPendingOrRestricted(user)) {
+    return <Navigate to="/join-request" replace />;
+  }
+
+  return (
+    <MainLayout>
+      <Board />
+    </MainLayout>
+  );
+}
 
 function App() {
   return (
@@ -32,7 +68,7 @@ function App() {
           success: {
             duration: 3500,
             iconTheme: {
-              primary: "#3b82f6",
+              primary: "#6366f1",
               secondary: "#ffffff",
             },
           },
@@ -40,7 +76,14 @@ function App() {
       />
 
       <Routes>
-        {/* Public-only Auth Routes (Redirects to / or /join-request if already authenticated) */}
+        {/* Adaptive Root Entry (Landing when logged out, Board when active) */}
+        <Route path="/" element={<HomeEntry />} />
+
+        {/* Dedicated Public Overview / Marketing Routes */}
+        <Route path="/welcome" element={<Landing />} />
+        <Route path="/landing" element={<Landing />} />
+
+        {/* Public-Only Auth Routes (Redirects away if already authenticated) */}
         <Route element={<PublicOnlyRoute />}>
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
@@ -51,10 +94,9 @@ function App() {
           <Route path="/join-request" element={<JoinRequestStatus />} />
         </Route>
 
-        {/* Authenticated Workspace Routes (Must be active authenticated member) */}
+        {/* Authenticated Workspace Routes (Must be active approved member) */}
         <Route element={<ProtectedRoute />}>
           <Route element={<MainLayout />}>
-            <Route path="/" element={<Board />} />
             <Route path="/board" element={<Board />} />
             <Route path="/table" element={<TableView />} />
             <Route path="/calendar" element={<CalendarView />} />
@@ -64,9 +106,11 @@ function App() {
             <Route path="/team" element={<Team />} />
             <Route path="/projects" element={<Projects />} />
             <Route path="/profile" element={<Profile />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Route>
+
+        {/* Catch-all Fallback */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </>
   );

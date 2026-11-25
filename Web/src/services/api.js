@@ -39,9 +39,21 @@ api.interceptors.response.use(
     const message = data?.message || "An unexpected error occurred.";
 
     if (status === 401) {
-      if (window.location.pathname !== "/login") {
+      const publicPaths = ["/", "/welcome", "/landing", "/login", "/signup"];
+      const currentPath = window.location.pathname;
+      const isAuthSubmission =
+        error.config?.url?.includes("/auth/login") ||
+        error.config?.url?.includes("/auth/signup");
+
+      if (!isAuthSubmission) {
+        localStorage.removeItem("lira_token");
+        localStorage.removeItem("lira_user");
+        if (!publicPaths.includes(currentPath)) {
+          toast.error(message);
+          window.location.href = "/login";
+        }
+      } else {
         toast.error(message);
-        window.location.href = "/login";
       }
     } else if (status >= 400 && status < 500) {
       toast.error(message);

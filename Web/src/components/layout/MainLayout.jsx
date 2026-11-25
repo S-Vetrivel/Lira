@@ -8,8 +8,9 @@ import CreateTaskModal from "../task/CreateTaskModal";
 import CommandPalette from "../search/CommandPalette";
 import OfficeChatDrawer from "../chat/OfficeChatDrawer";
 import JoinRequestStatus from "../../pages/JoinRequestStatus";
+import { AuthLoadingScreen, isPendingOrRestricted } from "../auth/AuthGuards";
 
-export function MainLayout() {
+export function MainLayout({ children }) {
   const location = useLocation();
   const currentOutlet = useOutlet();
   const {
@@ -30,25 +31,14 @@ export function MainLayout() {
   const isDark = theme === "dark";
 
   if (isValidating) {
-    return (
-      <div className={`h-screen w-screen flex items-center justify-center ${
-        isDark ? "bg-[#0c0d12] text-white" : "bg-slate-50 text-slate-900"
-      }`}>
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 flex items-center justify-center text-white font-black text-xl shadow-xl shadow-purple-500/20 animate-pulse">
-            L
-          </div>
-          <p className="text-xs text-slate-400 font-medium">Loading workspace...</p>
-        </div>
-      </div>
-    );
+    return <AuthLoadingScreen />;
   }
 
   if (!user) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/login" replace state={{ from: location }} />;
   }
 
-  if (user.status === "pending_approval") {
+  if (isPendingOrRestricted(user)) {
     return <JoinRequestStatus />;
   }
 
@@ -77,7 +67,7 @@ export function MainLayout() {
             }}
             className="flex-1 w-full h-full min-h-0 flex flex-col overflow-hidden"
           >
-            {currentOutlet}
+            {children ?? currentOutlet}
           </motion.div>
         </AnimatePresence>
       </main>

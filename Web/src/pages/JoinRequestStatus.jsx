@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import UserAvatar from "../components/common/UserAvatar";
+import LiraLogo from "../components/common/LiraLogo";
 
 export default function JoinRequestStatus() {
   const { user, setUser, theme } = useApp();
@@ -187,22 +188,14 @@ export default function JoinRequestStatus() {
 
   return (
     <div
-      className={`min-h-screen w-full flex items-center justify-center p-4 sm:p-6 select-none ${
+      className={`min-h-screen w-full px-6 sm:px-10 lg:px-16 py-8 select-none ${
         isDark ? "bg-[#0c0d12] text-slate-100" : "bg-slate-50 text-slate-800"
       }`}
     >
-      <div className="w-full max-w-xl mx-auto space-y-6">
+      <div className="w-full max-w-5xl mx-auto space-y-6">
         {/* Header Branding */}
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-2xl font-black tracking-tight text-white flex items-center">
-              lira
-              <span className="w-2 h-2 rounded-full bg-purple-400 ml-1" />
-            </span>
-            <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-purple-500/10 text-purple-300 border border-purple-500/20">
-              Workspace Access
-            </span>
-          </div>
+          <LiraLogo size="md" showBadge isDark={isDark} />
 
           <button
             onClick={handleLogout}
