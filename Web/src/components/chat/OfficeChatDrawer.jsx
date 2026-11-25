@@ -31,6 +31,7 @@ import {
   joinChatRoom,
   leaveChatRoom,
   announcePeer,
+  sendSocketChatMessage,
 } from "../../services/socket";
 import { encryptText, decryptText } from "../../services/crypto";
 import ChunkUploader from "../files/ChunkUploader";
@@ -56,7 +57,16 @@ const CHANNELS = [
 const CHUNK_SIZE = 1024 * 1024; // 1MB
 
 export default function OfficeChatDrawer({ isOpen, onClose }) {
-  const { user, theme, projects, chatTargetUser, setChatTargetUser, chatTargetRoom, setChatTargetRoom } = useApp();
+  const {
+    user,
+    theme,
+    projects,
+    chatTargetUser,
+    setChatTargetUser,
+    chatTargetRoom,
+    setChatTargetRoom,
+    refreshChatUnread,
+  } = useApp();
   const isDark = theme === "dark";
   const g = getGlassTokens(isDark);
 
@@ -185,6 +195,7 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
         );
         setMessages(decryptedList);
         await markChatRoomRead(roomId);
+        refreshChatUnread?.();
         // Clear unread count locally
         if (selectedRoom.type === "direct") {
           setColleagues((prev) =>
@@ -207,7 +218,7 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
           if (newMsg._id && prev.some((m) => m._id === newMsg._id)) return prev;
           return [...prev, { ...newMsg, decryptedText: text }];
         });
-        markChatRoomRead(roomId);
+        markChatRoomRead(roomId).then(() => refreshChatUnread?.());
       } else {
         loadConversations();
       }
@@ -271,6 +282,7 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
     const payload = {
       chatType: selectedRoom.type,
       roomId: selectedRoom.id,
+      senderId: user?._id,
       recipientId: selectedRoom.recipientId || undefined,
       encryptedPayload: encrypted.ciphertext,
       iv: encrypted.iv,
@@ -278,6 +290,20 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
       keyId: "lira-aes-gcm-256",
       attachments,
     };
+
+    try {
+      const wsRes = await sendSocketChatMessage(payload);
+      if (wsRes?.success && wsRes?.message) {
+        const msgWithText = { ...wsRes.message, decryptedText: plainText };
+        setMessages((prev) => {
+          if (prev.some((m) => m._id === msgWithText._id)) return prev;
+          return [...prev, msgWithText];
+        });
+        return true;
+      }
+    } catch {
+      // Fallback to REST endpoint if WebSocket is momentarily disconnected
+    }
 
     const res = await sendChatMessage(payload);
     if (res.success && res.message) {

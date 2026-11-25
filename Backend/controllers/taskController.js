@@ -4,7 +4,7 @@ const Comment = require("../models/commentModel");
 const ActivityLog = require("../models/activityLogModel");
 const { logActivity } = require("../utils/activityLogger");
 const { createNotification } = require("../utils/notificationHelper");
-const { enqueueWebSocketEvent, enqueueTaskMetrics } = require("../services/queue");
+const { enqueueWebSocketEvent, enqueueTaskMetrics, enqueueEmailJob } = require("../services/queue");
 
 // Get tasks with filtering
 exports.getTasks = async (req, res) => {
@@ -237,6 +237,17 @@ exports.createTask = async (req, res) => {
         type: "assigned",
         message: `${req.user.fullname} assigned you task ${key}: "${task.title}"`,
       });
+      if (populated.assignee?.email) {
+        enqueueEmailJob({
+          to: populated.assignee.email,
+          type: "task_assigned",
+          data: {
+            key,
+            title: task.title,
+            assignerName: req.user.fullname || req.user.email,
+          },
+        });
+      }
     }
 
     // Enqueue real-time WebSocket broadcast via BullMQ & Redis
@@ -349,6 +360,17 @@ exports.updateTask = async (req, res) => {
           type: "assigned",
           message: `${req.user.fullname} assigned you task ${task.key}: "${task.title}"`,
         });
+        if (populated.assignee?.email) {
+          enqueueEmailJob({
+            to: populated.assignee.email,
+            type: "task_assigned",
+            data: {
+              key: task.key,
+              title: task.title,
+              assignerName: req.user.fullname || req.user.email,
+            },
+          });
+        }
       }
     }
 
@@ -416,6 +438,18 @@ exports.updateTaskStatus = async (req, res) => {
           type: "status_change",
           message: `${req.user.fullname} moved task ${task.key} to ${status.replace("_", " ")}`,
         });
+        if (status === "review" && populated.reporter?.email) {
+          enqueueEmailJob({
+            to: populated.reporter.email,
+            type: "task_approval_request",
+            data: {
+              code: task.key,
+              title: task.title,
+              requesterName: req.user.fullname || req.user.email,
+              stageName: "In Review Sign-off",
+            },
+          });
+        }
       }
     }
 

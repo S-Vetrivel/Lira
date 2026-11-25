@@ -1,7 +1,7 @@
 const Message = require("../models/messageModel");
 const User = require("../models/userModel");
-const { enqueueWebSocketEvent } = require("../services/queue");
-const { emitToUser, getIO } = require("../config/socket");
+const { enqueueWebSocketEvent, enqueueEmailJob } = require("../services/queue");
+const { emitToUser, getIO, isUserOnline } = require("../config/socket");
 const { createNotification } = require("../utils/notificationHelper");
 
 const USER_POPULATE_FIELDS =
@@ -70,6 +70,21 @@ exports.sendMessage = async (req, res) => {
               ? `${req.user.fullname || req.user.email} shared a file in Direct Messages.`
               : `${req.user.fullname || req.user.email} sent you a direct message.`,
         }).catch(() => {});
+
+        // Trigger SMTP Email Worker if recipient is currently offline
+        if (!isUserOnline(recipientId.toString())) {
+          const recipientUser = await User.findById(recipientId).select("email fullname").lean();
+          if (recipientUser?.email) {
+            enqueueEmailJob({
+              to: recipientUser.email,
+              type: "offline_chat_message",
+              data: {
+                senderName: req.user.fullname || req.user.email,
+                roomLabel: "Direct Messages",
+              },
+            });
+          }
+        }
       }
     }
 
@@ -194,10 +209,14 @@ exports.getConversations = async (req, res) => {
       })
     );
 
+    const dmUnreadTotal = enrichedColleagues.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
+    const channelUnreadTotal = Object.values(channelUnread).reduce((sum, n) => sum + (n || 0), 0);
+
     res.status(200).json({
       success: true,
       colleagues: enrichedColleagues,
       channelUnread,
+      totalUnread: dmUnreadTotal + channelUnreadTotal,
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

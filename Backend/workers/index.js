@@ -23,9 +23,10 @@ const startWorkers = async () => {
     const routineSchedulerWorker = require("./routineSchedulerWorker");
     const mediaWorker = require("./mediaWorker");
     const orderWorker = require("./orderWorker");
+    const emailWorker = require("./emailWorker");
     const { enqueueRoutineJob } = require("../services/queue");
 
-    console.log("🚀 [Worker Engine] 9 Unified Background Queue Workers active:");
+    console.log("🚀 [Worker Engine] 10 Unified Background Queue Workers active:");
     console.log("   ⚡ 1. WebSocket Broadcast Worker (concurrency: 10)");
     console.log("   🔔 2. Notification Processor Worker (concurrency: 5)");
     console.log("   📝 3. Audit Activity Log Worker (concurrency: 5)");
@@ -35,6 +36,7 @@ const startWorkers = async () => {
     console.log("   ⏰ 7. Routine Scheduler & Escalation Worker (concurrency: 2)");
     console.log("   🖼️  8. Media Sharp & MinIO Worker (concurrency: 4)");
     console.log("   📦 9. Order Processing Worker (concurrency: 5)");
+    console.log("   📧 10. SMTP Email Notification Worker (concurrency: 3)");
 
     // Schedule recurring routine trigger every 60 seconds
     const routineInterval = setInterval(() => {
@@ -55,6 +57,7 @@ const startWorkers = async () => {
         routineSchedulerWorker.close(),
         mediaWorker.close(),
         orderWorker.close(),
+        emailWorker.close(),
         connection.quit(),
       ]);
       console.log("✅ All unified background workers gracefully closed");
@@ -74,6 +77,7 @@ const startWorkers = async () => {
       routineSchedulerWorker,
       mediaWorker,
       orderWorker,
+      emailWorker,
       shutdown,
     };
   } catch (error) {

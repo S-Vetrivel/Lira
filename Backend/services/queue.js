@@ -72,6 +72,9 @@ const mediaQueue = new Queue("media-processing", defaultQueueOpts);
 const orderProcessingQueue = new Queue("order-processing-queue", defaultQueueOpts);
 const orderQueue = orderProcessingQueue; // alias
 
+// 10. SMTP Email Notification Queue (Offline chat & task approval emails)
+const emailQueue = new Queue("email-notification-queue", defaultQueueOpts);
+
 // -----------------
 // UNIFIED ENQUEUE HELPERS
 // -----------------
@@ -163,6 +166,19 @@ const enqueueMediaJob = async (payload) => {
   }
 };
 
+const enqueueEmailJob = async (payload) => {
+  try {
+    return await emailQueue.add("send-email", payload, {
+      removeOnComplete: 100,
+      removeOnFail: 50,
+      attempts: 3,
+      backoff: { type: "exponential", delay: 2000 },
+    });
+  } catch (error) {
+    console.error("Failed to enqueue email job:", error.message);
+  }
+};
+
 /**
  * Diagnostic health check returning queue status across all unified queues
  */
@@ -177,6 +193,7 @@ const getQueueHealth = async () => {
     { name: "routines", queue: routineQueue },
     { name: "media", queue: mediaQueue },
     { name: "orders", queue: orderProcessingQueue },
+    { name: "email", queue: emailQueue },
   ];
 
   const results = {};
@@ -209,6 +226,7 @@ module.exports = {
   mediaQueue,
   orderProcessingQueue,
   orderQueue,
+  emailQueue,
   enqueueWebSocketEvent,
   enqueueNotification,
   enqueueActivityLog,
@@ -216,5 +234,6 @@ module.exports = {
   enqueueFileJob,
   enqueueRoutineJob,
   enqueueMediaJob,
+  enqueueEmailJob,
   getQueueHealth,
 };

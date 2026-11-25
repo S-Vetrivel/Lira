@@ -1,10 +1,19 @@
 const { Server } = require("socket.io");
 const { createAdapter } = require("@socket.io/redis-adapter");
 const Redis = require("ioredis");
-const { redisConfig } = require("../services/queue");
+const { redisConfig, enqueueEmailJob } = require("../services/queue");
 
 let io = null;
 const activePeers = new Map(); // socketId -> { userId, name, department, clientIp, joinedAt }
+const onlineUsers = new Map(); // userId -> Set<socketId>
+
+const isUserOnline = (userId) => {
+  if (!userId) return false;
+  const set = onlineUsers.get(userId.toString());
+  return Boolean(set && set.size > 0);
+};
+
+const getOnlineUserIds = () => Array.from(onlineUsers.keys());
 
 const initSocket = (server) => {
   io = new Server(server, {
@@ -31,10 +40,17 @@ const initSocket = (server) => {
   io.on("connection", (socket) => {
     const clientIp = socket.handshake.address || socket.conn.remoteAddress;
 
-    // 1. Personal Room
+    // 1. Personal Room & Online Presence Tracking
     socket.on("join:user", (userId) => {
       if (userId) {
-        socket.join(`user_${userId}`);
+        const uid = userId.toString();
+        socket.data.userId = uid;
+        socket.join(`user_${uid}`);
+        if (!onlineUsers.has(uid)) {
+          onlineUsers.set(uid, new Set());
+        }
+        onlineUsers.get(uid).add(socket.id);
+        io.emit("presence:update", { onlineUserIds: getOnlineUserIds() });
       }
     });
 
@@ -66,6 +82,106 @@ const initSocket = (server) => {
 
     socket.on("chat:typing", ({ roomId, userId, userName, isTyping }) => {
       socket.to(`chat_${roomId}`).emit("chat:typing", { userId, userName, isTyping });
+    });
+
+    // Direct WebSocket-based chatting (persists to MongoDB, emits real-time, and triggers offline email)
+    socket.on("chat:send", async (payload = {}, ack) => {
+      try {
+        const Message = require("../models/messageModel");
+        const User = require("../models/userModel");
+        const { createNotification } = require("../utils/notificationHelper");
+        const {
+          chatType = "direct",
+          roomId,
+          senderId,
+          recipientId,
+          departmentId,
+          encryptedPayload,
+          iv,
+          salt,
+          keyId,
+          attachments = [],
+        } = payload;
+
+        const effectiveSenderId = senderId || socket.data.userId;
+        if (!effectiveSenderId || !roomId || !encryptedPayload || !iv) {
+          if (typeof ack === "function") {
+            ack({ success: false, message: "Missing required WebSocket chat fields" });
+          }
+          return;
+        }
+
+        const newMessage = await Message.create({
+          chatType,
+          roomId,
+          sender: effectiveSenderId,
+          recipient: recipientId || undefined,
+          department: departmentId || undefined,
+          encryptedPayload,
+          iv,
+          salt,
+          keyId: keyId || "lira-aes-gcm-256",
+          isEncrypted: true,
+          attachments,
+          readBy: [{ user: effectiveSenderId, readAt: new Date() }],
+        });
+
+        const USER_POPULATE_FIELDS =
+          "fullname email avatar profilePicture role department departmentName publicId jobTitle status";
+        const populated = await Message.findById(newMessage._id)
+          .populate("sender", USER_POPULATE_FIELDS)
+          .populate("recipient", USER_POPULATE_FIELDS);
+
+        io.to(`chat_${roomId}`).emit("chat:message", populated);
+
+        const senderName =
+          populated?.sender?.fullname || populated?.sender?.email || "A teammate";
+
+        if (recipientId) {
+          const rid = recipientId.toString();
+          emitToUser(rid, "chat:message", populated);
+          emitToUser(rid, "chat:notification", {
+            sender: senderName,
+            senderId: effectiveSenderId,
+            roomId,
+            chatType,
+          });
+
+          createNotification({
+            recipient: rid,
+            sender: effectiveSenderId,
+            type: "chat_message",
+            title: "New Direct Message",
+            message:
+              Array.isArray(attachments) && attachments.length > 0
+                ? `${senderName} shared a file in Direct Messages.`
+                : `${senderName} sent you a direct message.`,
+          }).catch(() => {});
+
+          if (!isUserOnline(rid)) {
+            const recipientUser = await User.findById(rid).select("email fullname").lean();
+            if (recipientUser?.email) {
+              enqueueEmailJob({
+                to: recipientUser.email,
+                type: "offline_chat_message",
+                data: {
+                  senderName,
+                  roomLabel: "Direct Messages",
+                },
+              });
+            }
+          }
+        }
+
+        if (typeof ack === "function") {
+          ack({ success: true, message: populated });
+        }
+      } catch (err) {
+        console.error("WebSocket chat:send error:", err.message);
+        if (typeof ack === "function") {
+          ack({ success: false, message: err.message });
+        }
+      }
     });
 
     // 4. Local Peer Discovery & WebRTC Route Finding for Direct File Sharing
@@ -101,6 +217,14 @@ const initSocket = (server) => {
     });
 
     socket.on("disconnect", () => {
+      if (socket.data.userId && onlineUsers.has(socket.data.userId)) {
+        const set = onlineUsers.get(socket.data.userId);
+        set.delete(socket.id);
+        if (set.size === 0) {
+          onlineUsers.delete(socket.data.userId);
+        }
+        io.emit("presence:update", { onlineUserIds: getOnlineUserIds() });
+      }
       if (activePeers.has(socket.id)) {
         const removed = activePeers.get(socket.id);
         activePeers.delete(socket.id);
@@ -138,4 +262,6 @@ module.exports = {
   emitToUser,
   emitToProject,
   emitToAll,
+  isUserOnline,
+  getOnlineUserIds,
 };

@@ -13,6 +13,7 @@ import {
   getDepartments,
   getTeamMembers,
   getNotifications,
+  getChatConversations,
   logoutUser,
 } from "../services/api";
 import { initSocketClient, joinProjectRoom, leaveProjectRoom } from "../services/socket";
@@ -63,9 +64,11 @@ export const AppProvider = ({ children }) => {
   const [departments, setDepartments] = useState([]);
   const [teamMembers, setTeamMembers] = useState([]);
 
-  // Notifications
+  // Notifications & Chat Unread / Presence
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
+  const [onlineUserIds, setOnlineUserIds] = useState([]);
 
   // Task drawer & modal states
   const [selectedTaskKeyOrId, setSelectedTaskKeyOrId] = useState(null);
@@ -140,6 +143,18 @@ export const AppProvider = ({ children }) => {
     }
   }, [user]);
 
+  const refreshChatUnread = useCallback(async () => {
+    if (!user) return;
+    try {
+      const res = await getChatConversations();
+      if (res.success && typeof res.totalUnread === "number") {
+        setUnreadChatCount(res.totalUnread);
+      }
+    } catch {
+      // ignore
+    }
+  }, [user]);
+
   // Initial Auth verification
   useEffect(() => {
     let mounted = true;
@@ -188,6 +203,7 @@ export const AppProvider = ({ children }) => {
       refreshDepartments();
       refreshTeam();
       refreshNotifications();
+      refreshChatUnread();
 
       // Initialize Socket connection
       const socket = initSocketClient(user._id);
@@ -198,8 +214,9 @@ export const AppProvider = ({ children }) => {
           <div className="flex items-start gap-3">
             <span className="text-xl">🔔</span>
             <div>
-              <p className="font-semibold text-sm text-slate-800">{notif.message}</p>
-              <p className="text-xs text-slate-500">Just now</p>
+              <p className="font-semibold text-sm text-zinc-100">{notif.title || "Notification"}</p>
+              <p className="text-xs text-zinc-300">{notif.message}</p>
+              <p className="text-[10px] text-zinc-500 mt-0.5">Just now</p>
             </div>
           </div>
         ), { duration: 5000 });
@@ -208,13 +225,38 @@ export const AppProvider = ({ children }) => {
         setUnreadCount((c) => c + 1);
       };
 
+      const handleChatNotification = (payload) => {
+        setUnreadChatCount((c) => c + 1);
+        toast(() => (
+          <div className="flex items-start gap-2.5">
+            <span className="text-lg">💬</span>
+            <div>
+              <p className="font-semibold text-xs text-zinc-100">
+                {payload?.sender || "Teammate"} sent a message
+              </p>
+              <p className="text-[11px] text-zinc-400">Open Office Chat to reply</p>
+            </div>
+          </div>
+        ), { duration: 4000 });
+      };
+
+      const handlePresenceUpdate = ({ onlineUserIds: ids }) => {
+        if (Array.isArray(ids)) {
+          setOnlineUserIds(ids);
+        }
+      };
+
       socket.on("notification:new", handleNotification);
+      socket.on("chat:notification", handleChatNotification);
+      socket.on("presence:update", handlePresenceUpdate);
 
       return () => {
         socket.off("notification:new", handleNotification);
+        socket.off("chat:notification", handleChatNotification);
+        socket.off("presence:update", handlePresenceUpdate);
       };
     }
-  }, [user, refreshProjects, refreshDepartments, refreshTeam, refreshNotifications]);
+  }, [user, refreshProjects, refreshDepartments, refreshTeam, refreshNotifications, refreshChatUnread]);
 
   // Join active project socket room when activeProject changes
   useEffect(() => {
@@ -250,6 +292,9 @@ export const AppProvider = ({ children }) => {
       teamMembers,
       notifications,
       unreadCount,
+      unreadChatCount,
+      setUnreadChatCount,
+      onlineUserIds,
       selectedTaskKeyOrId,
       setSelectedTaskKeyOrId,
       isCreateTaskModalOpen,
@@ -268,6 +313,7 @@ export const AppProvider = ({ children }) => {
       refreshDepartments,
       refreshTeam,
       refreshNotifications,
+      refreshChatUnread,
       handleLogout,
     }),
     [
@@ -281,6 +327,9 @@ export const AppProvider = ({ children }) => {
       teamMembers,
       notifications,
       unreadCount,
+      unreadChatCount,
+      setUnreadChatCount,
+      onlineUserIds,
       selectedTaskKeyOrId,
       isCreateTaskModalOpen,
       isCommandPaletteOpen,
@@ -293,6 +342,7 @@ export const AppProvider = ({ children }) => {
       refreshDepartments,
       refreshTeam,
       refreshNotifications,
+      refreshChatUnread,
     ]
   );
 

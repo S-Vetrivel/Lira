@@ -2,8 +2,9 @@ const Request = require("../models/requestModel");
 const Department = require("../models/departmentModel");
 const Task = require("../models/taskModel");
 const Project = require("../models/projectModel");
+const User = require("../models/userModel");
 const { createNotification } = require("../utils/notificationHelper");
-const { enqueueWebSocketEvent } = require("../services/queue");
+const { enqueueWebSocketEvent, enqueueEmailJob } = require("../services/queue");
 
 exports.createRequest = async (req, res) => {
   try {
@@ -99,6 +100,33 @@ exports.createRequest = async (req, res) => {
       event: "request:created",
       data: { request: populatedRequest },
     });
+
+    // Notify & email approvers (managers/admins) for new approval request
+    User.find({
+      role: { $in: ["admin", "manager"] },
+      status: "active",
+      isActive: true,
+      _id: { $ne: req.user._id },
+    })
+      .select("email fullname")
+      .lean()
+      .then((approvers) => {
+        approvers.forEach((approver) => {
+          if (approver.email) {
+            enqueueEmailJob({
+              to: approver.email,
+              type: "task_approval_request",
+              data: {
+                code: requestCode,
+                title,
+                requesterName: req.user.fullname || req.user.email,
+                stageName: stages[0]?.stageName || "Department Review",
+              },
+            });
+          }
+        });
+      })
+      .catch(() => {});
 
     res.status(201).json({ success: true, request: populatedRequest });
   } catch (err) {
@@ -211,6 +239,27 @@ exports.approveStage = async (req, res) => {
       data: { request },
     });
 
+    // Send approval email update to requester
+    User.findById(request.requester)
+      .select("email fullname")
+      .lean()
+      .then((requester) => {
+        if (requester?.email) {
+          enqueueEmailJob({
+            to: requester.email,
+            type: "task_approval_decision",
+            data: {
+              code: request.requestCode,
+              title: request.title,
+              decision: isLastStage ? "Approved" : `Stage Approved (${currentStage.stageName})`,
+              reviewerName: req.user.fullname || req.user.email,
+              comment: approvalComment,
+            },
+          });
+        }
+      })
+      .catch(() => {});
+
     res.status(200).json({ success: true, request });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -250,6 +299,27 @@ exports.rejectRequest = async (req, res) => {
       event: "request:updated",
       data: { request },
     });
+
+    // Send declined email update to requester
+    User.findById(request.requester)
+      .select("email fullname")
+      .lean()
+      .then((requester) => {
+        if (requester?.email) {
+          enqueueEmailJob({
+            to: requester.email,
+            type: "task_approval_decision",
+            data: {
+              code: request.requestCode,
+              title: request.title,
+              decision: "Declined",
+              reviewerName: req.user.fullname || req.user.email,
+              comment: rejectionText,
+            },
+          });
+        }
+      })
+      .catch(() => {});
 
     res.status(200).json({ success: true, request });
   } catch (err) {

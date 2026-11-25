@@ -40,6 +40,7 @@ export default function Header() {
     setActiveProject,
     notifications,
     unreadCount,
+    unreadChatCount,
     refreshNotifications,
     setIsCreateTaskModalOpen,
     setIsCommandPaletteOpen,
@@ -293,11 +294,11 @@ export default function Header() {
             aria-label="Office Chat"
           >
             <MessageSquare className="w-[17px] h-[17px]" />
-            <span
-              className={`absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-emerald-400 ring-2 ${
-                isDark ? "ring-[#14161d]" : "ring-white"
-              }`}
-            />
+            {unreadChatCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 min-w-[17px] h-[17px] px-1 rounded-full bg-emerald-500 text-white text-[9px] font-mono font-bold flex items-center justify-center shadow-sm">
+                {unreadChatCount > 9 ? "9+" : unreadChatCount}
+              </span>
+            )}
           </button>
 
           {/* Theme Toggle */}

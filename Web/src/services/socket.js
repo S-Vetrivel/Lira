@@ -68,6 +68,20 @@ export const sendPeerSignal = (targetSocketId, signal, metadata) => {
   }
 };
 
+export const sendSocketChatMessage = (payload) =>
+  new Promise((resolve, reject) => {
+    if (!socket || !socket.connected) {
+      return reject(new Error("WebSocket not connected"));
+    }
+    socket.emit("chat:send", payload, (response) => {
+      if (response?.success) {
+        resolve(response);
+      } else {
+        reject(new Error(response?.message || "WebSocket chat send failed"));
+      }
+    });
+  });
+
 export const disconnectSocket = () => {
   if (socket) {
     socket.disconnect();
