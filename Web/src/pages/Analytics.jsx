@@ -264,20 +264,20 @@ export default function Analytics() {
   const RoleIcon = roleMeta.icon;
 
   return (
-    <div className={`flex-1 w-full h-full overflow-y-auto ${g.heading}`}>
-      <div className="max-w-[1680px] mx-auto px-4 sm:px-6 lg:px-7 py-5 space-y-5 select-none">
+    <div className={`flex-1 w-full h-full overflow-y-auto lg:overflow-hidden ${g.heading}`}>
+      <div className="w-full lg:h-full px-3 sm:px-4 py-2.5 lg:py-3 flex flex-col gap-2.5 lg:gap-3 select-none">
         {/* 1. HERO HOME BANNER + QUICK ACTION LAUNCHPAD */}
-        <div className={`rounded-2xl p-4 sm:p-5 border flex flex-col gap-4 ${g.cardGlow}`}>
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-            <div className="flex items-center gap-4 min-w-0">
+        <div className={`shrink-0 rounded-2xl p-3 sm:px-4 sm:py-2.5 border flex flex-col gap-2.5 ${g.cardGlow}`}>
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
               <UserAvatar
                 user={user}
-                className="w-12 h-12 rounded-2xl border border-white/15 shadow-sm"
-                textClass="text-base"
+                className="w-10 h-10 rounded-xl border border-white/15 shadow-sm"
+                textClass="text-sm"
               />
               <div className="min-w-0">
-                <div className="flex items-center gap-2 flex-wrap mb-1">
-                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${roleMeta.accent}`}>
+                <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${roleMeta.accent}`}>
                     <RoleIcon className="w-3 h-3" />
                     {roleMeta.label}
                   </span>
@@ -285,12 +285,12 @@ export default function Analytics() {
                     {activeProject ? `[${activeProject.prefix}] ${activeProject.name}` : "All Workspaces"}
                   </span>
                 </div>
-                <h1 className={`text-xl sm:text-2xl font-display font-bold tracking-tight truncate leading-tight ${g.heading}`}>
+                <h1 className={`text-lg sm:text-xl font-display font-bold tracking-tight truncate leading-tight ${g.heading}`}>
                   {currentRole === "admin" && `Good day, ${firstName} — Organization Overview`}
                   {currentRole === "manager" && `Good day, ${firstName} — Sprint & Team Overview`}
                   {currentRole === "employee" && `Welcome back, ${firstName}`}
                 </h1>
-                <p className={`text-xs mt-0.5 ${g.muted}`}>
+                <p className={`text-[11px] ${g.muted}`}>
                   {new Date().toLocaleDateString("en-IN", {
                     weekday: "long",
                     day: "numeric",
@@ -376,7 +376,7 @@ export default function Analytics() {
           </div>
 
           {/* Quick Home Navigation Shortcuts */}
-          <div className={`pt-3 border-t flex items-center justify-between gap-2 flex-wrap ${g.border}`}>
+          <div className={`pt-2 border-t flex items-center justify-between gap-2 flex-wrap ${g.border}`}>
             <div className="flex items-center gap-2 flex-wrap">
               <Link
                 to="/board"
@@ -436,10 +436,12 @@ export default function Analytics() {
           </div>
         </div>
 
-        {/* 2. TOP ANALYTICS GRID (3 cards) */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        {/* 2. DASHBOARD ANALYTICS & WORKSPACE ROWS (Fits landscape viewport without scroll) */}
+        <div className="flex-1 min-h-0 flex flex-col lg:grid lg:grid-rows-[minmax(0,1fr)_minmax(0,1fr)] gap-2.5 lg:gap-3">
+        {/* TOP ANALYTICS GRID (3 cards) */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-2.5 lg:gap-3 lg:h-full lg:min-h-0">
           {/* Col A: Throughput Curve (5/12) */}
-          <div className={`lg:col-span-5 rounded-2xl p-5 border flex flex-col gap-3.5 overflow-hidden ${g.cardGlow}`}>
+          <div className={`lg:col-span-5 lg:h-full min-h-0 rounded-2xl p-3.5 sm:p-4 border flex flex-col gap-2.5 overflow-hidden ${g.cardGlow}`}>
             <div className="flex items-center justify-between gap-2 shrink-0">
               <div className="flex items-center gap-2.5">
                 <div className={`w-8 h-8 rounded-xl flex items-center justify-center border ${g.badge}`}>
@@ -497,7 +499,7 @@ export default function Analytics() {
               </div>
             </div>
 
-            <div className="flex-1 relative min-h-[100px]">
+            <div className="flex-1 relative min-h-[80px] lg:min-h-0">
               <div className={`absolute top-0 right-0 z-10 flex items-center gap-2 rounded-full px-2.5 py-1 text-[10px] border backdrop-blur-md ${g.badge}`}>
                 <span className="flex items-center gap-1 font-semibold">
                   <span className={`w-1.5 h-1.5 rounded-full inline-block ${isDark ? "bg-zinc-200" : "bg-zinc-800"}`} />
@@ -582,7 +584,7 @@ export default function Analytics() {
           </div>
 
           {/* Col B: Calendar & Valuation (3/12) */}
-          <div className={`lg:col-span-3 rounded-2xl p-5 border flex flex-col gap-3 overflow-hidden ${g.card}`}>
+          <div className={`lg:col-span-3 lg:h-full min-h-0 rounded-2xl p-3.5 sm:p-4 border flex flex-col gap-2 overflow-hidden ${g.card}`}>
             <div className="flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2.5">
                 <div className={`w-8 h-8 rounded-xl flex items-center justify-center border ${g.badge}`}>
@@ -602,9 +604,9 @@ export default function Analytics() {
               )}
             </div>
 
-            <div className="grid grid-cols-7 gap-y-0.5 text-center text-[10px] flex-1 tabular-nums">
+            <div className="grid grid-cols-7 gap-y-0.5 text-center text-[10px] flex-1 min-h-0 items-center tabular-nums">
               {["M", "T", "W", "T", "F", "S", "S"].map((d, i) => (
-                <div key={i} className={`py-1 font-bold tracking-widest ${g.muted}`}>
+                <div key={i} className={`py-0.5 font-bold tracking-widest ${g.muted}`}>
                   {d}
                 </div>
               ))}
@@ -617,7 +619,7 @@ export default function Analytics() {
                 return (
                   <div
                     key={day}
-                    className={`py-1 mx-0.5 rounded-lg font-semibold transition-colors ${
+                    className={`py-0.5 mx-0.5 rounded-md font-semibold leading-tight transition-colors ${
                       isToday
                         ? isDark
                           ? "bg-white text-zinc-950 font-bold shadow-xs"
@@ -635,7 +637,7 @@ export default function Analytics() {
               })}
             </div>
 
-            <div className={`mt-auto p-3 rounded-xl border flex items-center justify-between shrink-0 ${g.subtleSurface}`}>
+            <div className={`mt-auto px-3 py-2 rounded-xl border flex items-center justify-between shrink-0 ${g.subtleSurface}`}>
               <div>
                 <SectionLabel>{currentRole === "employee" ? "Logged Effort" : "Sprint Valuation"}</SectionLabel>
                 <span className={`text-base font-display font-bold tabular-nums block mt-0.5 ${g.heading}`}>
@@ -656,7 +658,7 @@ export default function Analytics() {
           </div>
 
           {/* Col C: Weekly Burnup (4/12) */}
-          <div className={`lg:col-span-4 rounded-2xl p-5 border flex flex-col gap-3 overflow-hidden ${g.card}`}>
+          <div className={`lg:col-span-4 lg:h-full min-h-0 rounded-2xl p-3.5 sm:p-4 border flex flex-col gap-2 overflow-hidden ${g.card}`}>
             <div className="flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2.5">
                 <div className={`w-8 h-8 rounded-xl flex items-center justify-center border ${g.badge}`}>
@@ -706,7 +708,7 @@ export default function Analytics() {
               </div>
             </div>
 
-            <div className="flex-1 flex items-end gap-1.5 min-h-[100px] pt-2">
+            <div className="flex-1 flex items-end gap-1.5 min-h-[80px] lg:min-h-0 pt-1">
               {displayedVelocity.length > 0 ? (
                 displayedVelocity.map((v, i) => {
                   const maxH = Math.max(...displayedVelocity.map((x) => x.hours || 0), 1);
@@ -758,9 +760,9 @@ export default function Analytics() {
         </div>
 
         {/* 3. BOTTOM WORKSPACE GRID */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-2.5 lg:gap-3 lg:h-full lg:min-h-0">
           {/* Top Priority Tickets (5/12) */}
-          <div className={`lg:col-span-5 rounded-2xl p-5 border flex flex-col gap-3 overflow-hidden ${g.card}`}>
+          <div className={`lg:col-span-5 lg:h-full min-h-0 rounded-2xl p-3.5 sm:p-4 border flex flex-col gap-2.5 overflow-hidden ${g.card}`}>
             <div className="flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2.5">
                 <div className={`w-8 h-8 rounded-xl flex items-center justify-center border ${g.badge}`}>
@@ -789,7 +791,7 @@ export default function Analytics() {
               </div>
             </div>
 
-            <div className="flex flex-col gap-2 flex-1 overflow-y-auto max-h-[260px] pr-0.5">
+            <div className="flex flex-col gap-2 flex-1 min-h-0 overflow-y-auto pr-0.5">
               {filteredTickets.length > 0 ? (
                 filteredTickets.map((t) => {
                   const sb = STATUS_BADGE[t.status] || STATUS_BADGE.todo;
@@ -834,7 +836,7 @@ export default function Analytics() {
           </div>
 
           {/* Status Distribution Mix (3/12) */}
-          <div className={`lg:col-span-3 rounded-2xl p-5 border flex flex-col gap-3.5 overflow-hidden ${g.card}`}>
+          <div className={`lg:col-span-3 lg:h-full min-h-0 rounded-2xl p-3.5 sm:p-4 border flex flex-col gap-2.5 overflow-hidden ${g.card}`}>
             <div className="flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2.5">
                 <div className={`w-8 h-8 rounded-xl flex items-center justify-center border ${g.badge}`}>
@@ -868,9 +870,9 @@ export default function Analytics() {
             </div>
 
             {/* Status Metric Rows */}
-            <div className="grid grid-cols-2 gap-2 flex-1">
+            <div className="grid grid-cols-2 gap-2 flex-1 min-h-0">
               {statusSegments.items.map((seg) => (
-                <div key={seg.key} className={`p-3 rounded-xl border flex flex-col justify-between ${g.subtleSurface}`}>
+                <div key={seg.key} className={`p-2.5 rounded-xl border flex flex-col justify-between ${g.subtleSurface}`}>
                   <div className="flex items-center justify-between">
                     <span className="w-2 h-2 rounded-full" style={{ background: seg.dot }} />
                     <span className={`text-[10px] font-mono font-bold tabular-nums ${g.muted}`}>{seg.pct}%</span>
@@ -887,7 +889,7 @@ export default function Analytics() {
           </div>
 
           {/* Department Capacity / Deliverables (4/12) */}
-          <div className={`lg:col-span-4 rounded-2xl p-5 border flex flex-col gap-3 overflow-hidden ${g.card}`}>
+          <div className={`lg:col-span-4 lg:h-full min-h-0 rounded-2xl p-3.5 sm:p-4 border flex flex-col gap-2.5 overflow-hidden ${g.card}`}>
             {currentRole === "admin" || currentRole === "manager" ? (
               <>
                 <div className="flex items-center justify-between shrink-0">
@@ -907,7 +909,7 @@ export default function Analytics() {
                   </span>
                 </div>
 
-                <div className="flex flex-col gap-2.5 flex-1 overflow-y-auto max-h-[220px] pr-0.5">
+                <div className="flex flex-col gap-2 flex-1 min-h-0 overflow-y-auto pr-0.5">
                   {departmentBreakdown.length > 0 ? (
                     departmentBreakdown.map((dept, i) => {
                       const deptHours = dept.hoursLogged ?? dept.loggedHours ?? 0;
@@ -1025,6 +1027,7 @@ export default function Analytics() {
               </>
             )}
           </div>
+        </div>
         </div>
       </div>
     </div>
