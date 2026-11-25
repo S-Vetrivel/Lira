@@ -2,7 +2,7 @@ import axios from "axios";
 import toast from "react-hot-toast";
 
 // 1. API URL configuration
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4000/v3";
 export const GOOGLE_AUTH_URL = `${API_URL}/auth/google`;
 
 // 2. Axios instance with credentials
@@ -14,11 +14,23 @@ const api = axios.create({
   },
 });
 
-// 3. Response Interceptor for Error Handling
+// 3. Request Interceptor for Bearer Token
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem("lira_token");
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+// 4. Response Interceptor for Error Handling
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    const silentRoutes = ["/auth/me", "/notifications"];
+    const silentRoutes = ["/auth/me", "/notifications", "/users/join-request"];
     if (error.config && silentRoutes.some((route) => error.config.url?.includes(route))) {
       return Promise.reject(error);
     }
@@ -49,6 +61,9 @@ export default api;
 export async function loginUser(email, password) {
   try {
     const res = await api.post("/auth/login", { email, password });
+    if (res.data?.token) {
+      localStorage.setItem("lira_token", res.data.token);
+    }
     toast.success(res.data.message || "Welcome back!");
     return { success: true, user: res.data.user };
   } catch (error) {
@@ -59,6 +74,9 @@ export async function loginUser(email, password) {
 export async function signUpUser(formData) {
   try {
     const res = await api.post("/auth/signup", formData);
+    if (res.data?.token) {
+      localStorage.setItem("lira_token", res.data.token);
+    }
     toast.success(res.data.message || "Account created successfully!");
     return { success: true, user: res.data.user };
   } catch (error) {
@@ -66,14 +84,9 @@ export async function signUpUser(formData) {
   }
 }
 
-export async function demoLoginUser(role) {
-  try {
-    const res = await api.post("/auth/demo-login", { role });
-    toast.success(res.data.message || `Switched to demo ${role}`);
-    return { success: true, user: res.data.user };
-  } catch (error) {
-    return { success: false, message: error.response?.data?.message || "Demo login failed" };
-  }
+export async function demoLoginUser() {
+  toast.error("Demo logins have been permanently removed.");
+  return { success: false, message: "Demo logins removed" };
 }
 
 export async function checkAuth() {
@@ -88,10 +101,13 @@ export async function checkAuth() {
 export async function logoutUser() {
   try {
     await api.get("/auth/logout");
+  } catch (err) {
+    // continue cleanup
+  } finally {
+    localStorage.removeItem("lira_token");
+    localStorage.removeItem("lira_user");
     toast.success("Logged out");
     return { success: true };
-  } catch (error) {
-    return { success: false };
   }
 }
 
@@ -102,6 +118,68 @@ export async function googleOneTapLogin(token) {
     return { success: true, user: res.data.user };
   } catch (error) {
     return { success: false, message: error.response?.data?.message || "Google login failed" };
+  }
+}
+
+// ==========================================
+// TEAM JOIN REQUEST & FOLLOW TRACKING APIs
+// ==========================================
+export async function getJoinRequestStatus() {
+  try {
+    const res = await api.get("/users/join-request/status");
+    return { success: true, user: res.data.user, status: res.data.status, publicId: res.data.publicId };
+  } catch (error) {
+    return { success: false, message: error.response?.data?.message || "Failed to fetch status" };
+  }
+}
+
+export async function submitJoinRequest(payload) {
+  try {
+    const res = await api.post("/users/join-request/submit", payload);
+    toast.success(res.data.message || "Join request submitted!");
+    return { success: true, user: res.data.user };
+  } catch (error) {
+    return { success: false, message: error.response?.data?.message || "Failed to submit request" };
+  }
+}
+
+export async function getPendingJoinRequests() {
+  try {
+    const res = await api.get("/users/join-requests");
+    return { success: true, requests: res.data.requests || [] };
+  } catch (error) {
+    return { success: false, requests: [] };
+  }
+}
+
+export async function approveJoinRequest(id, payload = {}) {
+  try {
+    const res = await api.put(`/users/join-requests/${id}/approve`, payload);
+    toast.success(res.data.message || "Candidate approved!");
+    return { success: true, user: res.data.user };
+  } catch (error) {
+    toast.error(error.response?.data?.message || "Approval failed");
+    return { success: false };
+  }
+}
+
+export async function rejectJoinRequest(id, reason) {
+  try {
+    const res = await api.put(`/users/join-requests/${id}/reject`, { reason });
+    toast.success(res.data.message || "Candidate application declined");
+    return { success: true };
+  } catch (error) {
+    toast.error(error.response?.data?.message || "Action failed");
+    return { success: false };
+  }
+}
+
+export async function registerPushSubscription(subscription) {
+  try {
+    const res = await api.post("/notifications/subscribe", { subscription });
+    return { success: true };
+  } catch (error) {
+    return { success: false };
   }
 }
 

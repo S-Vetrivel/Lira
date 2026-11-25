@@ -1,4 +1,5 @@
 const Notification = require("../models/notificationModel");
+const User = require("../models/userModel");
 
 exports.getNotifications = async (req, res) => {
   try {
@@ -40,6 +41,20 @@ exports.markAllAsRead = async (req, res) => {
       { isRead: true }
     );
     res.status(200).json({ success: true, message: "All notifications marked as read" });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+exports.subscribePush = async (req, res) => {
+  try {
+    const { subscription } = req.body;
+    if (!subscription) {
+      return res.status(400).json({ success: false, message: "Subscription payload required" });
+    }
+
+    await User.findByIdAndUpdate(req.user._id, { pushSubscription: subscription });
+    res.status(200).json({ success: true, message: "Web Push subscription registered successfully" });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

@@ -2,6 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const { enqueueFileJob } = require("../services/queue");
+const minioService = require("../services/minioService");
 
 const CHUNKS_DIR = path.join(__dirname, "../uploads/chunks");
 const FILES_DIR = path.join(__dirname, "../uploads/files");
@@ -72,6 +73,14 @@ exports.uploadChunk = async (req, res) => {
       // Clean up chunk files
       fs.rmSync(uploadPath, { recursive: true, force: true });
 
+      // Upload to MinIO object storage
+      let minioResult = null;
+      try {
+        minioResult = await minioService.uploadFile(`files/${safeName}`, finalFilePath);
+      } catch (minioErr) {
+        console.warn("MinIO upload fallback to local storage:", minioErr.message);
+      }
+
       // Enqueue background processing (virus scan/caching/audit)
       try {
         if (typeof enqueueFileJob === "function") {
@@ -81,13 +90,14 @@ exports.uploadChunk = async (req, res) => {
             size: stat.size,
             checksum,
             userId: req.user?._id,
+            minioKey: minioResult?.objectKey || null,
           });
         }
       } catch (err) {
         // non-blocking
       }
 
-      const fileUrl = `/api/files/download/${safeName}`;
+      const fileUrl = `/v3/files/download/${safeName}`;
 
       return res.status(200).json({
         success: true,
@@ -97,6 +107,7 @@ exports.uploadChunk = async (req, res) => {
         originalName: fileName,
         size: stat.size,
         checksum,
+        minioStored: !!minioResult,
       });
     }
 
@@ -139,52 +150,61 @@ exports.getChunkStatus = async (req, res) => {
   }
 };
 
-// 3. Resumable Byte-Range Chunk Download (RFC 7233)
-exports.downloadFile = (req, res) => {
+// 3. Resumable Byte-Range Chunk Download (RFC 7233) with MinIO Support
+exports.downloadFile = async (req, res) => {
   try {
     const { fileName } = req.params;
     const safeName = path.basename(fileName);
     const filePath = path.join(FILES_DIR, safeName);
 
-    if (!fs.existsSync(filePath)) {
-      return res.status(404).json({ success: false, message: "File not found" });
-    }
+    if (fs.existsSync(filePath)) {
+      const stat = fs.statSync(filePath);
+      const fileSize = stat.size;
+      const range = req.headers.range;
 
-    const stat = fs.statSync(filePath);
-    const fileSize = stat.size;
-    const range = req.headers.range;
+      if (range) {
+        const parts = range.replace(/bytes=/, "").split("-");
+        const start = parseInt(parts[0], 10);
+        const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
 
-    if (range) {
-      const parts = range.replace(/bytes=/, "").split("-");
-      const start = parseInt(parts[0], 10);
-      const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+        if (start >= fileSize) {
+          res.status(416).send(`Requested range not satisfiable: ${start} >= ${fileSize}`);
+          return;
+        }
 
-      if (start >= fileSize) {
-        res.status(416).send(`Requested range not satisfiable: ${start} >= ${fileSize}`);
-        return;
+        const chunksize = end - start + 1;
+        const file = fs.createReadStream(filePath, { start, end });
+        const head = {
+          "Content-Range": `bytes ${start}-${end}/${fileSize}`,
+          "Accept-Ranges": "bytes",
+          "Content-Length": chunksize,
+          "Content-Type": "application/octet-stream",
+        };
+
+        res.writeHead(206, head);
+        file.pipe(res);
+      } else {
+        const head = {
+          "Content-Length": fileSize,
+          "Content-Type": "application/octet-stream",
+          "Accept-Ranges": "bytes",
+          "Content-Disposition": `attachment; filename="${safeName}"`,
+        };
+        res.writeHead(200, head);
+        fs.createReadStream(filePath).pipe(res);
       }
-
-      const chunksize = end - start + 1;
-      const file = fs.createReadStream(filePath, { start, end });
-      const head = {
-        "Content-Range": `bytes ${start}-${end}/${fileSize}`,
-        "Accept-Ranges": "bytes",
-        "Content-Length": chunksize,
-        "Content-Type": "application/octet-stream",
-      };
-
-      res.writeHead(206, head);
-      file.pipe(res);
-    } else {
-      const head = {
-        "Content-Length": fileSize,
-        "Content-Type": "application/octet-stream",
-        "Accept-Ranges": "bytes",
-        "Content-Disposition": `attachment; filename="${safeName}"`,
-      };
-      res.writeHead(200, head);
-      fs.createReadStream(filePath).pipe(res);
+      return;
     }
+
+    // Fallback: Stream directly from MinIO
+    const minioStream = await minioService.getFileStream(`files/${safeName}`);
+    if (minioStream) {
+      res.setHeader("Content-Disposition", `attachment; filename="${safeName}"`);
+      res.setHeader("Content-Type", "application/octet-stream");
+      return minioStream.pipe(res);
+    }
+
+    return res.status(404).json({ success: false, message: "File not found" });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

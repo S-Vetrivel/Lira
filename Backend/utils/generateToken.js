@@ -2,22 +2,23 @@ const jwt = require("jsonwebtoken");
 
 const generateTokenAndSetCookie = (res, userId) => {
   // 1. Generate Token
-  const token = jwt.sign({ id: userId }, process.env.JWT_SECRET, {
+  const token = jwt.sign({ id: userId }, process.env.JWT_SECRET || "default_jwt_secret_dev", {
     expiresIn: "7d",
   });
 
   // 2. Cookie Options
+  const isProd = process.env.NODE_ENV === "production";
   const options = {
     expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
     httpOnly: true, // Security: JS cannot read this
-    secure: process.env.NODE_ENV === "production", // HTTPS only in prod
-    sameSite: "strict", // CSRF protection
+    secure: isProd, // HTTPS only in prod
+    sameSite: isProd ? "none" : "lax", // Lax for dev top-level OAuth navigation; none for cross-site prod
   };
 
   // 3. Set Cookie
   res.cookie("token", token, options);
 
-  return token; // Return token in case you need it for debugging
+  return token;
 };
 
 module.exports = generateTokenAndSetCookie;

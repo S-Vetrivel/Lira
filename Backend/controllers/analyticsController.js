@@ -2,6 +2,8 @@ const Task = require("../models/taskModel");
 const Project = require("../models/projectModel");
 const User = require("../models/userModel");
 const Department = require("../models/departmentModel");
+const ActionLog = require("../models/actionLogModel");
+const batchLogger = require("../services/batchLogger");
 
 exports.getManagerOverview = async (req, res) => {
   try {
@@ -393,5 +395,63 @@ exports.getManagerOverview = async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// ==============================================
+// 2. ACTION LOGS & BATCHED LOGGER AUDIT
+// ==============================================
+exports.getActionLogs = async (req, res) => {
+  try {
+    const { page = 1, limit = 50, action, status, search } = req.query;
+    const query = {};
+
+    if (action) query.action = action;
+    if (status) query.status = status;
+    if (search) {
+      query.$or = [
+        { path: { $regex: search, $options: "i" } },
+        { userEmail: { $regex: search, $options: "i" } },
+        { action: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    const skip = (Number(page) - 1) * Number(limit);
+    const logs = await ActionLog.find(query)
+      .sort({ timestamp: -1 })
+      .skip(skip)
+      .limit(Number(limit))
+      .populate("user", "fullname email role avatar")
+      .lean();
+
+    const total = await ActionLog.countDocuments(query);
+
+    res.json({
+      success: true,
+      logs,
+      total,
+      page: Number(page),
+      totalPages: Math.ceil(total / Number(limit)),
+      metrics: batchLogger.getMetrics(),
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+exports.getActionLogStats = async (req, res) => {
+  try {
+    const metrics = batchLogger.getMetrics();
+    const totalCount = await ActionLog.countDocuments();
+    const recentErrors = await ActionLog.countDocuments({ statusCode: { $gte: 400 } });
+
+    res.json({
+      success: true,
+      metrics,
+      totalCount,
+      recentErrors,
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
   }
 };

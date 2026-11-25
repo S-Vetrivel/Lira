@@ -33,7 +33,6 @@ export default function CommandPalette({ isOpen, onClose }) {
     teamMembers,
     setIsCreateTaskModalOpen,
     setSelectedTaskKeyOrId,
-    handleDemoLogin,
   } = useApp();
 
   const isDark = theme === "dark";
@@ -168,46 +167,6 @@ export default function CommandPalette({ isOpen, onClose }) {
       }
     );
 
-    // 2. Demo role switcher actions
-    items.push(
-      {
-        id: "role-admin",
-        category: "actions",
-        title: "Switch Role: 👑 Administrator",
-        subtitle: "Log in as Alex Vance (Admin) with full company oversight",
-        icon: ShieldAlert,
-        badge: "Role",
-        action: () => {
-          handleDemoLogin("admin");
-          onClose();
-        },
-      },
-      {
-        id: "role-manager",
-        category: "actions",
-        title: "Switch Role: 👔 Team Lead / Manager",
-        subtitle: "Log in as Sarah Connor (Lead) with sprint management",
-        icon: Sliders,
-        badge: "Role",
-        action: () => {
-          handleDemoLogin("manager");
-          onClose();
-        },
-      },
-      {
-        id: "role-employee",
-        category: "actions",
-        title: "Switch Role: 👨‍💻 Contributor / Employee",
-        subtitle: "Log in as Rahul Sharma (Developer) with personal cockpit",
-        icon: UserCheck,
-        badge: "Role",
-        action: () => {
-          handleDemoLogin("employee");
-          onClose();
-        },
-      }
-    );
-
     // 3. Projects
     projects.forEach((p) => {
       items.push({
@@ -251,7 +210,6 @@ export default function CommandPalette({ isOpen, onClose }) {
     onClose,
     setIsCreateTaskModalOpen,
     setActiveProject,
-    handleDemoLogin,
   ]);
 
   // Filter items based on query and filter tab

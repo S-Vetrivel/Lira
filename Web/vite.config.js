@@ -9,16 +9,20 @@ export default defineConfig({
     port: 5173,
     host: "0.0.0.0",
     proxy: {
+      "/v3": {
+        target: "http://127.0.0.1:4000",
+        changeOrigin: true,
+      },
       "/api": {
-        target: "http://127.0.0.1:5000",
+        target: "http://127.0.0.1:4000",
         changeOrigin: true,
       },
       "/uploads": {
-        target: "http://127.0.0.1:5000",
+        target: "http://127.0.0.1:4000",
         changeOrigin: true,
       },
       "/socket.io": {
-        target: "http://127.0.0.1:5000",
+        target: "http://127.0.0.1:4000",
         ws: true,
         changeOrigin: true,
       },

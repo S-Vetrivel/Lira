@@ -25,24 +25,55 @@ router.post("/demo-login", DemoLogin);
 router.post("/reset-password", resetPassword);
 
 // 2. Google OAuth Routes (Standard Redirect)
-router.get(
-  "/google",
+router.get("/google", (req, res, next) => {
+  const returnUrl =
+    req.query.returnUrl ||
+    req.headers.referer ||
+    process.env.FRONTEND_URL ||
+    "http://localhost:5173";
+
+  const state = Buffer.from(JSON.stringify({ returnUrl })).toString("base64");
+
   passport.authenticate("google", {
     session: false,
     scope: ["profile", "email"],
-  })
-);
+    state,
+  })(req, res, next);
+});
 
 router.get(
   "/google/callback",
-  passport.authenticate("google", {
-    session: false,
-    failureRedirect: `${process.env.FRONTEND_URL || "http://localhost:5173"}/login?error=google_failed`,
-  }),
+  (req, res, next) => {
+    let failUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+    if (req.query.state) {
+      try {
+        const parsed = JSON.parse(Buffer.from(req.query.state, "base64").toString("utf-8"));
+        if (parsed.returnUrl) failUrl = parsed.returnUrl;
+      } catch (e) {}
+    }
+    const cleanFail = failUrl.split("?")[0].replace(/\/$/, "");
+
+    passport.authenticate("google", {
+      session: false,
+      failureRedirect: `${cleanFail}/login?error=google_failed`,
+    })(req, res, next);
+  },
   (req, res) => {
-    generateTokenAndSetCookie(res, req.user._id);
-    const clientUrl = process.env.FRONTEND_URL || process.env.CLIENT_URL || "http://localhost:5173";
-    res.redirect(clientUrl);
+    const token = generateTokenAndSetCookie(res, req.user._id);
+
+    let returnUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+    if (req.query.state) {
+      try {
+        const parsed = JSON.parse(Buffer.from(req.query.state, "base64").toString("utf-8"));
+        if (parsed.returnUrl) returnUrl = parsed.returnUrl;
+      } catch (e) {}
+    }
+
+    const cleanBase = returnUrl.split("?")[0].replace(/\/$/, "");
+    const isPending = req.user?.status === "pending_approval";
+    const targetPath = isPending ? "/join-request" : "/";
+    const targetUrl = `${cleanBase}${targetPath}`;
+    res.redirect(`${targetUrl}?token=${token}&google_auth=success`);
   }
 );
 

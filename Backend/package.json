@@ -6,6 +6,29 @@
     "start": "pm2-runtime ecosystem.config.js",
     "dev": "nodemon index.js"
   },
+  "nodemonConfig": {
+    "watch": [
+      "controllers",
+      "models",
+      "routes",
+      "services",
+      "workers",
+      "middlewares",
+      "config",
+      "index.js"
+    ],
+    "ext": "js,json",
+    "ignore": [
+      "logs/**",
+      ".logs/**",
+      "uploads/**",
+      "public/**",
+      "*.log",
+      "preservation-manifest.json",
+      "node_modules/**"
+    ],
+    "delay": 1500
+  },
   "dependencies": {
     "@socket.io/redis-adapter": "^8.3.0",
     "axios": "^1.21.1",
@@ -20,16 +43,21 @@
     "google-auth-library": "^10.5.0",
     "ioredis": "^5.8.2",
     "jsonwebtoken": "^9.0.3",
-    "minio": "^8.0.6",
+    "minio": "^7.1.3",
     "mongoose": "^9.0.1",
     "multer": "^2.0.2",
+    "nodemon": "^3.1.14",
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",
-    "sharp": "^0.34.5",
+    "sharp": "^0.35.5",
     "socket.io": "^4.8.4",
     "web-push": "^3.6.7"
   },
   "devDependencies": {
     "mongodb-memory-server": "^10.4.3"
+  },
+  "overrides": {
+    "decode-uri-component": "^0.5.1",
+    "fast-xml-parser": "^5.12.1"
   }
 }

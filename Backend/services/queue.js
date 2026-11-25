@@ -1,53 +1,87 @@
 const { Queue } = require("bullmq");
 const Redis = require("ioredis");
 
-const redisConfig = {
-  host: process.env.REDIS_HOST || "127.0.0.1",
-  port: Number(process.env.REDIS_PORT) || 6379,
-  password: process.env.REDIS_PASSWORD || undefined,
+// -----------------
+// UNIFIED REDIS CONNECTION CONFIGURATION
+// -----------------
+const redisConfig = process.env.REDIS_URL
+  ? process.env.REDIS_URL
+  : {
+      host: process.env.REDIS_HOST || "127.0.0.1",
+      port: Number(process.env.REDIS_PORT) || 6379,
+      password: process.env.REDIS_PASSWORD || undefined,
+      maxRetriesPerRequest: null,
+      enableReadyCheck: false,
+    };
+
+const connection = new Redis(redisConfig, {
   maxRetriesPerRequest: null,
   enableReadyCheck: false,
-};
-
-const connection = new Redis(redisConfig);
+  retryStrategy(times) {
+    const delay = Math.min(times * 200, 2000);
+    return delay;
+  },
+});
 
 connection.on("connect", () => {
-  console.log("🔗 Redis queue connection established");
+  console.log("🔗 Unified Redis connection established");
 });
 
 connection.on("error", (err) => {
   console.warn("⚠️ Redis connection warning:", err.message);
 });
 
-// 1. WebSocket Broadcast Queue (Decoupled real-time updates)
-const websocketQueue = new Queue("websocket-events-queue", { connection });
+// -----------------
+// CENTRALIZED QUEUE DEFINITIONS
+// -----------------
+const defaultQueueOpts = {
+  connection,
+  defaultJobOptions: {
+    removeOnComplete: 100,
+    removeOnFail: 50,
+    attempts: 3,
+    backoff: { type: "exponential", delay: 1000 },
+  },
+};
 
-// 2. Notification Processing Queue
-const notificationQueue = new Queue("notification-queue", { connection });
+// 1. WebSocket Broadcast Queue (Real-time socket broadcasts)
+const websocketQueue = new Queue("websocket-events-queue", defaultQueueOpts);
 
-// 3. Activity Logging Queue
-const activityQueue = new Queue("activity-log-queue", { connection });
+// 2. Notification Processing Queue (Push & in-app alerts)
+const notificationQueue = new Queue("notification-queue", defaultQueueOpts);
 
-// 4. Task Metrics & Analytics Queue
-const taskMetricsQueue = new Queue("task-metrics-queue", { connection });
+// 3. Activity Logging Queue (Audit trails)
+const activityQueue = new Queue("activity-log-queue", defaultQueueOpts);
 
-// 5. AI Task Generation Queue
-const aiProcessingQueue = new Queue("ai-processing-queue", { connection });
+// 4. Task Metrics & Analytics Queue (Velocity, burndown, workload)
+const taskMetricsQueue = new Queue("task-metrics-queue", defaultQueueOpts);
 
-// 6. File Sharing & Verification Queue
-const fileSharingQueue = new Queue("file-sharing-queue", { connection });
+// 5. AI Task Generation Queue (Gemini Task Breakdown & Summaries)
+const aiProcessingQueue = new Queue("ai-processing-queue", defaultQueueOpts);
+
+// 6. File Sharing & Verification Queue (Storage checks & checksums)
+const fileSharingQueue = new Queue("file-sharing-queue", defaultQueueOpts);
 
 // 7. Recurring Task Routine & Deadline Escalation Queue
-const routineQueue = new Queue("routine-scheduler-queue", { connection });
+const routineQueue = new Queue("routine-scheduler-queue", defaultQueueOpts);
 
-// Helper function to safely enqueue jobs with automatic retry options
+// 8. Media Processing Queue (Sharp, WebP conversion, MinIO upload)
+const mediaQueue = new Queue("media-processing", defaultQueueOpts);
+
+// 9. Order Processing Queue (Commerce operations)
+const orderProcessingQueue = new Queue("order-processing-queue", defaultQueueOpts);
+const orderQueue = orderProcessingQueue; // alias
+
+// -----------------
+// UNIFIED ENQUEUE HELPERS
+// -----------------
 const enqueueWebSocketEvent = async ({ room, event, data, target = "project" }) => {
   try {
     return await websocketQueue.add(
       "broadcast",
       { room, event, data, target, timestamp: Date.now() },
       {
-        removeOnComplete: 100,
+        removeOnComplete: 200,
         removeOnFail: 50,
         attempts: 3,
         backoff: { type: "exponential", delay: 500 },
@@ -117,6 +151,51 @@ const enqueueRoutineJob = async (payload = {}) => {
   }
 };
 
+const enqueueMediaJob = async (payload) => {
+  try {
+    return await mediaQueue.add("process-media", payload, {
+      removeOnComplete: 100,
+      removeOnFail: 50,
+      attempts: 3,
+    });
+  } catch (error) {
+    console.error("Failed to enqueue media job:", error.message);
+  }
+};
+
+/**
+ * Diagnostic health check returning queue status across all unified queues
+ */
+const getQueueHealth = async () => {
+  const queues = [
+    { name: "websocket", queue: websocketQueue },
+    { name: "notifications", queue: notificationQueue },
+    { name: "activity", queue: activityQueue },
+    { name: "taskMetrics", queue: taskMetricsQueue },
+    { name: "aiProcessing", queue: aiProcessingQueue },
+    { name: "fileSharing", queue: fileSharingQueue },
+    { name: "routines", queue: routineQueue },
+    { name: "media", queue: mediaQueue },
+    { name: "orders", queue: orderProcessingQueue },
+  ];
+
+  const results = {};
+  for (const { name, queue } of queues) {
+    try {
+      const [waiting, active, completed, failed] = await Promise.all([
+        queue.getWaitingCount(),
+        queue.getActiveCount(),
+        queue.getCompletedCount(),
+        queue.getFailedCount(),
+      ]);
+      results[name] = { waiting, active, completed, failed, healthy: true };
+    } catch (err) {
+      results[name] = { error: err.message, healthy: false };
+    }
+  }
+  return results;
+};
+
 module.exports = {
   connection,
   redisConfig,
@@ -127,10 +206,15 @@ module.exports = {
   aiProcessingQueue,
   fileSharingQueue,
   routineQueue,
+  mediaQueue,
+  orderProcessingQueue,
+  orderQueue,
   enqueueWebSocketEvent,
   enqueueNotification,
   enqueueActivityLog,
   enqueueTaskMetrics,
   enqueueFileJob,
   enqueueRoutineJob,
+  enqueueMediaJob,
+  getQueueHealth,
 };

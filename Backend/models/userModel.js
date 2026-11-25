@@ -3,6 +3,13 @@ const Schema = mongoose.Schema;
 
 const UserSchema = new Schema(
   {
+    publicId: {
+      type: String,
+      unique: true,
+      sparse: true,
+      index: true,
+      trim: true,
+    },
     fullname: { type: String, required: true, trim: true },
     email: {
       type: String,
@@ -29,11 +36,31 @@ const UserSchema = new Schema(
     phone: { type: String },
     status: {
       type: String,
-      enum: ["active", "away", "on_leave"],
+      enum: ["active", "pending_approval", "rejected", "away", "on_leave"],
       default: "active",
+      index: true,
     },
     isActive: { type: Boolean, default: true },
     bio: { type: String },
+
+    // Team Join Request Workflow & Follow details
+    joinRequest: {
+      requestedDepartment: { type: Schema.Types.ObjectId, ref: "Department" },
+      requestedDepartmentName: { type: String, default: "Engineering" },
+      requestedRole: { type: String, enum: ["employee", "manager"], default: "employee" },
+      requestedJobTitle: { type: String, default: "Team Member" },
+      reason: { type: String, default: "" },
+      requestedAt: { type: Date, default: Date.now },
+      reviewedBy: { type: Schema.Types.ObjectId, ref: "User" },
+      reviewedAt: { type: Date },
+      rejectionReason: { type: String, default: "" },
+    },
+
+    // Web Push Notification Subscription
+    pushSubscription: {
+      type: Schema.Types.Mixed,
+      default: null,
+    },
   },
   {
     timestamps: true,

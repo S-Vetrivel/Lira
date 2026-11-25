@@ -9,32 +9,41 @@ const Notification = require("../models/notificationModel");
 
 const seedDatabase = async () => {
   try {
-    const userCount = await User.countDocuments();
-    if (userCount > 0) {
-      console.log("ℹ️ Database already seeded with users.");
+    const adminEmail = (process.env.DEFAULT_SUPERADMIN_EMAIL || "admin@incuman.com").toLowerCase();
+    let existingAdmin = await User.findOne({ email: adminEmail });
+    const salt = await bcrypt.genSalt(10);
+    const superadminPass = await bcrypt.hash(
+      process.env.DEFAULT_SUPERADMIN_PASSWORD || "5fJn1aPsaNmn3ei7YnxNW7c9X0su4ZBl",
+      salt
+    );
+
+    if (!existingAdmin) {
+      console.log(`👑 Creating superadmin user: ${adminEmail}`);
+      existingAdmin = await User.create({
+        fullname: "Alex Vance (Admin)",
+        email: adminEmail,
+        password: superadminPass,
+        role: "admin",
+        departmentName: "Executive / IT",
+        jobTitle: "Head of Operations & IT",
+        avatar: "https://api.dicebear.com/7.x/bottts/svg?seed=AlexAdmin",
+        status: "active",
+        publicId: "EMP-ADMIN-01",
+      });
+    }
+
+    const deptCount = await Department.countDocuments();
+    if (deptCount > 0) {
+      console.log("ℹ️ Database already seeded with workspace data.");
       return;
     }
 
     console.log("🌱 Seeding office workspace data...");
 
-    const salt = await bcrypt.genSalt(10);
-    const superadminPass = await bcrypt.hash(
-      process.env.DEFAULT_SUPERADMIN_PASSWORD || "password123",
-      salt
-    );
     const standardPass = await bcrypt.hash("password123", salt);
 
     // 1. Create Default Users (3 clear levels: Admin, Manager, Employee)
-    const adminUser = await User.create({
-      fullname: "Alex Vance (Admin)",
-      email: (process.env.DEFAULT_SUPERADMIN_EMAIL || "admin@incuman.com").toLowerCase(),
-      password: superadminPass,
-      role: "admin",
-      departmentName: "Executive / IT",
-      jobTitle: "Head of Operations & IT",
-      avatar: "https://api.dicebear.com/7.x/bottts/svg?seed=AlexAdmin",
-      status: "active",
-    });
+    const adminUser = existingAdmin;
 
     const managerEng = await User.create({
       fullname: "Sarah Connor (Manager)",

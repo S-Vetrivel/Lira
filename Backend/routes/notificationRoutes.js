@@ -5,10 +5,12 @@ const {
   getNotifications,
   markAsRead,
   markAllAsRead,
+  subscribePush,
 } = require("../controllers/notificationController");
 
 router.get("/", protect(), getNotifications);
 router.patch("/:id/read", protect(), markAsRead);
 router.post("/read-all", protect(), markAllAsRead);
+router.post("/subscribe", protect(), subscribePush);
 
 module.exports = router;

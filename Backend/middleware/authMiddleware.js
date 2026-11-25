@@ -1,6 +1,5 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/userModel");
-const generateTokenAndSetCookie = require("../utils/generateToken");
 
 const protect = (allowedRoles = []) => async (req, res, next) => {
   try {
@@ -21,8 +20,37 @@ const protect = (allowedRoles = []) => async (req, res, next) => {
       return res.status(401).json({ success: false, message: "User not found or account removed" });
     }
 
-    if (user.isActive === false) {
-      return res.status(403).json({ success: false, message: "Your account is deactivated. Contact an administrator." });
+    // Allow user to check self state and submit join-team onboarding even if pending
+    const isSelfStatusRoute =
+      req.path === "/me" ||
+      req.path.includes("/join-request") ||
+      req.path.includes("/notifications/subscribe") ||
+      req.path.includes("/logout");
+
+    if (user.status === "pending_approval" && !isSelfStatusRoute) {
+      return res.status(403).json({
+        success: false,
+        code: "PENDING_APPROVAL",
+        message: "Your application to join this workspace is awaiting admin approval.",
+        publicId: user.publicId,
+        status: user.status,
+      });
+    }
+
+    if (user.status === "rejected") {
+      return res.status(403).json({
+        success: false,
+        code: "APPLICATION_REJECTED",
+        message: `Your application to join this workspace was declined: "${user.joinRequest?.rejectionReason || "Please contact administrator"}"`,
+      });
+    }
+
+    if (user.isActive === false && user.status !== "pending_approval") {
+      return res.status(403).json({
+        success: false,
+        code: "ACCOUNT_DEACTIVATED",
+        message: "Your account is deactivated. Contact an administrator.",
+      });
     }
 
     // Role checks if specified

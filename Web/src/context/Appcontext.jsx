@@ -13,7 +13,6 @@ import {
   getDepartments,
   getTeamMembers,
   getNotifications,
-  demoLoginUser,
   logoutUser,
 } from "../services/api";
 import { initSocketClient, joinProjectRoom, leaveProjectRoom } from "../services/socket";
@@ -130,6 +129,16 @@ export const AppProvider = ({ children }) => {
   useEffect(() => {
     let mounted = true;
     const verify = async () => {
+      // 1. Check for token passed in URL query param (Google OAuth callback redirect)
+      const params = new URLSearchParams(window.location.search);
+      const urlToken = params.get("token");
+      if (urlToken) {
+        localStorage.setItem("lira_token", urlToken);
+        // Clean the address bar of the token parameter
+        const cleanUrl = window.location.pathname;
+        window.history.replaceState({}, document.title, cleanUrl);
+      }
+
       try {
         const res = await checkAuth();
         if (mounted) {
@@ -137,10 +146,16 @@ export const AppProvider = ({ children }) => {
             setUser(res.user);
           } else {
             setUser(null);
+            localStorage.removeItem("lira_token");
+            localStorage.removeItem("lira_user");
           }
         }
       } catch (err) {
-        if (mounted) setUser(null);
+        if (mounted) {
+          setUser(null);
+          localStorage.removeItem("lira_token");
+          localStorage.removeItem("lira_user");
+        }
       } finally {
         if (mounted) setIsValidating(false);
       }
@@ -196,14 +211,6 @@ export const AppProvider = ({ children }) => {
     }
   }, [activeProject?._id]);
 
-  // Quick Demo Login Handler
-  const handleDemoLogin = async (role) => {
-    const res = await demoLoginUser(role);
-    if (res.success) {
-      setUser(res.user);
-    }
-  };
-
   // Logout Handler
   const handleLogout = async () => {
     await logoutUser();
@@ -238,7 +245,6 @@ export const AppProvider = ({ children }) => {
       refreshDepartments,
       refreshTeam,
       refreshNotifications,
-      handleDemoLogin,
       handleLogout,
     }),
     [

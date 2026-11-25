@@ -1,0 +1,23 @@
+{
+  "watch": [
+    "controllers",
+    "models",
+    "routes",
+    "services",
+    "workers",
+    "middlewares",
+    "config",
+    "index.js"
+  ],
+  "ext": "js,json",
+  "ignore": [
+    "logs/**",
+    ".logs/**",
+    "uploads/**",
+    "public/**",
+    "*.log",
+    "preservation-manifest.json",
+    "node_modules/**"
+  ],
+  "delay": 1500
+}

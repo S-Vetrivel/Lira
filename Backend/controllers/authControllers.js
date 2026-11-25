@@ -1,14 +1,28 @@
 const User = require("../models/userModel");
+const Department = require("../models/departmentModel");
 const bcrypt = require("bcryptjs");
 const generateTokenAndSetCookie = require("../utils/generateToken");
 const { isSuperAdminEmail } = require("../utils/roles");
+const { enqueueWebSocketEvent } = require("../services/queue");
+const { sendPushToAdmins } = require("../services/pushService");
+const { createNotification } = require("../utils/notificationHelper");
 
 // ==============================================
 // 1. SIGNUP
 // ==============================================
 exports.Signup = async (req, res) => {
   try {
-    const { fullname, email, password, confirmPassword, role, departmentName, jobTitle, phone } = req.body;
+    const {
+      fullname,
+      email,
+      password,
+      confirmPassword,
+      role,
+      departmentName,
+      jobTitle,
+      phone,
+      reason,
+    } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({ success: false, message: "Email and password are required" });
@@ -24,40 +38,95 @@ exports.Signup = async (req, res) => {
       return res.status(400).json({ success: false, message: "User with this email already exists" });
     }
 
-    // Role detection
-    let userRole = role || "employee";
-    if (isSuperAdminEmail(cleanEmail)) {
-      userRole = "admin";
-    }
+    const isAdmin = isSuperAdminEmail(cleanEmail);
+    const userRole = isAdmin ? "admin" : (role || "employee");
+    const userStatus = isAdmin ? "active" : "pending_approval";
+    const userActive = isAdmin ? true : false;
+
+    const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+    const publicId = `EMP-${randomSuffix}`;
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
+    // Resolve department ObjectId if matching departmentName
+    let departmentId = null;
+    if (departmentName) {
+      const dept = await Department.findOne({ name: new RegExp(`^${departmentName}$`, "i") });
+      if (dept) departmentId = dept._id;
+    }
+
     const newUser = await User.create({
+      publicId,
       fullname: fullname || cleanEmail.split("@")[0],
       email: cleanEmail,
       password: hashedPassword,
       role: userRole,
-      departmentName: departmentName || "General",
-      jobTitle: jobTitle || (userRole === "admin" ? "Workspace Admin" : userRole === "manager" ? "Team Lead" : "Associate"),
+      status: userStatus,
+      isActive: userActive,
+      department: departmentId,
+      departmentName: departmentName || "Engineering",
+      jobTitle: jobTitle || (isAdmin ? "Workspace Admin" : "Team Member"),
       phone,
+      avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(fullname || cleanEmail)}`,
+      joinRequest: {
+        requestedDepartment: departmentId,
+        requestedDepartmentName: departmentName || "Engineering",
+        requestedRole: userRole,
+        requestedJobTitle: jobTitle || "Team Member",
+        reason: reason || "Standard workspace registration",
+        requestedAt: new Date(),
+      },
     });
 
     const token = generateTokenAndSetCookie(res, newUser._id);
 
+    // Notify Admins if pending approval
+    if (!isAdmin) {
+      enqueueWebSocketEvent({
+        target: "all",
+        event: "join-request:new",
+        data: {
+          user: {
+            _id: newUser._id,
+            publicId: newUser.publicId,
+            fullname: newUser.fullname,
+            email: newUser.email,
+            avatar: newUser.avatar,
+            departmentName: newUser.departmentName,
+            jobTitle: newUser.jobTitle,
+            createdAt: newUser.createdAt,
+            reason: reason || "Standard workspace registration",
+          },
+        },
+      });
+
+      sendPushToAdmins({
+        title: "New Team Join Request",
+        body: `${newUser.fullname} (${newUser.publicId}) requested to join ${newUser.departmentName}.`,
+        url: "/team",
+      }).catch(() => {});
+    }
+
     res.status(201).json({
       success: true,
-      message: "Signup successful",
+      message: isAdmin
+        ? "Superadmin registration successful"
+        : "Join request submitted! Your account is pending workspace admin approval.",
       token,
       user: {
         _id: newUser._id,
         id: newUser._id,
+        publicId: newUser.publicId,
         email: newUser.email,
         fullname: newUser.fullname,
         role: newUser.role,
+        status: newUser.status,
+        isActive: newUser.isActive,
         departmentName: newUser.departmentName,
         jobTitle: newUser.jobTitle,
         avatar: newUser.avatar,
+        joinRequest: newUser.joinRequest,
       },
     });
   } catch (error) {
@@ -67,7 +136,7 @@ exports.Signup = async (req, res) => {
 };
 
 // ==============================================
-// 2. LOGIN
+// 2. LOGIN (Strict Real Authentication)
 // ==============================================
 exports.Login = async (req, res) => {
   try {
@@ -83,14 +152,8 @@ exports.Login = async (req, res) => {
       return res.status(404).json({ success: false, message: "No account found with this email" });
     }
 
-    if (user.isActive === false) {
-      return res.status(403).json({ success: false, message: "Account has been deactivated" });
-    }
-
-    let match = await bcrypt.compare(password, user.password);
-    if (!match && password === "password123") {
-      match = true;
-    }
+    // Strict bcrypt authentication - NO backdoors
+    const match = await bcrypt.compare(password, user.password);
     if (!match) {
       return res.status(401).json({ success: false, message: "Invalid email or password" });
     }
@@ -98,6 +161,22 @@ exports.Login = async (req, res) => {
     // Upgrade to admin if superadmin email
     if (isSuperAdminEmail(cleanEmail) && user.role !== "admin") {
       user.role = "admin";
+      user.status = "active";
+      user.isActive = true;
+      await user.save();
+    }
+
+    // Handle Rejected Account
+    if (user.status === "rejected") {
+      return res.status(403).json({
+        success: false,
+        message: `Your request to join this workspace was declined: "${user.joinRequest?.rejectionReason || "Contact administrator"}"`,
+      });
+    }
+
+    // Ensure user has a public ID
+    if (!user.publicId) {
+      user.publicId = `EMP-${Math.floor(1000 + Math.random() * 9000)}`;
       await user.save();
     }
 
@@ -105,19 +184,24 @@ exports.Login = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: "Login successful",
+      message: user.status === "pending_approval"
+        ? "Account pending workspace approval"
+        : "Login successful",
       token,
       user: {
         _id: user._id,
         id: user._id,
+        publicId: user.publicId,
         email: user.email,
         fullname: user.fullname,
         role: user.role,
+        status: user.status,
+        isActive: user.isActive,
         departmentName: user.department?.name || user.departmentName || "General",
         department: user.department,
         jobTitle: user.jobTitle,
         avatar: user.avatar || user.profilePicture,
-        status: user.status,
+        joinRequest: user.joinRequest,
       },
     });
   } catch (error) {
@@ -133,13 +217,14 @@ exports.Logout = (req, res) => {
   res.cookie("token", "", {
     httpOnly: true,
     expires: new Date(0),
-    sameSite: "strict",
+    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+    secure: process.env.NODE_ENV === "production",
   });
   res.status(200).json({ success: true, message: "Logged out successfully" });
 };
 
 // ==============================================
-// 4. ME (Get Current User)
+// 4. ME (Get Current User & Join Request State)
 // ==============================================
 exports.Me = async (req, res) => {
   try {
@@ -151,21 +236,29 @@ exports.Me = async (req, res) => {
       return res.status(404).json({ success: false, message: "User not found" });
     }
 
+    // Ensure publicId exists
+    if (!user.publicId) {
+      user.publicId = `EMP-${Math.floor(1000 + Math.random() * 9000)}`;
+      await user.save();
+    }
+
     res.status(200).json({
       success: true,
       user: {
         _id: user._id,
         id: user._id,
+        publicId: user.publicId,
         email: user.email,
         fullname: user.fullname,
         role: user.role,
+        status: user.status,
+        isActive: user.isActive,
         departmentName: user.department?.name || user.departmentName || "General",
         department: user.department,
         jobTitle: user.jobTitle,
         avatar: user.avatar || user.profilePicture,
         phone: user.phone,
-        status: user.status,
-        isActive: user.isActive,
+        joinRequest: user.joinRequest,
       },
     });
   } catch (error) {
@@ -174,43 +267,13 @@ exports.Me = async (req, res) => {
 };
 
 // ==============================================
-// 5. DEMO QUICK LOGIN (For fast testing of 3 roles)
+// 5. DEMO LOGIN (Disabled for production security)
 // ==============================================
 exports.DemoLogin = async (req, res) => {
-  try {
-    const { role } = req.body; // 'admin', 'manager', 'employee'
-    const targetRole = role || "admin";
-
-    let user = await User.findOne({ role: targetRole, isActive: true }).populate("department");
-    if (!user) {
-      user = await User.findOne().populate("department");
-    }
-
-    if (!user) {
-      return res.status(404).json({ success: false, message: "No demo user found. Please wait for seed." });
-    }
-
-    const token = generateTokenAndSetCookie(res, user._id);
-
-    res.status(200).json({
-      success: true,
-      message: `Logged in as demo ${user.role}`,
-      token,
-      user: {
-        _id: user._id,
-        id: user._id,
-        email: user.email,
-        fullname: user.fullname,
-        role: user.role,
-        departmentName: user.department?.name || user.departmentName || "General",
-        department: user.department,
-        jobTitle: user.jobTitle,
-        avatar: user.avatar || user.profilePicture,
-      },
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
+  return res.status(403).json({
+    success: false,
+    message: "Demo logins have been permanently removed. Please sign in with your email or Continue with Google.",
+  });
 };
 
 // ==============================================

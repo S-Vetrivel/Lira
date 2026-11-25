@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 
 export default function Sidebar() {
-  const { user, activeProject, handleDemoLogin } = useApp();
+  const { user, activeProject } = useApp();
 
   const navItems = [
     {
@@ -132,53 +132,14 @@ export default function Sidebar() {
         </nav>
       </div>
 
-      {/* Bottom: Fast Demo Role Switcher */}
-      <div className="p-4 border-t border-slate-900 bg-slate-950/80 space-y-2.5">
-        <div className="flex items-center justify-between text-[11px] font-bold text-slate-400">
-          <span className="flex items-center gap-1.5">
-            <Zap className="w-3.5 h-3.5 text-amber-400" />
-            <span>Fast Role Switch:</span>
+      {/* Workspace Footer Info */}
+      <div className="p-3 border-t border-slate-900 bg-slate-950/80 flex items-center justify-between text-xs text-slate-400">
+        <span className="font-semibold">{user?.fullname}</span>
+        {user?.publicId && (
+          <span className="font-mono text-[10px] text-purple-300 bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/20">
+            {user?.publicId}
           </span>
-          <span className="text-[10px] uppercase font-mono text-blue-400">{user?.role}</span>
-        </div>
-
-        <div className="grid grid-cols-3 gap-1.5">
-          <button
-            onClick={() => handleDemoLogin("admin")}
-            className={`py-2 px-1.5 rounded-xl text-[11px] font-extrabold transition-all border text-center cursor-pointer ${
-              user?.role === "admin"
-                ? "bg-purple-600 text-white border-purple-500 shadow-sm"
-                : "bg-slate-900 text-slate-300 border-slate-800 hover:bg-slate-800"
-            }`}
-            title="Switch to Admin Alex Vance"
-          >
-            👑 Admin
-          </button>
-
-          <button
-            onClick={() => handleDemoLogin("manager")}
-            className={`py-2 px-1.5 rounded-xl text-[11px] font-extrabold transition-all border text-center cursor-pointer ${
-              user?.role === "manager"
-                ? "bg-blue-600 text-white border-blue-500 shadow-sm"
-                : "bg-slate-900 text-slate-300 border-slate-800 hover:bg-slate-800"
-            }`}
-            title="Switch to Manager Sarah Connor"
-          >
-            👔 Lead
-          </button>
-
-          <button
-            onClick={() => handleDemoLogin("employee")}
-            className={`py-2 px-1.5 rounded-xl text-[11px] font-extrabold transition-all border text-center cursor-pointer ${
-              user?.role === "employee"
-                ? "bg-emerald-600 text-white border-emerald-500 shadow-sm"
-                : "bg-slate-900 text-slate-300 border-slate-800 hover:bg-slate-800"
-            }`}
-            title="Switch to Employee Rahul Sharma"
-          >
-            👨‍💻 Dev
-          </button>
-        </div>
+        )}
       </div>
     </aside>
   );

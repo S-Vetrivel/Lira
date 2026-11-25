@@ -3,11 +3,15 @@ require("dotenv").config({ path: path.resolve(__dirname, "../.env") });
 const connectMongo = require("../config/connectMongo");
 const { connection } = require("../services/queue");
 
+let workersStarted = false;
+
 const startWorkers = async () => {
+  if (workersStarted) return;
+  workersStarted = true;
+
   try {
-    console.log("🔄 [Worker Engine] Connecting to MongoDB and Redis...");
+    console.log("🔄 [Worker Engine] Initializing Unified BullMQ Workers...");
     await connectMongo();
-    console.log("✅ [Worker Engine] MongoDB ready");
 
     // Initialize all background BullMQ workers
     const websocketWorker = require("./websocketWorker");
@@ -17,9 +21,11 @@ const startWorkers = async () => {
     const aiWorker = require("./aiWorker");
     const fileSharingWorker = require("./fileSharingWorker");
     const routineSchedulerWorker = require("./routineSchedulerWorker");
+    const mediaWorker = require("./mediaWorker");
+    const orderWorker = require("./orderWorker");
     const { enqueueRoutineJob } = require("../services/queue");
 
-    console.log("🚀 [Worker Engine] 7 Background Queue Workers active:");
+    console.log("🚀 [Worker Engine] 9 Unified Background Queue Workers active:");
     console.log("   ⚡ 1. WebSocket Broadcast Worker (concurrency: 10)");
     console.log("   🔔 2. Notification Processor Worker (concurrency: 5)");
     console.log("   📝 3. Audit Activity Log Worker (concurrency: 5)");
@@ -27,12 +33,13 @@ const startWorkers = async () => {
     console.log("   🧠 5. Google AI Task Worker (concurrency: 2)");
     console.log("   📁 6. File Sharing & Verification Worker (concurrency: 5)");
     console.log("   ⏰ 7. Routine Scheduler & Escalation Worker (concurrency: 2)");
+    console.log("   🖼️  8. Media Sharp & MinIO Worker (concurrency: 4)");
+    console.log("   📦 9. Order Processing Worker (concurrency: 5)");
 
     // Schedule recurring routine trigger every 60 seconds
     const routineInterval = setInterval(() => {
       enqueueRoutineJob();
     }, 60000);
-    enqueueRoutineJob(); // trigger immediate initial check
 
     // Graceful shutdown
     const shutdown = async () => {
@@ -46,18 +53,38 @@ const startWorkers = async () => {
         aiWorker.close(),
         fileSharingWorker.close(),
         routineSchedulerWorker.close(),
+        mediaWorker.close(),
+        orderWorker.close(),
         connection.quit(),
       ]);
-      console.log("✅ All background workers gracefully closed");
-      process.exit(0);
+      console.log("✅ All unified background workers gracefully closed");
+      if (require.main === module) process.exit(0);
     };
 
     process.on("SIGTERM", shutdown);
     process.on("SIGINT", shutdown);
+
+    return {
+      websocketWorker,
+      notificationWorker,
+      activityWorker,
+      taskMetricsWorker,
+      aiWorker,
+      fileSharingWorker,
+      routineSchedulerWorker,
+      mediaWorker,
+      orderWorker,
+      shutdown,
+    };
   } catch (error) {
-    console.error("❌ Worker startup failed:", error);
-    process.exit(1);
+    console.error("❌ Unified worker startup failed:", error);
+    if (require.main === module) process.exit(1);
+    throw error;
   }
 };
 
-startWorkers();
+if (require.main === module) {
+  startWorkers();
+}
+
+module.exports = { startWorkers };

@@ -34,7 +34,6 @@ export default function Header() {
     setIsCreateTaskModalOpen,
     setIsCommandPaletteOpen,
     setSelectedTaskKeyOrId,
-    handleDemoLogin,
     handleLogout,
   } = useApp();
 
@@ -367,54 +366,11 @@ export default function Header() {
                     {user?.fullname}
                   </p>
                   <p className="text-[10px] text-slate-400 truncate">{user?.email}</p>
-                </div>
-              </div>
-
-              {/* Fast Role Switcher */}
-              <div>
-                <span className={`text-[10px] font-bold uppercase tracking-wider block mb-1.5 ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-                  Demo Role Switch:
-                </span>
-                <div className="grid grid-cols-3 gap-1.5">
-                  <button
-                    onClick={() => {
-                      handleDemoLogin("admin");
-                      setShowProfileMenu(false);
-                    }}
-                    className={`py-1 px-2 rounded-xl text-[10px] font-bold transition-all text-center ${
-                      isDark
-                        ? "bg-purple-950/60 hover:bg-purple-900 text-purple-300 border border-purple-500/30"
-                        : "bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200"
-                    }`}
-                  >
-                    👑 Admin
-                  </button>
-                  <button
-                    onClick={() => {
-                      handleDemoLogin("manager");
-                      setShowProfileMenu(false);
-                    }}
-                    className={`py-1 px-2 rounded-xl text-[10px] font-bold transition-all text-center ${
-                      isDark
-                        ? "bg-blue-950/60 hover:bg-blue-900 text-blue-300 border border-blue-500/30"
-                        : "bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200"
-                    }`}
-                  >
-                    👔 Lead
-                  </button>
-                  <button
-                    onClick={() => {
-                      handleDemoLogin("employee");
-                      setShowProfileMenu(false);
-                    }}
-                    className={`py-1 px-2 rounded-xl text-[10px] font-bold transition-all text-center ${
-                      isDark
-                        ? "bg-emerald-950/60 hover:bg-emerald-900 text-emerald-300 border border-emerald-500/30"
-                        : "bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200"
-                    }`}
-                  >
-                    👨‍💻 Dev
-                  </button>
+                  {user?.publicId && (
+                    <span className="inline-block mt-1 text-[10px] font-mono text-purple-300 font-bold bg-purple-500/10 border border-purple-500/20 px-2 py-0.5 rounded-md">
+                      {user?.publicId}
+                    </span>
+                  )}
                 </div>
               </div>
 

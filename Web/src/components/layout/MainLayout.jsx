@@ -6,6 +6,7 @@ import Header from "./Header";
 import TaskDrawer from "../task/TaskDrawer";
 import CreateTaskModal from "../task/CreateTaskModal";
 import CommandPalette from "../search/CommandPalette";
+import JoinRequestStatus from "../../pages/JoinRequestStatus";
 
 export function MainLayout() {
   const location = useLocation();
@@ -42,6 +43,10 @@ export function MainLayout() {
 
   if (!user) {
     return <Navigate to="/login" replace />;
+  }
+
+  if (user.status === "pending_approval") {
+    return <JoinRequestStatus />;
   }
 
   return (
