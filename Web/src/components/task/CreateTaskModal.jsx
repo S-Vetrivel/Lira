@@ -17,10 +17,12 @@ import {
   ListTodo,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { getGlassTokens } from "../../styles/glassTheme";
 
 export default function CreateTaskModal({ isOpen, onClose, onCreated }) {
   const { user, projects, activeProject, teamMembers, theme } = useApp();
   const isDark = theme === "dark";
+  const g = getGlassTokens(isDark);
 
   const [projectId, setProjectId] = useState(activeProject?._id || "");
   const [title, setTitle] = useState("");
@@ -148,33 +150,23 @@ export default function CreateTaskModal({ isOpen, onClose, onCreated }) {
 
       {/* Slide-over Side Drawer */}
       <div
-        className={`relative w-full max-w-xl h-full flex flex-col z-10 border-l shadow-2xl animate-in slide-in-from-right duration-200 ${
-          isDark
-            ? "bg-[#0f1016] border-white/[0.08] text-slate-100"
-            : "bg-white border-slate-200 text-slate-900"
+        className={`relative w-full max-w-xl h-full flex flex-col z-10 border-l lira-glass-drawer animate-in slide-in-from-right duration-200 ${
+          isDark ? "text-slate-100" : "text-slate-900"
         }`}
       >
         {/* Header */}
         <div
-          className={`px-6 py-4 border-b flex items-center justify-between shrink-0 ${
-            isDark ? "bg-[#12131c] border-white/[0.08]" : "bg-slate-50/80 border-slate-200"
-          }`}
+          className={`px-6 py-4 border-b flex items-center justify-between shrink-0 ${g.subHeader}`}
         >
           <div className="flex items-center gap-3">
-            <div
-              className={`w-9 h-9 rounded-xl border flex items-center justify-center ${
-                isDark
-                  ? "bg-white/[0.04] border-white/[0.08] text-indigo-400"
-                  : "bg-indigo-50 border-indigo-200 text-indigo-600"
-              }`}
-            >
+            <div className={`w-9 h-9 rounded-xl border flex items-center justify-center ${g.badge}`}>
               <Plus className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="text-sm sm:text-base font-bold leading-tight">
+              <h2 className={`text-sm sm:text-base font-bold leading-tight ${g.heading}`}>
                 Create New Task
               </h2>
-              <p className={`text-xs mt-0.5 ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+              <p className={`text-xs mt-0.5 ${g.muted}`}>
                 Create and assign a new task to your workspace
               </p>
             </div>
@@ -182,9 +174,7 @@ export default function CreateTaskModal({ isOpen, onClose, onCreated }) {
 
           <button
             onClick={onClose}
-            className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-              isDark ? "text-slate-400 hover:text-white hover:bg-white/10" : "text-slate-400 hover:text-slate-700 hover:bg-slate-100"
-            }`}
+            className={`p-1.5 rounded-lg transition-colors cursor-pointer ${g.iconBtn}`}
           >
             <X className="w-4 h-4" />
           </button>
@@ -195,20 +185,16 @@ export default function CreateTaskModal({ isOpen, onClose, onCreated }) {
           {/* Project & Task Type row */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             <div>
-              <label className={`text-xs font-bold block mb-1.5 ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+              <label className={`text-xs font-bold block mb-1.5 ${g.heading}`}>
                 Project Workspace *
               </label>
               <select
                 value={projectId}
                 onChange={(e) => setProjectId(e.target.value)}
-                className={`w-full text-xs font-semibold rounded-xl px-3.5 py-2.5 border focus:outline-none focus:ring-2 focus:ring-indigo-500/30 ${
-                  isDark
-                    ? "bg-[#12131c] border-white/10 text-slate-200"
-                    : "bg-slate-50 border-slate-200 text-slate-800"
-                }`}
+                className={`w-full text-xs font-semibold rounded-xl px-3.5 py-2.5 border focus:outline-none ${g.input}`}
               >
                 {projects.map((p) => (
-                  <option key={p._id} value={p._id}>
+                  <option key={p._id} value={p._id} className={isDark ? "bg-[#14151a] text-white" : "bg-white text-slate-900"}>
                     [{p.prefix}] {p.name}
                   </option>
                 ))}
@@ -216,22 +202,18 @@ export default function CreateTaskModal({ isOpen, onClose, onCreated }) {
             </div>
 
             <div>
-              <label className={`text-xs font-bold block mb-1.5 ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+              <label className={`text-xs font-bold block mb-1.5 ${g.heading}`}>
                 Task Type
               </label>
               <select
                 value={type}
                 onChange={(e) => setType(e.target.value)}
-                className={`w-full text-xs font-semibold rounded-xl px-3.5 py-2.5 border focus:outline-none focus:ring-2 focus:ring-indigo-500/30 ${
-                  isDark
-                    ? "bg-[#12131c] border-white/10 text-slate-200"
-                    : "bg-slate-50 border-slate-200 text-slate-800"
-                }`}
+                className={`w-full text-xs font-semibold rounded-xl px-3.5 py-2.5 border focus:outline-none ${g.input}`}
               >
-                <option value="task">Regular Task</option>
-                <option value="bug">Bug / Issue</option>
-                <option value="client_request">Client Request</option>
-                <option value="approval">Office Approval</option>
+                <option value="task" className={isDark ? "bg-[#14151a] text-white" : "bg-white text-slate-900"}>Regular Task</option>
+                <option value="bug" className={isDark ? "bg-[#14151a] text-white" : "bg-white text-slate-900"}>Bug / Issue</option>
+                <option value="client_request" className={isDark ? "bg-[#14151a] text-white" : "bg-white text-slate-900"}>Client Request</option>
+                <option value="approval" className={isDark ? "bg-[#14151a] text-white" : "bg-white text-slate-900"}>Office Approval</option>
               </select>
             </div>
           </div>
@@ -239,7 +221,7 @@ export default function CreateTaskModal({ isOpen, onClose, onCreated }) {
           {/* Title with Gemini AI button */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className={`text-xs font-bold ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+              <label className={`text-xs font-bold ${g.heading}`}>
                 Task Title *
               </label>
 
@@ -248,7 +230,7 @@ export default function CreateTaskModal({ isOpen, onClose, onCreated }) {
                 type="button"
                 onClick={handleAIBreakdown}
                 disabled={loadingAI}
-                className="flex items-center gap-1.5 text-xs text-white font-semibold bg-gradient-to-r from-indigo-500 to-purple-600 hover:opacity-95 px-3 py-1 rounded-xl shadow-md shadow-indigo-500/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                className={`flex items-center gap-1.5 text-xs px-3 py-1 rounded-xl transition-all cursor-pointer ${g.btnSecondary}`}
                 title="Auto-generate description and subtask checklist"
               >
                 <Sparkles className="w-3.5 h-3.5 animate-pulse" />
@@ -257,21 +239,17 @@ export default function CreateTaskModal({ isOpen, onClose, onCreated }) {
             </div>
             <input
               type="text"
-              placeholder="e.g. Migrate payment gateway to Stripe or Refactor user auth flow"
+              placeholder="e.g. Migrate payment gateway or Refactor auth flow"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className={`w-full rounded-xl px-3.5 py-2.5 text-sm font-medium border focus:outline-none focus:ring-2 focus:ring-indigo-500/30 ${
-                isDark
-                  ? "bg-[#12131c] border-white/10 text-slate-100 placeholder-slate-500 focus:bg-[#181926]"
-                  : "bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400 focus:bg-white"
-              }`}
+              className={`w-full rounded-xl px-3.5 py-2.5 text-sm font-medium border focus:outline-none ${g.input}`}
               required
             />
           </div>
 
           {/* Description */}
           <div>
-            <label className={`text-xs font-bold block mb-1.5 ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+            <label className={`text-xs font-bold block mb-1.5 ${g.heading}`}>
               Description & Specifications
             </label>
             <textarea
@@ -279,32 +257,24 @@ export default function CreateTaskModal({ isOpen, onClose, onCreated }) {
               placeholder="What needs to be done? Acceptance criteria, links, or notes..."
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className={`w-full rounded-xl p-3.5 text-xs sm:text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-500/30 ${
-                isDark
-                  ? "bg-[#12131c] border-white/10 text-slate-100 placeholder-slate-500 focus:bg-[#181926]"
-                  : "bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400 focus:bg-white"
-              }`}
+              className={`w-full rounded-xl p-3.5 text-xs sm:text-sm border focus:outline-none ${g.input}`}
             />
           </div>
 
           {/* Assignee & Priority row */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             <div>
-              <label className={`text-xs font-bold block mb-1.5 ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+              <label className={`text-xs font-bold block mb-1.5 ${g.heading}`}>
                 Assignee
               </label>
               <select
                 value={assignee}
                 onChange={(e) => setAssignee(e.target.value)}
-                className={`w-full text-xs font-semibold rounded-xl px-3.5 py-2.5 border focus:outline-none focus:ring-2 focus:ring-indigo-500/30 cursor-pointer ${
-                  isDark
-                    ? "bg-[#12131c] border-white/10 text-slate-200"
-                    : "bg-slate-50 border-slate-200 text-slate-800"
-                }`}
+                className={`w-full text-xs font-semibold rounded-xl px-3.5 py-2.5 border focus:outline-none cursor-pointer ${g.input}`}
               >
-                <option value="">Leave Unassigned (Backlog)</option>
+                <option value="" className={isDark ? "bg-[#14151a] text-white" : "bg-white text-slate-900"}>Leave Unassigned (Backlog)</option>
                 {teamMembers.map((m) => (
-                  <option key={m._id} value={m._id}>
+                  <option key={m._id} value={m._id} className={isDark ? "bg-[#14151a] text-white" : "bg-white text-slate-900"}>
                     {m.fullname} ({m.departmentName || "General"})
                   </option>
                 ))}
@@ -312,22 +282,18 @@ export default function CreateTaskModal({ isOpen, onClose, onCreated }) {
             </div>
 
             <div>
-              <label className={`text-xs font-bold block mb-1.5 ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+              <label className={`text-xs font-bold block mb-1.5 ${g.heading}`}>
                 Priority
               </label>
               <select
                 value={priority}
                 onChange={(e) => setPriority(e.target.value)}
-                className={`w-full text-xs font-semibold rounded-xl px-3.5 py-2.5 border focus:outline-none focus:ring-2 focus:ring-indigo-500/30 cursor-pointer ${
-                  isDark
-                    ? "bg-[#12131c] border-white/10 text-slate-200"
-                    : "bg-slate-50 border-slate-200 text-slate-800"
-                }`}
+                className={`w-full text-xs font-semibold rounded-xl px-3.5 py-2.5 border focus:outline-none cursor-pointer ${g.input}`}
               >
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
-                <option value="urgent">Urgent</option>
+                <option value="low" className={isDark ? "bg-[#14151a] text-white" : "bg-white text-slate-900"}>Low</option>
+                <option value="medium" className={isDark ? "bg-[#14151a] text-white" : "bg-white text-slate-900"}>Medium</option>
+                <option value="high" className={isDark ? "bg-[#14151a] text-white" : "bg-white text-slate-900"}>High</option>
+                <option value="urgent" className={isDark ? "bg-[#14151a] text-white" : "bg-white text-slate-900"}>Urgent</option>
               </select>
             </div>
           </div>
@@ -335,23 +301,19 @@ export default function CreateTaskModal({ isOpen, onClose, onCreated }) {
           {/* Due Date & Estimated Hours row */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             <div>
-              <label className={`text-xs font-bold block mb-1.5 ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+              <label className={`text-xs font-bold block mb-1.5 ${g.heading}`}>
                 Due Date
               </label>
               <input
                 type="date"
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
-                className={`w-full text-xs font-semibold rounded-xl px-3.5 py-2.5 border focus:outline-none focus:ring-2 focus:ring-indigo-500/30 ${
-                  isDark
-                    ? "bg-[#12131c] border-white/10 text-slate-200"
-                    : "bg-slate-50 border-slate-200 text-slate-800"
-                }`}
+                className={`w-full text-xs font-semibold rounded-xl px-3.5 py-2.5 border focus:outline-none ${g.input}`}
               />
             </div>
 
             <div>
-              <label className={`text-xs font-bold block mb-1.5 ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+              <label className={`text-xs font-bold block mb-1.5 ${g.heading}`}>
                 Estimated Hours
               </label>
               <input
@@ -361,18 +323,14 @@ export default function CreateTaskModal({ isOpen, onClose, onCreated }) {
                 placeholder="e.g. 8"
                 value={estimatedHours}
                 onChange={(e) => setEstimatedHours(e.target.value)}
-                className={`w-full text-xs font-semibold rounded-xl px-3.5 py-2.5 border focus:outline-none focus:ring-2 focus:ring-indigo-500/30 ${
-                  isDark
-                    ? "bg-[#12131c] border-white/10 text-slate-200"
-                    : "bg-slate-50 border-slate-200 text-slate-800"
-                }`}
+                className={`w-full text-xs font-semibold rounded-xl px-3.5 py-2.5 border focus:outline-none ${g.input}`}
               />
             </div>
           </div>
 
           {/* Subtasks Builder */}
           <div>
-            <label className={`text-xs font-bold block mb-2 ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+            <label className={`text-xs font-bold block mb-2 ${g.heading}`}>
               Subtasks Checklist ({subtasks.length})
             </label>
 
@@ -381,17 +339,13 @@ export default function CreateTaskModal({ isOpen, onClose, onCreated }) {
                 {subtasks.map((st, idx) => (
                   <div
                     key={idx}
-                    className={`flex items-center justify-between p-2.5 rounded-xl border text-xs ${
-                      isDark
-                        ? "bg-[#12131c] border-white/10 text-slate-200"
-                        : "bg-slate-50 border-slate-200 text-slate-800"
-                    }`}
+                    className={`flex items-center justify-between p-2.5 rounded-xl border text-xs ${g.subtleSurface}`}
                   >
                     <span className="font-medium">• {st.title}</span>
                     <button
                       type="button"
                       onClick={() => handleRemoveSubtask(idx)}
-                      className="text-slate-400 hover:text-rose-500 p-1 rounded transition-colors"
+                      className="text-zinc-400 hover:text-rose-500 p-1 rounded transition-colors cursor-pointer"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -412,20 +366,12 @@ export default function CreateTaskModal({ isOpen, onClose, onCreated }) {
                     handleAddSubtask(e);
                   }
                 }}
-                className={`flex-1 rounded-xl px-3.5 py-2 text-xs border focus:outline-none focus:ring-2 focus:ring-indigo-500/30 ${
-                  isDark
-                    ? "bg-[#12131c] border-white/10 text-slate-100 placeholder-slate-500"
-                    : "bg-slate-50 border-slate-200 text-slate-800 placeholder-slate-400"
-                }`}
+                className={`flex-1 rounded-xl px-3.5 py-2 text-xs border focus:outline-none ${g.input}`}
               />
               <button
                 type="button"
                 onClick={handleAddSubtask}
-                className={`px-4 py-2 text-xs font-semibold rounded-xl transition-colors ${
-                  isDark
-                    ? "bg-white/10 hover:bg-white/15 text-slate-200"
-                    : "bg-slate-200 hover:bg-slate-300 text-slate-800"
-                }`}
+                className={`px-4 py-2 text-xs font-semibold rounded-xl transition-colors cursor-pointer ${g.btnSecondary}`}
               >
                 Add
               </button>
@@ -433,20 +379,18 @@ export default function CreateTaskModal({ isOpen, onClose, onCreated }) {
           </div>
 
           {/* Action Footer */}
-          <div className={`pt-4 border-t flex items-center justify-end gap-3 ${isDark ? "border-white/10" : "border-slate-200"}`}>
+          <div className={`pt-4 border-t flex items-center justify-end gap-3 ${g.border}`}>
             <button
               type="button"
               onClick={onClose}
-              className={`px-4.5 py-2.5 text-xs font-semibold rounded-xl transition-colors ${
-                isDark ? "text-slate-400 hover:bg-white/5" : "text-slate-600 hover:bg-slate-100"
-              }`}
+              className={`px-4 py-2.5 text-xs font-semibold rounded-xl transition-colors cursor-pointer ${g.btnSecondary}`}
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={submitting}
-              className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-xl shadow-md shadow-indigo-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
+              className={`px-6 py-2.5 text-xs font-semibold rounded-xl transition-all cursor-pointer ${g.btnPrimary}`}
             >
               {submitting ? "Creating..." : "Create Task"}
             </button>

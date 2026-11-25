@@ -44,17 +44,29 @@ export function MainLayout({ children }) {
 
   return (
     <div
-      className={`h-screen w-screen flex flex-col overflow-hidden font-sans selection:bg-purple-600 selection:text-white transition-colors duration-150 ${
-        isDark
-          ? "bg-[#0c0d12] text-slate-100"
-          : "bg-slate-50 text-slate-900"
+      className={`h-screen w-screen flex flex-col overflow-hidden font-sans selection:bg-zinc-700 selection:text-white lira-canvas-bg relative transition-colors duration-150 ${
+        isDark ? "text-zinc-100" : "text-slate-900"
       }`}
     >
+      {/* Subtle Neutral Charcoal/Silver Ambient Mist behind frosted cards */}
+      <div className="pointer-events-none fixed inset-0 overflow-hidden z-0">
+        <div
+          className={`absolute -top-32 -left-24 w-[520px] h-[520px] rounded-full blur-3xl ${
+            isDark ? "bg-zinc-300/[0.06]" : "bg-slate-400/20"
+          }`}
+        />
+        <div
+          className={`absolute -bottom-40 right-[-60px] w-[520px] h-[520px] rounded-full blur-3xl ${
+            isDark ? "bg-zinc-400/[0.05]" : "bg-slate-300/25"
+          }`}
+        />
+      </div>
+
       {/* 100% Full-Width Top Navigation Bar */}
       <Header />
 
-      {/* 100% Full-Width & Full-Height Content Area with Fluid Page Shift Animation */}
-      <main className="flex-1 w-full min-h-0 flex flex-col overflow-hidden relative">
+      {/* 100% Full-Width & Full-Height Content Area */}
+      <main className="flex-1 w-full min-h-0 flex flex-col overflow-hidden relative z-10">
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
             key={location.pathname}

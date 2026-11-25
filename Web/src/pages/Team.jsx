@@ -235,25 +235,16 @@ export default function Team() {
 
   return (
     <div
-      className={`flex-1 w-full h-full min-h-0 overflow-y-auto p-5 sm:p-7 space-y-6 transition-colors duration-150 ${
-        isDark ? "bg-[#0c0d12]" : "bg-slate-50"
-      }`}
+      className={`flex-1 w-full h-full min-h-0 overflow-y-auto p-5 sm:p-7 space-y-6 transition-colors duration-150 ${isDark ? "text-slate-100" : "text-slate-900"
+        }`}
     >
       {/* Header Banner */}
-      <div
-        className={`flex flex-wrap items-center justify-between gap-4 pb-4 border-b ${
-          isDark ? "border-white/10" : "border-slate-200"
-        }`}
-      >
+      <div className={`flex flex-wrap items-center justify-between gap-4 pb-4 border-b ${isDark ? "border-white/[0.08]" : "border-slate-900/[0.08]"}`}>
         <div>
-          <h1
-            className={`text-2xl sm:text-3xl font-extrabold tracking-tight ${
-              isDark ? "text-white" : "text-slate-900"
-            }`}
-          >
+          <h1 className={`text-2xl sm:text-3xl font-extrabold tracking-tight ${isDark ? "text-white" : "text-slate-950"}`}>
             Team Directory & Governance
           </h1>
-          <p className={`text-xs sm:text-sm mt-1 ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+          <p className={`text-xs sm:text-sm mt-1 ${isDark ? "text-zinc-400" : "text-slate-500"}`}>
             Manage verified team members, review public ID onboarding requests, and monitor assignments.
           </p>
         </div>
@@ -264,22 +255,19 @@ export default function Team() {
               fetchMembers();
               fetchJoinRequests();
             }}
-            className={`p-2 rounded-full border transition-colors cursor-pointer ${
-              isDark
-                ? "bg-white/5 hover:bg-white/10 border-white/10 text-slate-300 hover:text-white"
-                : "bg-white hover:bg-slate-100 border-slate-200 text-slate-700 shadow-xs"
-            }`}
+            className={`p-2 rounded-full border transition-colors cursor-pointer ${isDark
+              ? "bg-white/[0.05] hover:bg-white/[0.10] border-white/[0.09] text-zinc-300 hover:text-white"
+              : "bg-white hover:bg-slate-100 border-slate-200 text-slate-700 shadow-xs"
+              }`}
             title="Refresh list"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin text-indigo-400" : ""}`} />
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
           </button>
 
           {user?.role === "admin" && (
             <button
               onClick={() => setShowAddUserModal(true)}
-              className={`flex items-center gap-1.5 text-xs font-semibold px-4 py-2 rounded-full transition-all cursor-pointer ${
-                isDark ? "bg-white text-slate-950 hover:bg-slate-200" : "bg-slate-900 text-white hover:bg-slate-800"
-              }`}
+              className="flex items-center gap-1.5 text-xs font-semibold px-4 py-2 rounded-full lira-btn-primary cursor-pointer"
             >
               <UserPlus className="w-3.5 h-3.5" />
               <span>Add Member</span>
@@ -290,16 +278,15 @@ export default function Team() {
 
       {/* Primary Tab Switcher */}
       {canManage && (
-        <div className="flex items-center gap-2 border-b border-white/10 pb-2">
+        <div className={`flex items-center gap-2 border-b pb-2 ${isDark ? "border-white/[0.08]" : "border-slate-900/[0.08]"}`}>
           <button
             onClick={() => setActiveTab("directory")}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-              activeTab === "directory"
-                ? "bg-purple-600 text-white shadow-lg shadow-purple-500/20"
-                : isDark
-                ? "text-slate-400 hover:text-white hover:bg-white/5"
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${activeTab === "directory"
+              ? "lira-btn-primary"
+              : isDark
+                ? "text-zinc-300 hover:text-white hover:bg-white/[0.06]"
                 : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
-            }`}
+              }`}
           >
             <Users className="w-3.5 h-3.5" />
             <span>Active Team Members ({members.length})</span>
@@ -307,13 +294,12 @@ export default function Team() {
 
           <button
             onClick={() => setActiveTab("join-requests")}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer relative ${
-              activeTab === "join-requests"
-                ? "bg-amber-600 text-white shadow-lg shadow-amber-500/20"
-                : isDark
-                ? "text-slate-400 hover:text-white hover:bg-white/5"
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer relative ${activeTab === "join-requests"
+              ? "bg-amber-500 text-zinc-950 shadow-sm"
+              : isDark
+                ? "text-zinc-400 hover:text-white hover:bg-white/[0.06]"
                 : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
-            }`}
+              }`}
           >
             <Clock className="w-3.5 h-3.5" />
             <span>Pending Join Requests</span>
@@ -441,15 +427,14 @@ export default function Team() {
             <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
               <button
                 onClick={() => setSelectedDept("all")}
-                className={`text-xs font-semibold px-3.5 py-1.5 rounded-full transition-all cursor-pointer ${
-                  selectedDept === "all"
-                    ? isDark
-                      ? "bg-white text-slate-950 font-bold shadow-xs"
-                      : "bg-slate-900 text-white font-bold shadow-xs"
-                    : isDark
+                className={`text-xs font-semibold px-3.5 py-1.5 rounded-full transition-all cursor-pointer ${selectedDept === "all"
+                  ? isDark
+                    ? "bg-white text-slate-950 font-bold shadow-xs"
+                    : "bg-slate-900 text-white font-bold shadow-xs"
+                  : isDark
                     ? "bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white border border-white/10"
                     : "bg-white hover:bg-slate-100 text-slate-600 border border-slate-200"
-                }`}
+                  }`}
               >
                 All Departments
               </button>
@@ -457,13 +442,14 @@ export default function Team() {
                 <button
                   key={d._id}
                   onClick={() => setSelectedDept(d._id)}
-                  className={`text-xs font-semibold px-3.5 py-1.5 rounded-full transition-all whitespace-nowrap cursor-pointer ${
-                    selectedDept === d._id
-                      ? "bg-indigo-600 text-white font-bold shadow-xs"
-                      : isDark
-                      ? "bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white border border-white/10"
+                  className={`text-xs font-semibold px-3.5 py-1.5 rounded-full transition-all whitespace-nowrap cursor-pointer ${selectedDept === d._id
+                    ? isDark
+                      ? "bg-white text-zinc-950 font-bold shadow-xs"
+                      : "bg-zinc-900 text-white font-bold shadow-xs"
+                    : isDark
+                      ? "bg-white/[0.05] hover:bg-white/[0.10] text-zinc-400 hover:text-white border border-white/[0.08]"
                       : "bg-white hover:bg-slate-100 text-slate-600 border border-slate-200"
-                  }`}
+                    }`}
                 >
                   {d.name}
                 </button>
@@ -472,17 +458,16 @@ export default function Team() {
 
             {/* Search Input */}
             <div className="relative">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 placeholder="Search by name, role, email..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className={`border rounded-full pl-9 pr-4 py-1.5 text-xs focus:outline-none w-60 sm:w-72 ${
-                  isDark
-                    ? "bg-[#15161f] border-white/10 text-white placeholder-slate-400"
-                    : "bg-white border-slate-200 text-slate-900 placeholder-slate-500 shadow-xs"
-                }`}
+                className={`border rounded-full pl-9 pr-4 py-1.5 text-xs focus:outline-none w-60 sm:w-72 ${isDark
+                  ? "bg-white/[0.05] border-white/[0.10] text-white placeholder-zinc-400"
+                  : "bg-white/80 border-slate-200 text-slate-900 placeholder-slate-500 shadow-xs"
+                  }`}
               />
             </div>
           </div>
@@ -490,19 +475,15 @@ export default function Team() {
           {/* Directory Grid */}
           {loading ? (
             <div className="h-64 flex flex-col items-center justify-center gap-3">
-              <div className="w-8 h-8 border-3 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-              <p className="text-xs text-slate-500 font-medium">Loading team members...</p>
+              <div className={`w-8 h-8 border-2 border-t-transparent rounded-full animate-spin ${isDark ? "border-zinc-300" : "border-zinc-700"}`} />
+              <p className="text-xs text-zinc-500 font-medium">Loading team members...</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
               {filteredMembers.map((member) => (
                 <div
                   key={member._id}
-                  className={`p-5 rounded-2xl border flex flex-col justify-between transition-all ${
-                    isDark
-                      ? "bg-[#15161f] border-white/10 shadow-sm"
-                      : "bg-white border-slate-200 shadow-xs"
-                  }`}
+                  className="p-5 rounded-2xl lira-glass flex flex-col justify-between transition-all"
                 >
                   <div>
                     {/* Header */}
@@ -510,42 +491,42 @@ export default function Team() {
                       <div className="flex items-center gap-3">
                         <UserAvatar
                           user={member}
-                          className="w-11 h-11 rounded-2xl border border-purple-500/20"
+                          className="w-11 h-11 rounded-2xl border border-white/15"
                           textClass="text-sm"
                         />
                         <div>
                           <h3 className={`text-sm font-bold truncate ${isDark ? "text-white" : "text-slate-900"}`}>
                             {member.fullname}
                           </h3>
-                          <p className="text-xs text-slate-400 truncate">{member.email}</p>
+                          <p className={`text-xs truncate ${isDark ? "text-zinc-400" : "text-slate-500"}`}>{member.email}</p>
                         </div>
                       </div>
 
                       {member.publicId && (
-                        <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-lg bg-white/5 border border-white/10 text-slate-400">
+                        <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-lg border ${isDark ? "bg-white/[0.06] border-white/[0.10] text-zinc-300" : "bg-slate-100 border-slate-200 text-slate-700"}`}>
                           {member.publicId}
                         </span>
                       )}
                     </div>
 
                     {/* Department & Job Title */}
-                    <div className={`space-y-1.5 pt-2 border-t text-xs ${isDark ? "border-white/5" : "border-slate-100"}`}>
-                      <div className={`flex items-center justify-between ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+                    <div className={`space-y-1.5 pt-2 border-t text-xs ${isDark ? "border-white/[0.06]" : "border-slate-100"}`}>
+                      <div className={`flex items-center justify-between ${isDark ? "text-zinc-400" : "text-slate-500"}`}>
                         <span className="flex items-center gap-1.5">
-                          <Building className="w-3.5 h-3.5 text-purple-400" />
+                          <Building className="w-3.5 h-3.5 opacity-75" />
                           <span>Department:</span>
                         </span>
-                        <span className={`font-semibold ${isDark ? "text-slate-200" : "text-slate-800"}`}>
+                        <span className={`font-semibold ${isDark ? "text-zinc-200" : "text-slate-800"}`}>
                           {member.department?.name || member.departmentName || "General"}
                         </span>
                       </div>
 
-                      <div className={`flex items-center justify-between ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+                      <div className={`flex items-center justify-between ${isDark ? "text-zinc-400" : "text-slate-500"}`}>
                         <span className="flex items-center gap-1.5">
-                          <Briefcase className="w-3.5 h-3.5 text-blue-400" />
+                          <Briefcase className="w-3.5 h-3.5 opacity-75" />
                           <span>Role / Title:</span>
                         </span>
-                        <span className={`font-semibold ${isDark ? "text-slate-200" : "text-slate-800"}`}>
+                        <span className={`font-semibold ${isDark ? "text-zinc-200" : "text-slate-800"}`}>
                           {member.jobTitle || "Team Member"}
                         </span>
                       </div>
@@ -553,15 +534,14 @@ export default function Team() {
                   </div>
 
                   {/* Footer & Controls */}
-                  <div className={`pt-4 mt-3 border-t flex items-center justify-between gap-2 ${isDark ? "border-white/5" : "border-slate-100"}`}>
+                  <div className={`pt-4 mt-3 border-t flex items-center justify-between gap-2 ${isDark ? "border-white/[0.06]" : "border-slate-100"}`}>
                     <span
-                      className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${
-                        member.role === "admin"
-                          ? "bg-purple-500/10 text-purple-400 border border-purple-500/20"
-                          : member.role === "manager"
-                          ? "bg-blue-500/10 text-blue-400 border border-blue-500/20"
-                          : "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"
-                      }`}
+                      className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full border ${member.role === "admin"
+                        ? isDark ? "bg-white/[0.08] text-zinc-100 border-white/[0.15]" : "bg-zinc-900 text-white border-zinc-900"
+                        : member.role === "manager"
+                          ? isDark ? "bg-amber-500/10 text-amber-300 border-amber-500/20" : "bg-amber-50 text-amber-700 border-amber-200"
+                          : "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
+                        }`}
                     >
                       <span>{member.role === "admin" ? "Admin" : member.role === "manager" ? "Manager" : "Member"}</span>
                     </span>
@@ -569,11 +549,10 @@ export default function Team() {
                     <div className="flex items-center gap-1.5">
                       <button
                         onClick={() => openMemberDrawer(member)}
-                        className={`text-xs font-semibold px-2.5 py-1 rounded-lg border flex items-center gap-1 transition-colors cursor-pointer ${
-                          isDark
-                            ? "bg-white/[0.03] border-white/10 text-slate-300 hover:bg-white/[0.08] hover:text-white"
-                            : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100"
-                        }`}
+                        className={`text-xs font-semibold px-2.5 py-1 rounded-lg border flex items-center gap-1 transition-colors cursor-pointer ${isDark
+                          ? "bg-white/[0.04] border-white/10 text-zinc-300 hover:bg-white/[0.10] hover:text-white"
+                          : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100"
+                          }`}
                         title="View & manage profile"
                       >
                         <SlidersHorizontal className="w-3 h-3" />
@@ -583,11 +562,10 @@ export default function Team() {
                       {member._id !== user?._id && (
                         <button
                           onClick={() => openDirectChat(member)}
-                          className={`text-xs font-semibold px-2.5 py-1 rounded-lg border flex items-center gap-1 transition-colors cursor-pointer ${
-                            isDark
-                              ? "bg-indigo-500/10 border-indigo-500/30 text-indigo-300 hover:bg-indigo-600 hover:text-white"
-                              : "bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-600 hover:text-white"
-                          }`}
+                          className={`text-xs font-semibold px-2.5 py-1 rounded-lg border flex items-center gap-1 transition-colors cursor-pointer ${isDark
+                            ? "bg-white/[0.06] border-white/[0.12] text-zinc-200 hover:bg-white hover:text-zinc-950"
+                            : "bg-slate-100 border-slate-200 text-slate-800 hover:bg-zinc-900 hover:text-white"
+                            }`}
                           title={`Message ${member.fullname}`}
                         >
                           <MessageSquare className="w-3 h-3" />
@@ -630,9 +608,8 @@ export default function Team() {
               placeholder="Rahul Sharma"
               value={fullname}
               onChange={(e) => setFullname(e.target.value)}
-              className={`w-full border rounded-xl px-3.5 py-2.5 text-xs focus:outline-none focus:border-indigo-500 ${
-                isDark ? "bg-[#12131b] border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
-              }`}
+              className={`w-full border rounded-xl px-3.5 py-2.5 text-xs focus:outline-none focus:border-indigo-500 ${isDark ? "bg-[#12131b] border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
+                }`}
               required
             />
           </div>
@@ -644,9 +621,8 @@ export default function Team() {
               placeholder="rahul@company.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className={`w-full border rounded-xl px-3.5 py-2.5 text-xs focus:outline-none focus:border-indigo-500 ${
-                isDark ? "bg-[#12131b] border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
-              }`}
+              className={`w-full border rounded-xl px-3.5 py-2.5 text-xs focus:outline-none focus:border-indigo-500 ${isDark ? "bg-[#12131b] border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
+                }`}
               required
             />
           </div>
@@ -658,9 +634,8 @@ export default function Team() {
               placeholder="Default: Lira@2026"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className={`w-full border rounded-xl px-3.5 py-2.5 text-xs focus:outline-none focus:border-indigo-500 ${
-                isDark ? "bg-[#12131b] border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
-              }`}
+              className={`w-full border rounded-xl px-3.5 py-2.5 text-xs focus:outline-none focus:border-indigo-500 ${isDark ? "bg-[#12131b] border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
+                }`}
             />
           </div>
 
@@ -671,9 +646,8 @@ export default function Team() {
               placeholder="e.g. Senior Frontend Engineer"
               value={jobTitle}
               onChange={(e) => setJobTitle(e.target.value)}
-              className={`w-full border rounded-xl px-3.5 py-2.5 text-xs focus:outline-none focus:border-indigo-500 ${
-                isDark ? "bg-[#12131b] border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
-              }`}
+              className={`w-full border rounded-xl px-3.5 py-2.5 text-xs focus:outline-none focus:border-indigo-500 ${isDark ? "bg-[#12131b] border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
+                }`}
             />
           </div>
 
@@ -683,9 +657,8 @@ export default function Team() {
               <select
                 value={role}
                 onChange={(e) => setRole(e.target.value)}
-                className={`w-full border rounded-xl px-3.5 py-2.5 text-xs font-semibold focus:outline-none ${
-                  isDark ? "bg-[#12131b] border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
-                }`}
+                className={`w-full border rounded-xl px-3.5 py-2.5 text-xs font-semibold focus:outline-none ${isDark ? "bg-[#12131b] border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
+                  }`}
               >
                 <option value="employee">Employee</option>
                 <option value="manager">Manager / Lead</option>
@@ -698,9 +671,8 @@ export default function Team() {
               <select
                 value={departmentId}
                 onChange={(e) => setDepartmentId(e.target.value)}
-                className={`w-full border rounded-xl px-3.5 py-2.5 text-xs focus:outline-none ${
-                  isDark ? "bg-[#12131b] border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
-                }`}
+                className={`w-full border rounded-xl px-3.5 py-2.5 text-xs focus:outline-none ${isDark ? "bg-[#12131b] border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
+                  }`}
               >
                 <option value="">General</option>
                 {departments.map((d) => (
@@ -716,18 +688,16 @@ export default function Team() {
             <button
               type="button"
               onClick={() => setShowAddUserModal(false)}
-              className={`px-4 py-2 text-xs font-semibold rounded-xl cursor-pointer ${
-                isDark ? "text-slate-400 hover:bg-white/5" : "text-slate-600 hover:bg-slate-100"
-              }`}
+              className={`px-4 py-2 text-xs font-semibold rounded-xl cursor-pointer ${isDark ? "text-slate-400 hover:bg-white/5" : "text-slate-600 hover:bg-slate-100"
+                }`}
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={submitting}
-              className={`px-5 py-2 text-xs font-semibold rounded-xl cursor-pointer ${
-                isDark ? "bg-white text-slate-950 hover:bg-slate-200" : "bg-slate-900 text-white hover:bg-slate-800"
-              }`}
+              className={`px-5 py-2 text-xs font-semibold rounded-xl cursor-pointer ${isDark ? "bg-white text-slate-950 hover:bg-slate-200" : "bg-slate-900 text-white hover:bg-slate-800"
+                }`}
             >
               {submitting ? "Saving..." : "Create Account"}
             </button>
@@ -754,9 +724,8 @@ export default function Team() {
         {selectedMember && (
           <div className="space-y-5">
             <div
-              className={`p-4 rounded-xl border flex items-center gap-4 ${
-                isDark ? "bg-white/[0.02] border-white/[0.08]" : "bg-slate-50 border-slate-200"
-              }`}
+              className={`p-4 rounded-xl border flex items-center gap-4 ${isDark ? "bg-white/[0.02] border-white/[0.08]" : "bg-slate-50 border-slate-200"
+                }`}
             >
               <UserAvatar
                 user={selectedMember}
@@ -770,28 +739,26 @@ export default function Team() {
                 </p>
                 <div className="flex flex-wrap items-center gap-2 pt-1">
                   <span
-                    className={`inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${
-                      selectedMember.status === "on_leave"
-                        ? "bg-rose-500/10 text-rose-400 border border-rose-500/20"
-                        : selectedMember.status === "away"
+                    className={`inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${selectedMember.status === "on_leave"
+                      ? "bg-rose-500/10 text-rose-400 border border-rose-500/20"
+                      : selectedMember.status === "away"
                         ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
                         : "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                    }`}
+                      }`}
                   >
                     <span
-                      className={`w-1.5 h-1.5 rounded-full ${
-                        selectedMember.status === "on_leave"
-                          ? "bg-rose-400"
-                          : selectedMember.status === "away"
+                      className={`w-1.5 h-1.5 rounded-full ${selectedMember.status === "on_leave"
+                        ? "bg-rose-400"
+                        : selectedMember.status === "away"
                           ? "bg-amber-400"
                           : "bg-emerald-400"
-                      }`}
+                        }`}
                     />
                     {selectedMember.status === "on_leave"
                       ? "On Leave"
                       : selectedMember.status === "away"
-                      ? "Away"
-                      : "Available"}
+                        ? "Away"
+                        : "Available"}
                   </span>
                   {selectedMember.phone && (
                     <span className={`text-[11px] flex items-center gap-1 ${isDark ? "text-slate-400" : "text-slate-500"}`}>
@@ -807,9 +774,8 @@ export default function Team() {
                     openDirectChat(selectedMember);
                     setSelectedMember(null);
                   }}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer shrink-0 ${
-                    isDark ? "bg-white text-slate-950 hover:bg-slate-200" : "bg-slate-900 text-white hover:bg-slate-800"
-                  }`}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer shrink-0 ${isDark ? "bg-white text-slate-950 hover:bg-slate-200" : "bg-slate-900 text-white hover:bg-slate-800"
+                    }`}
                 >
                   <MessageSquare className="w-3.5 h-3.5" />
                   <span>Message</span>
@@ -819,9 +785,8 @@ export default function Team() {
 
             {selectedMember.bio && (
               <div
-                className={`p-3.5 rounded-xl border text-xs ${
-                  isDark ? "bg-white/[0.02] border-white/[0.06] text-slate-300" : "bg-slate-50 border-slate-200 text-slate-600"
-                }`}
+                className={`p-3.5 rounded-xl border text-xs ${isDark ? "bg-white/[0.02] border-white/[0.06] text-slate-300" : "bg-slate-50 border-slate-200 text-slate-600"
+                  }`}
               >
                 {selectedMember.bio}
               </div>
@@ -840,9 +805,8 @@ export default function Team() {
                       value={editRole}
                       onChange={(e) => setEditRole(e.target.value)}
                       disabled={user?.role !== "admin"}
-                      className={`w-full border rounded-xl px-3 py-2 text-xs focus:outline-none ${
-                        isDark ? "bg-[#12131b] border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
-                      }`}
+                      className={`w-full border rounded-xl px-3 py-2 text-xs focus:outline-none ${isDark ? "bg-[#12131b] border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
+                        }`}
                     >
                       <option value="employee">Employee</option>
                       <option value="manager">Manager</option>
@@ -855,9 +819,8 @@ export default function Team() {
                     <select
                       value={editDeptId}
                       onChange={(e) => setEditDeptId(e.target.value)}
-                      className={`w-full border rounded-xl px-3 py-2 text-xs focus:outline-none ${
-                        isDark ? "bg-[#12131b] border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
-                      }`}
+                      className={`w-full border rounded-xl px-3 py-2 text-xs focus:outline-none ${isDark ? "bg-[#12131b] border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
+                        }`}
                     >
                       <option value="">General</option>
                       {departments.map((d) => (
@@ -876,9 +839,8 @@ export default function Team() {
                       type="text"
                       value={editJobTitle}
                       onChange={(e) => setEditJobTitle(e.target.value)}
-                      className={`w-full border rounded-xl px-3 py-2 text-xs focus:outline-none ${
-                        isDark ? "bg-[#12131b] border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
-                      }`}
+                      className={`w-full border rounded-xl px-3 py-2 text-xs focus:outline-none ${isDark ? "bg-[#12131b] border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
+                        }`}
                     />
                   </div>
 
@@ -887,9 +849,8 @@ export default function Team() {
                     <select
                       value={editStatus}
                       onChange={(e) => setEditStatus(e.target.value)}
-                      className={`w-full border rounded-xl px-3 py-2 text-xs focus:outline-none ${
-                        isDark ? "bg-[#12131b] border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
-                      }`}
+                      className={`w-full border rounded-xl px-3 py-2 text-xs focus:outline-none ${isDark ? "bg-[#12131b] border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
+                        }`}
                     >
                       <option value="active">Available</option>
                       <option value="away">Away</option>
@@ -902,9 +863,8 @@ export default function Team() {
                   <button
                     type="submit"
                     disabled={savingEdit}
-                    className={`px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer ${
-                      isDark ? "bg-white text-slate-950 hover:bg-slate-200" : "bg-slate-900 text-white hover:bg-slate-800"
-                    }`}
+                    className={`px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer ${isDark ? "bg-white text-slate-950 hover:bg-slate-200" : "bg-slate-900 text-white hover:bg-slate-800"
+                      }`}
                   >
                     {savingEdit ? "Saving..." : "Save Changes"}
                   </button>

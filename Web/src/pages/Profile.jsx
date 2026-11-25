@@ -49,6 +49,7 @@ import {
   Activity,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { getGlassTokens } from "../styles/glassTheme";
 
 const STATUS_OPTIONS = [
   {
@@ -89,6 +90,7 @@ export default function Profile() {
     openRoomChat,
   } = useApp();
   const isDark = theme === "dark";
+  const g = getGlassTokens(isDark);
 
   const isAdmin = user?.role === "admin";
   const isManager = user?.role === "manager";
@@ -405,15 +407,9 @@ export default function Profile() {
     return true;
   });
 
-  const inputClass = `w-full rounded-xl border px-3.5 py-2.5 text-sm outline-none transition-colors ${
-    isDark
-      ? "bg-[#12131b] border-white/[0.08] text-white placeholder-slate-500 focus:border-indigo-500"
-      : "bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400 focus:border-indigo-500 focus:bg-white"
-  }`;
+  const inputClass = `w-full rounded-xl border px-3.5 py-2.5 text-sm outline-none transition-colors ${g.input}`;
 
-  const cardClass = `rounded-2xl border ${
-    isDark ? "bg-[#12131a] border-white/[0.08]" : "bg-white border-slate-200"
-  }`;
+  const cardClass = `rounded-2xl ${g.card}`;
 
   const currentStatusMeta =
     STATUS_OPTIONS.find((s) => s.value === status) || STATUS_OPTIONS[0];
@@ -421,7 +417,7 @@ export default function Profile() {
   return (
     <div
       className={`flex-1 w-full h-full min-h-0 overflow-y-auto p-5 sm:p-7 space-y-6 transition-colors duration-150 ${
-        isDark ? "bg-[#0c0d12] text-slate-100" : "bg-slate-50 text-slate-900"
+        isDark ? "text-slate-100" : "text-slate-900"
       }`}
     >
       {/* Full-width Profile Hero */}
@@ -466,11 +462,7 @@ export default function Profile() {
                   {user?.fullname}
                 </h1>
                 <span
-                  className={`text-[10px] font-semibold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${
-                    isDark
-                      ? "bg-indigo-500/10 border-indigo-500/30 text-indigo-300"
-                      : "bg-indigo-50 border-indigo-200 text-indigo-700"
-                  }`}
+                  className={`text-[10px] font-semibold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${g.badge}`}
                 >
                   {user?.role || "member"}
                 </span>
@@ -539,14 +531,10 @@ export default function Profile() {
 
           {/* Personal Availability Quick Switcher */}
           <div className="flex flex-col sm:items-end gap-2 shrink-0">
-            <span className={`text-[11px] font-semibold uppercase tracking-wider ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+            <span className={`text-[11px] font-semibold uppercase tracking-wider ${g.muted}`}>
               Personal Status
             </span>
-            <div
-              className={`inline-flex p-1 rounded-xl border ${
-                isDark ? "bg-[#0c0d12] border-white/[0.08]" : "bg-slate-100 border-slate-200"
-              }`}
-            >
+            <div className={`inline-flex p-1 rounded-xl border ${g.subtleSurface}`}>
               {STATUS_OPTIONS.map((opt) => {
                 const active = status === opt.value;
                 return (
@@ -555,13 +543,7 @@ export default function Profile() {
                     type="button"
                     onClick={() => handleQuickStatusChange(opt.value)}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                      active
-                        ? isDark
-                          ? "bg-white/[0.1] text-white"
-                          : "bg-white text-slate-900 shadow-xs"
-                        : isDark
-                        ? "text-slate-400 hover:text-slate-200"
-                        : "text-slate-500 hover:text-slate-800"
+                      active ? g.navActivePill : g.muted
                     }`}
                   >
                     <span className={`w-1.5 h-1.5 rounded-full ${opt.dot}`} />
@@ -768,11 +750,7 @@ export default function Profile() {
               <button
                 type="submit"
                 disabled={savingProfile}
-                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer disabled:opacity-60 ${
-                  isDark
-                    ? "bg-white text-slate-950 hover:bg-slate-200"
-                    : "bg-slate-900 text-white hover:bg-slate-800"
-                }`}
+                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer disabled:opacity-60 ${g.btnPrimary}`}
               >
                 {savingProfile ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                 <span>{savingProfile ? "Saving..." : "Save Profile Changes"}</span>
@@ -786,15 +764,13 @@ export default function Profile() {
             <div className={`${cardClass} p-6 space-y-4`}>
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-bold flex items-center gap-2">
-                  <Building2 className="w-4 h-4 text-indigo-400" />
+                  <Building2 className={`w-4 h-4 ${g.accentIcon}`} />
                   <span>My Department</span>
                 </h2>
                 <button
                   type="button"
                   onClick={() => navigate("/projects")}
-                  className={`text-xs font-medium flex items-center gap-1 cursor-pointer ${
-                    isDark ? "text-slate-400 hover:text-white" : "text-slate-500 hover:text-slate-900"
-                  }`}
+                  className={`text-xs font-medium flex items-center gap-1 cursor-pointer ${g.muted} hover:text-current`}
                 >
                   <span>Manage</span>
                   <ArrowUpRight className="w-3.5 h-3.5" />
@@ -802,37 +778,33 @@ export default function Profile() {
               </div>
 
               {myDepartment ? (
-                <div
-                  className={`p-4 rounded-xl border space-y-3 ${
-                    isDark ? "bg-white/[0.02] border-white/[0.06]" : "bg-slate-50 border-slate-200"
-                  }`}
-                >
+                <div className={`p-4 rounded-xl border space-y-3 ${g.subtleSurface}`}>
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2.5">
                       <span
                         className="w-2.5 h-2.5 rounded-full shrink-0"
-                        style={{ backgroundColor: myDepartment.color || "#6366f1" }}
+                        style={{ backgroundColor: myDepartment.color || "#a1a1aa" }}
                       />
                       <span className="text-sm font-bold">{myDepartment.name}</span>
                     </div>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-white/[0.06] text-slate-400">
+                    <span className={`text-[10px] font-mono px-2 py-0.5 rounded border ${g.badge}`}>
                       {myDepartment.code || myDepartment.prefix}
                     </span>
                   </div>
                   {myDepartment.description && (
-                    <p className={`text-xs ${isDark ? "text-slate-400" : "text-slate-600"}`}>
+                    <p className={`text-xs ${g.muted}`}>
                       {myDepartment.description}
                     </p>
                   )}
-                  <div className={`flex items-center justify-between pt-2 border-t text-xs ${isDark ? "border-white/[0.06]" : "border-slate-200"}`}>
-                    <span className={isDark ? "text-slate-400" : "text-slate-500"}>
+                  <div className={`flex items-center justify-between pt-2 border-t text-xs ${g.border}`}>
+                    <span className={g.muted}>
                       {myDepartment.membersCount ?? myDepartment.members?.length ?? 0} Staff ·{" "}
                       {myDepartment.projectsCount ?? 0} Projects
                     </span>
                     <button
                       type="button"
                       onClick={() => openRoomChat?.("operations")}
-                      className="text-indigo-400 hover:text-indigo-300 font-semibold flex items-center gap-1 cursor-pointer"
+                      className={`font-semibold flex items-center gap-1 cursor-pointer hover:underline ${g.heading}`}
                     >
                       <MessageSquare className="w-3.5 h-3.5" />
                       <span>Open Chat</span>
@@ -840,11 +812,7 @@ export default function Profile() {
                   </div>
                 </div>
               ) : (
-                <div
-                  className={`p-4 rounded-xl border text-xs ${
-                    isDark ? "bg-white/[0.02] border-white/[0.06] text-slate-400" : "bg-slate-50 border-slate-200 text-slate-500"
-                  }`}
-                >
+                <div className={`p-4 rounded-xl border text-xs ${g.subtleSurface} ${g.muted}`}>
                   Assigned to {user?.departmentName || "General Workspace"}.
                 </div>
               )}
@@ -852,7 +820,7 @@ export default function Profile() {
               {/* All Workspace Departments Overview */}
               {departments?.length > 0 && (
                 <div className="space-y-2 pt-1">
-                  <p className={`text-[11px] font-semibold uppercase tracking-wider ${isDark ? "text-slate-500" : "text-slate-400"}`}>
+                  <p className={`text-[11px] font-semibold uppercase tracking-wider ${g.muted}`}>
                     Organization Departments ({departments.length})
                   </p>
                   <div className="grid grid-cols-2 gap-2">
@@ -860,14 +828,10 @@ export default function Profile() {
                       <div
                         key={dept._id}
                         onClick={() => navigate("/projects")}
-                        className={`p-2.5 rounded-xl border text-xs flex items-center justify-between cursor-pointer transition-colors ${
-                          isDark
-                            ? "bg-[#151722] border-white/[0.06] hover:border-white/[0.14]"
-                            : "bg-slate-50 border-slate-200 hover:bg-slate-100"
-                        }`}
+                        className={`p-2.5 rounded-xl border text-xs flex items-center justify-between cursor-pointer transition-colors ${g.subtleSurface} ${g.rowHover}`}
                       >
                         <span className="truncate font-medium">{dept.name}</span>
-                        <span className={`text-[10px] font-mono shrink-0 ml-1 ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+                        <span className={`text-[10px] font-mono shrink-0 ml-1 ${g.muted}`}>
                           {dept.membersCount ?? dept.members?.length ?? 0}
                         </span>
                       </div>
@@ -881,15 +845,13 @@ export default function Profile() {
             <div className={`${cardClass} p-6 space-y-4`}>
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-bold flex items-center gap-2">
-                  <FolderKanban className="w-4 h-4 text-indigo-400" />
+                  <FolderKanban className={`w-4 h-4 ${g.accentIcon}`} />
                   <span>My Projects ({myProjects.length})</span>
                 </h2>
                 <button
                   type="button"
                   onClick={() => navigate("/projects")}
-                  className={`text-xs font-medium flex items-center gap-1 cursor-pointer ${
-                    isDark ? "text-slate-400 hover:text-white" : "text-slate-500 hover:text-slate-900"
-                  }`}
+                  className={`text-xs font-medium flex items-center gap-1 cursor-pointer ${g.muted} hover:text-current`}
                 >
                   <span>All Workspaces</span>
                   <ArrowUpRight className="w-3.5 h-3.5" />
@@ -906,35 +868,33 @@ export default function Profile() {
                   return (
                     <div
                       key={proj._id}
-                      className={`p-3.5 rounded-xl border space-y-2.5 ${
-                        isDark ? "bg-white/[0.02] border-white/[0.06]" : "bg-slate-50 border-slate-200"
-                      }`}
+                      className={`p-3.5 rounded-xl border space-y-2.5 ${g.subtleSurface}`}
                     >
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 min-w-0">
-                          <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-indigo-500/15 text-indigo-400 shrink-0">
+                          <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border shrink-0 ${g.badge}`}>
                             {proj.prefix}
                           </span>
                           <span className="text-xs font-bold truncate">{proj.name}</span>
                         </div>
-                        <span className={`text-[11px] font-mono shrink-0 ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+                        <span className={`text-[11px] font-mono shrink-0 ${g.muted}`}>
                           {done}/{total}
                         </span>
                       </div>
 
-                      <div className={`h-1.5 rounded-full overflow-hidden ${isDark ? "bg-white/[0.06]" : "bg-slate-200"}`}>
-                        <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${pct}%` }} />
+                      <div className={`h-1.5 rounded-full overflow-hidden ${g.progressTrack}`}>
+                        <div className={`h-full rounded-full ${g.progressFill}`} style={{ width: `${pct}%` }} />
                       </div>
 
                       <div className="flex items-center justify-between gap-2 text-[11px]">
-                        <span className={isDark ? "text-slate-400" : "text-slate-500"}>
+                        <span className={g.muted}>
                           {proj.members?.length || 0} members · {proj.files?.length || 0} shared files
                         </span>
                         <div className="flex items-center gap-2">
                           <button
                             type="button"
                             onClick={() => openRoomChat?.(`proj_${proj._id}`)}
-                            className="text-indigo-400 hover:text-indigo-300 font-semibold cursor-pointer"
+                            className={`font-semibold cursor-pointer hover:underline ${g.accentIcon}`}
                           >
                             Chat
                           </button>
@@ -942,11 +902,9 @@ export default function Profile() {
                             type="button"
                             onClick={() => {
                               setActiveProject?.(proj);
-                              navigate("/");
+                              navigate("/board");
                             }}
-                            className={`font-semibold cursor-pointer ${
-                              isDark ? "text-slate-200 hover:text-white" : "text-slate-700 hover:text-slate-950"
-                            }`}
+                            className={`font-semibold cursor-pointer hover:underline ${g.heading}`}
                           >
                             Open Board →
                           </button>

@@ -21,10 +21,12 @@ import {
 import { formatINR, formatDateIN, getDisplayName } from "../utils/formatters";
 import SideDrawer from "../components/common/SideDrawer";
 import toast from "react-hot-toast";
+import { getGlassTokens } from "../styles/glassTheme";
 
 export default function Requests() {
   const { user, activeProject, theme } = useApp();
   const isDark = theme === "dark";
+  const g = getGlassTokens(isDark);
 
   const [requests, setRequests] = useState([]);
   const [departments, setDepartments] = useState([]);
@@ -131,31 +133,22 @@ export default function Requests() {
 
   return (
     <div
-      className={`flex-1 w-full h-full min-h-0 flex flex-col overflow-hidden transition-colors duration-150 ${
-        isDark ? "bg-[#0c0d12] text-slate-200" : "bg-slate-50 text-slate-800"
-      }`}
+      className={`flex-1 w-full h-full min-h-0 flex flex-col overflow-hidden transition-colors duration-150 ${isDark ? "text-slate-200" : "text-slate-800"
+        }`}
     >
       {/* Top Sub-Header */}
       <div
-        className={`px-6 py-3.5 border-b flex flex-wrap items-center justify-between gap-3 shrink-0 ${
-          isDark ? "bg-[#0e0f16] border-white/10 text-white" : "bg-white border-slate-200 text-slate-900"
-        }`}
+        className={`px-6 py-3.5 border-b flex flex-wrap items-center justify-between gap-3 shrink-0 ${g.subHeader}`}
       >
         <div className="flex items-center gap-3">
-          <div
-            className={`w-9 h-9 rounded-xl border flex items-center justify-center ${
-              isDark
-                ? "bg-indigo-500/15 border-indigo-500/30 text-indigo-400"
-                : "bg-indigo-50 border-indigo-200 text-indigo-600"
-            }`}
-          >
+          <div className={`w-9 h-9 rounded-xl border flex items-center justify-center ${g.badge}`}>
             <FileCheck2 className="w-4 h-4" />
           </div>
           <div>
-            <h1 className={`text-sm sm:text-base font-bold tracking-tight ${isDark ? "text-white" : "text-slate-900"}`}>
+            <h1 className={`text-sm sm:text-base font-bold tracking-tight ${g.heading}`}>
               Cross-Department Requests & Sign-Offs
             </h1>
-            <p className={`text-xs ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+            <p className={`text-xs ${g.muted}`}>
               Inter-department approvals, INR budget requests, and sign-offs
             </p>
           </div>
@@ -164,21 +157,15 @@ export default function Requests() {
         <div className="flex items-center gap-2">
           <button
             onClick={loadData}
-            className={`p-2 rounded-full border transition-colors cursor-pointer ${
-              isDark
-                ? "bg-white/5 hover:bg-white/10 border-white/10 text-slate-300"
-                : "bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-700"
-            }`}
+            className={`p-2 rounded-full border transition-colors cursor-pointer ${g.iconBtn}`}
             title="Refresh Requests"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin text-indigo-400" : ""}`} />
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
           </button>
 
           <button
             onClick={() => setShowCreateModal(true)}
-            className={`px-4 py-2 rounded-full font-semibold text-xs transition-all flex items-center gap-1.5 cursor-pointer ${
-              isDark ? "bg-white text-slate-950 hover:bg-slate-200" : "bg-slate-900 text-white hover:bg-slate-800"
-            }`}
+            className={`px-4 py-2 rounded-full font-semibold text-xs flex items-center gap-1.5 cursor-pointer ${g.btnPrimary}`}
           >
             <Plus className="w-3.5 h-3.5" />
             <span>New Request</span>
@@ -188,9 +175,7 @@ export default function Requests() {
 
       {/* Filter Bar */}
       <div
-        className={`px-6 py-2.5 border-b flex flex-wrap items-center justify-between gap-3 shrink-0 ${
-          isDark ? "bg-[#12131a] border-white/10" : "bg-white/70 border-slate-200"
-        }`}
+        className={`px-6 py-2.5 border-b flex flex-wrap items-center justify-between gap-3 shrink-0 ${g.subtleSurface}`}
       >
         <div className="flex items-center gap-1.5 text-xs overflow-x-auto">
           {[
@@ -203,20 +188,14 @@ export default function Requests() {
               key={tab.id}
               onClick={() => setFilterStatus(tab.id)}
               className={`px-3.5 py-1.5 rounded-full font-semibold transition-all whitespace-nowrap cursor-pointer ${
-                filterStatus === tab.id
-                  ? isDark
-                    ? "bg-white text-slate-950 font-bold shadow-xs"
-                    : "bg-slate-900 text-white font-bold shadow-xs"
-                  : isDark
-                  ? "bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white border border-white/10"
-                  : "bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-200"
+                filterStatus === tab.id ? g.pillActive : g.pillInactive
               }`}
             >
               {tab.label}
             </button>
           ))}
         </div>
-        <span className="text-xs text-slate-400 font-mono">
+        <span className={`text-xs font-mono ${g.muted}`}>
           {filteredRequests.length} {filteredRequests.length === 1 ? "request" : "requests"}
         </span>
       </div>
@@ -228,62 +207,51 @@ export default function Requests() {
           return (
             <div
               key={req._id}
-              className={`p-4 sm:p-5 rounded-2xl border transition-all flex flex-col lg:flex-row lg:items-center justify-between gap-4 ${
-                isDark
-                  ? "bg-[#14151c] border-white/10 hover:border-white/20"
-                  : "bg-white border-slate-200 hover:border-indigo-300 shadow-xs"
-              }`}
+              className="p-4 sm:p-5 rounded-2xl lira-glass flex flex-col lg:flex-row lg:items-center justify-between gap-4"
             >
               {/* Request Summary */}
               <div className="space-y-1.5 flex-1 min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-mono text-xs font-bold text-indigo-400">
+                  <span className={`font-mono text-xs font-bold ${g.heading}`}>
                     {req.requestCode}
                   </span>
-                  <span
-                    className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider border ${
-                      isDark
-                        ? "bg-white/5 border-white/10 text-slate-300"
-                        : "bg-slate-100 border-slate-200 text-slate-700"
-                    }`}
-                  >
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider border ${g.badge}`}>
                     {req.requestType?.replace(/_/g, " ")}
                   </span>
                   <span
-                    className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                      req.status === "approved"
-                        ? "bg-emerald-500/15 text-emerald-500 border border-emerald-500/30"
-                        : req.status === "rejected"
+                    className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${req.status === "approved"
+                      ? "bg-emerald-500/15 text-emerald-500 border border-emerald-500/30"
+                      : req.status === "rejected"
                         ? "bg-rose-500/15 text-rose-500 border border-rose-500/30"
                         : "bg-amber-500/15 text-amber-500 border border-amber-500/30"
-                    }`}
+                      }`}
                   >
                     {req.status?.replace(/_/g, " ")}
                   </span>
-                  <span className="text-[10px] text-slate-400 font-mono">
+                  <span className={`text-[10px] font-mono ${g.muted}`}>
                     {formatDateIN(req.createdAt)}
                   </span>
                 </div>
 
-                <h3 className={`text-sm font-bold truncate ${isDark ? "text-white" : "text-slate-900"}`}>
+                <h3 className={`text-sm font-bold truncate ${g.heading}`}>
                   {req.title}
                 </h3>
                 {req.description && (
-                  <p className={`text-xs line-clamp-2 ${isDark ? "text-slate-400" : "text-slate-600"}`}>
+                  <p className={`text-xs line-clamp-2 ${g.muted}`}>
                     {req.description}
                   </p>
                 )}
 
-                <div className={`flex flex-wrap items-center gap-4 text-[11px] pt-1 ${isDark ? "text-slate-400" : "text-slate-600"}`}>
+                <div className={`flex flex-wrap items-center gap-4 text-[11px] pt-1 ${g.muted}`}>
                   <span>
                     Requested by:{" "}
-                    <strong className={isDark ? "text-slate-200" : "text-slate-900"}>
+                    <strong className={g.heading}>
                       {getDisplayName(req.requester)}
                     </strong>
                   </span>
                   <span>
                     Target:{" "}
-                    <strong className={isDark ? "text-slate-200" : "text-slate-900"}>
+                    <strong className={g.heading}>
                       {req.targetDepartment?.name || req.department?.name || "Operations"}
                     </strong>
                   </span>
@@ -296,21 +264,16 @@ export default function Requests() {
               </div>
 
               {/* Stages Sequence */}
-              <div
-                className={`flex flex-wrap items-center gap-2 p-2.5 rounded-xl border shrink-0 ${
-                  isDark ? "bg-[#1a1b24] border-white/10" : "bg-slate-50 border-slate-200"
-                }`}
-              >
+              <div className={`flex flex-wrap items-center gap-2 p-2.5 rounded-xl border shrink-0 ${g.subtleSurface}`}>
                 {req.stages?.map((stage, idx) => (
                   <div key={idx} className="flex items-center gap-1.5 text-xs">
                     <div
-                      className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-semibold border ${
-                        stage.status === "approved"
-                          ? "bg-emerald-500/15 text-emerald-500 border-emerald-500/30"
-                          : stage.status === "rejected"
+                      className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-semibold border ${stage.status === "approved"
+                        ? "bg-emerald-500/15 text-emerald-500 border-emerald-500/30"
+                        : stage.status === "rejected"
                           ? "bg-rose-500/15 text-rose-500 border-rose-500/30"
                           : "bg-amber-500/10 text-amber-500 border-amber-500/30"
-                      }`}
+                        }`}
                     >
                       {stage.status === "approved" ? (
                         <CheckCircle2 className="w-3 h-3" />
@@ -357,9 +320,8 @@ export default function Requests() {
 
         {filteredRequests.length === 0 && !loading && (
           <div
-            className={`text-center py-16 rounded-2xl border-2 border-dashed space-y-2 ${
-              isDark ? "border-white/10 text-slate-500" : "border-slate-200 text-slate-400"
-            }`}
+            className={`text-center py-16 rounded-2xl border-2 border-dashed space-y-2 ${isDark ? "border-white/10 text-slate-500" : "border-slate-200 text-slate-400"
+              }`}
           >
             <FileCheck2 className="w-8 h-8 mx-auto opacity-60" />
             <p className="text-xs font-semibold">No cross-department requests found</p>
@@ -378,7 +340,7 @@ export default function Requests() {
       >
         <form onSubmit={handleCreateRequest} className="space-y-4 text-xs">
           <div>
-            <label className={`block font-semibold mb-1.5 ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+            <label className={`block font-semibold mb-1.5 ${g.heading}`}>
               Request Title *
             </label>
             <input
@@ -387,48 +349,40 @@ export default function Requests() {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g. Q4 Cloud Infrastructure Budget Approval"
-              className={`w-full border rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-indigo-500 ${
-                isDark
-                  ? "bg-[#12131b] border-white/10 text-white placeholder-slate-500"
-                  : "bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400"
-              }`}
+              className={`w-full border rounded-xl px-3.5 py-2.5 focus:outline-none ${g.input}`}
             />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className={`block font-semibold mb-1.5 ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+              <label className={`block font-semibold mb-1.5 ${g.heading}`}>
                 Request Type
               </label>
               <select
                 value={requestType}
                 onChange={(e) => setRequestType(e.target.value)}
-                className={`w-full border rounded-xl px-3 py-2.5 focus:outline-none focus:border-indigo-500 ${
-                  isDark ? "bg-[#12131b] border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
-                }`}
+                className={`w-full border rounded-xl px-3 py-2.5 focus:outline-none ${g.input}`}
               >
-                <option value="budget_approval">Budget Approval</option>
-                <option value="asset_requisition">Asset Requisition</option>
-                <option value="travel_request">Travel Request</option>
-                <option value="vendor_payment">Vendor Payment</option>
-                <option value="compliance_signoff">Compliance Sign-Off</option>
-                <option value="general_request">General Request</option>
+                <option value="budget_approval" className={isDark ? "bg-[#14151a]" : "bg-white"}>Budget Approval</option>
+                <option value="asset_requisition" className={isDark ? "bg-[#14151a]" : "bg-white"}>Asset Requisition</option>
+                <option value="travel_request" className={isDark ? "bg-[#14151a]" : "bg-white"}>Travel Request</option>
+                <option value="vendor_payment" className={isDark ? "bg-[#14151a]" : "bg-white"}>Vendor Payment</option>
+                <option value="compliance_signoff" className={isDark ? "bg-[#14151a]" : "bg-white"}>Compliance Sign-Off</option>
+                <option value="general_request" className={isDark ? "bg-[#14151a]" : "bg-white"}>General Request</option>
               </select>
             </div>
 
             <div>
-              <label className={`block font-semibold mb-1.5 ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+              <label className={`block font-semibold mb-1.5 ${g.heading}`}>
                 Target Department
               </label>
               <select
                 value={targetDepartment}
                 onChange={(e) => setTargetDepartment(e.target.value)}
-                className={`w-full border rounded-xl px-3 py-2.5 focus:outline-none focus:border-indigo-500 ${
-                  isDark ? "bg-[#12131b] border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
-                }`}
+                className={`w-full border rounded-xl px-3 py-2.5 focus:outline-none ${g.input}`}
               >
                 {departments.map((dept) => (
-                  <option key={dept._id} value={dept._id}>
+                  <option key={dept._id} value={dept._id} className={isDark ? "bg-[#14151a]" : "bg-white"}>
                     {dept.name}
                   </option>
                 ))}
@@ -438,47 +392,41 @@ export default function Requests() {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className={`block font-semibold mb-1.5 ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+              <label className={`block font-semibold mb-1.5 ${g.heading}`}>
                 Amount (₹ INR)
               </label>
               <div className="relative">
-                <IndianRupee className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <IndianRupee className={`w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 ${g.muted}`} />
                 <input
                   type="number"
                   min="0"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   placeholder="e.g. 25000"
-                  className={`w-full border rounded-xl pl-8 pr-3 py-2.5 focus:outline-none focus:border-indigo-500 ${
-                    isDark
-                      ? "bg-[#12131b] border-white/10 text-white placeholder-slate-500"
-                      : "bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400"
-                  }`}
+                  className={`w-full border rounded-xl pl-8 pr-3 py-2.5 focus:outline-none ${g.input}`}
                 />
               </div>
             </div>
 
             <div>
-              <label className={`block font-semibold mb-1.5 ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+              <label className={`block font-semibold mb-1.5 ${g.heading}`}>
                 Urgency
               </label>
               <select
                 value={urgency}
                 onChange={(e) => setUrgency(e.target.value)}
-                className={`w-full border rounded-xl px-3 py-2.5 focus:outline-none focus:border-indigo-500 ${
-                  isDark ? "bg-[#12131b] border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
-                }`}
+                className={`w-full border rounded-xl px-3 py-2.5 focus:outline-none ${g.input}`}
               >
-                <option value="urgent">Urgent (Immediate)</option>
-                <option value="high">High Priority</option>
-                <option value="medium">Medium</option>
-                <option value="low">Standard / Low</option>
+                <option value="urgent" className={isDark ? "bg-[#14151a]" : "bg-white"}>Urgent (Immediate)</option>
+                <option value="high" className={isDark ? "bg-[#14151a]" : "bg-white"}>High Priority</option>
+                <option value="medium" className={isDark ? "bg-[#14151a]" : "bg-white"}>Medium</option>
+                <option value="low" className={isDark ? "bg-[#14151a]" : "bg-white"}>Standard / Low</option>
               </select>
             </div>
           </div>
 
           <div>
-            <label className={`block font-semibold mb-1.5 ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+            <label className={`block font-semibold mb-1.5 ${g.heading}`}>
               Details & Justification
             </label>
             <textarea
@@ -486,32 +434,22 @@ export default function Requests() {
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Explain why this sign-off is required and deliverables expected..."
-              className={`w-full border rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-indigo-500 resize-none ${
-                isDark
-                  ? "bg-[#12131b] border-white/10 text-white placeholder-slate-500"
-                  : "bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400"
-              }`}
+              className={`w-full border rounded-xl px-3.5 py-2.5 focus:outline-none resize-none ${g.input}`}
             />
           </div>
 
-          <div className={`flex items-center justify-end gap-2 pt-4 border-t ${isDark ? "border-white/10" : "border-slate-100"}`}>
+          <div className={`flex items-center justify-end gap-2 pt-4 border-t ${g.border}`}>
             <button
               type="button"
               onClick={() => setShowCreateModal(false)}
-              className={`px-4 py-2 rounded-xl font-semibold transition-colors cursor-pointer ${
-                isDark ? "text-slate-400 hover:bg-white/5" : "text-slate-600 hover:bg-slate-100"
-              }`}
+              className={`px-4 py-2 rounded-xl font-semibold transition-colors cursor-pointer ${g.btnSecondary}`}
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={submitting}
-              className={`px-5 py-2 rounded-xl font-semibold transition-colors cursor-pointer ${
-                isDark
-                  ? "bg-white text-slate-950 hover:bg-slate-200"
-                  : "bg-slate-900 text-white hover:bg-slate-800"
-              }`}
+              className={`px-5 py-2 rounded-xl font-semibold transition-colors cursor-pointer ${g.btnPrimary}`}
             >
               {submitting ? "Submitting..." : "Submit Request"}
             </button>
@@ -535,9 +473,8 @@ export default function Requests() {
         {actionModal && (
           <form onSubmit={submitAction} className="space-y-4">
             <div
-              className={`p-3.5 rounded-xl border text-xs space-y-1 ${
-                isDark ? "bg-white/[0.02] border-white/[0.08]" : "bg-slate-50 border-slate-200"
-              }`}
+              className={`p-3.5 rounded-xl border text-xs space-y-1 ${isDark ? "bg-white/[0.02] border-white/[0.08]" : "bg-slate-50 border-slate-200"
+                }`}
             >
               <p className={isDark ? "text-slate-400" : "text-slate-500"}>
                 Requested by:{" "}
@@ -553,7 +490,7 @@ export default function Requests() {
             </div>
 
             <div>
-              <label className={`block text-xs font-semibold mb-1.5 ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+              <label className={`block text-xs font-semibold mb-1.5 ${g.heading}`}>
                 {actionModal.type === "approve" ? "Sign-Off Notes (Optional)" : "Rejection Reason *"}
               </label>
               <textarea
@@ -566,11 +503,7 @@ export default function Requests() {
                     : "Reason for declining this request..."
                 }
                 required={actionModal.type === "reject"}
-                className={`w-full border rounded-xl p-3 text-xs focus:outline-none focus:border-indigo-500 ${
-                  isDark
-                    ? "bg-[#12131b] border-white/10 text-white placeholder-slate-500"
-                    : "bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400"
-                }`}
+                className={`w-full border rounded-xl p-3 text-xs focus:outline-none ${g.input}`}
               />
             </div>
 
@@ -578,26 +511,24 @@ export default function Requests() {
               <button
                 type="button"
                 onClick={() => setActionModal(null)}
-                className={`px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer ${
-                  isDark ? "text-slate-400 hover:bg-white/5" : "text-slate-600 hover:bg-slate-100"
-                }`}
+                className={`px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer ${isDark ? "text-slate-400 hover:bg-white/5" : "text-slate-600 hover:bg-slate-100"
+                  }`}
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={processingAction}
-                className={`px-4 py-2 rounded-xl text-xs font-bold text-white cursor-pointer ${
-                  actionModal.type === "approve"
-                    ? "bg-emerald-600 hover:bg-emerald-500"
-                    : "bg-rose-600 hover:bg-rose-500"
-                }`}
+                className={`px-4 py-2 rounded-xl text-xs font-bold text-white cursor-pointer ${actionModal.type === "approve"
+                  ? "bg-emerald-600 hover:bg-emerald-500"
+                  : "bg-rose-600 hover:bg-rose-500"
+                  }`}
               >
                 {processingAction
                   ? "Processing..."
                   : actionModal.type === "approve"
-                  ? "Confirm Approval"
-                  : "Confirm Rejection"}
+                    ? "Confirm Approval"
+                    : "Confirm Rejection"}
               </button>
             </div>
           </form>

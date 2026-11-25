@@ -1,6 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useApp } from "../../context/Appcontext";
 import {
   Bell,
@@ -10,16 +10,24 @@ import {
   LogOut,
   Sun,
   Moon,
-  X,
   Check,
   MessageSquare,
-  Lock,
-  ShieldCheck,
   User as UserIcon,
+  LayoutDashboard,
+  Kanban,
+  Table2,
+  CalendarDays,
+  FileCheck2,
+  CheckSquare,
+  Users,
+  Layers,
+  FolderKanban,
 } from "lucide-react";
 import { markNotificationRead, markAllNotificationsRead } from "../../services/api";
 import UserAvatar from "../common/UserAvatar";
 import LiraLogo from "../common/LiraLogo";
+import { getGlassTokens } from "../../styles/glassTheme";
+import { getDisplayName } from "../../utils/formatters";
 
 export default function Header() {
   const location = useLocation();
@@ -41,18 +49,33 @@ export default function Header() {
     handleLogout,
   } = useApp();
 
+  const [showWorkspaceMenu, setShowWorkspaceMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
 
+  const headerRef = useRef(null);
+
+  useEffect(() => {
+    const handleOutside = (e) => {
+      if (headerRef.current && !headerRef.current.contains(e.target)) {
+        setShowWorkspaceMenu(false);
+        setShowNotifications(false);
+        setShowProfileMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", handleOutside);
+    return () => document.removeEventListener("mousedown", handleOutside);
+  }, []);
+
   const navItems = [
-    { label: "Board", path: "/" },
-    { label: "Grid", path: "/table" },
-    { label: "Calendar", path: "/calendar" },
-    { label: "Requests", path: "/requests" },
-    { label: "Overview", path: "/analytics" },
-    { label: "My Day", path: "/my-work" },
-    { label: "Team", path: "/team" },
-    { label: "Workspaces", path: "/projects" },
+    { label: "Dashboard", path: "/", icon: LayoutDashboard, aliases: ["/analytics", "/dashboard"] },
+    { label: "Board", path: "/board", icon: Kanban },
+    { label: "Grid", path: "/table", icon: Table2 },
+    { label: "Calendar", path: "/calendar", icon: CalendarDays },
+    { label: "Requests", path: "/requests", icon: FileCheck2 },
+    { label: "My Day", path: "/my-work", icon: CheckSquare },
+    { label: "Team", path: "/team", icon: Users },
+    { label: "Workspaces", path: "/projects", icon: Layers },
   ];
 
   const handleMarkAllRead = async () => {
@@ -72,80 +95,138 @@ export default function Header() {
   };
 
   const isDark = theme === "dark";
+  const g = getGlassTokens(isDark);
+  const displayName = getDisplayName(user, "Member");
 
   return (
     <header
-      className={`w-full h-14 sm:h-15 border-b px-3 sm:px-5 flex items-center justify-between gap-2 z-40 shrink-0 select-none transition-colors duration-150 ${
-        isDark
-          ? "bg-[#0e0f16] border-white/10 text-white"
-          : "bg-white border-slate-200 text-slate-900"
-      }`}
+      ref={headerRef}
+      className={`w-full h-[68px] border-b px-3 sm:px-5 xl:px-6 flex items-center justify-between gap-2 xl:gap-3 z-40 shrink-0 select-none transition-colors duration-150 ${g.header}`}
     >
-      {/* 1. Left: Brand & Active Project Selector */}
-      <div className="flex items-center gap-2.5 shrink-0">
-        <Link to="/" className="flex items-center group">
-          <LiraLogo size="sm" isDark={isDark} />
+      {/* 1. Left: Brand + Modern Frosted Workspace Switcher Tray */}
+      <div className="flex items-center gap-2.5 shrink-0 min-w-0">
+        <Link to="/" className="flex items-center group shrink-0" title="Go to Dashboard Home">
+          <LiraLogo size="md" isDark={isDark} />
         </Link>
 
-        {/* Project Selector Pill */}
+        <div className={`hidden sm:block h-5 w-px shrink-0 ${isDark ? "bg-white/12" : "bg-slate-900/12"}`} />
+
+        {/* Interactive Glass Workspace Switcher */}
         {projects.length > 0 && (
-          <div className="relative group ml-0.5">
-            <select
-              value={activeProject?._id || ""}
-              onChange={(e) => {
-                const selected = projects.find((p) => p._id === e.target.value);
-                if (selected) setActiveProject(selected);
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => {
+                setShowWorkspaceMenu((prev) => !prev);
+                setShowNotifications(false);
+                setShowProfileMenu(false);
               }}
-              className={`appearance-none text-xs font-semibold rounded-full pl-3 pr-7 py-1.5 max-w-[165px] xl:max-w-[210px] truncate cursor-pointer focus:outline-none transition-all border ${
-                isDark
-                  ? "bg-[#191a24] border-white/10 text-slate-200 hover:border-white/20"
-                  : "bg-slate-100 border-slate-200 text-slate-800 hover:border-slate-300"
-              }`}
+              className={`h-10 flex items-center gap-2 px-2.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${g.btnSecondary}`}
+              title="Switch active project workspace"
             >
-              {projects.map((proj) => (
-                <option
-                  key={proj._id}
-                  value={proj._id}
-                  className={isDark ? "bg-[#191a24] text-white" : "bg-white text-slate-900"}
+              <span
+                className={`px-2 py-0.5 rounded-md text-[10px] font-mono font-bold tracking-wide border ${g.badge}`}
+              >
+                {activeProject?.prefix || "ALL"}
+              </span>
+              <span className={`hidden 2xl:inline truncate max-w-[165px] ${g.heading}`}>
+                {activeProject?.name || "Select Workspace"}
+              </span>
+              <ChevronDown
+                className={`w-3.5 h-3.5 shrink-0 transition-transform duration-150 ${g.muted} ${
+                  showWorkspaceMenu ? "rotate-180" : ""
+                }`}
+              />
+            </button>
+
+            <AnimatePresence>
+              {showWorkspaceMenu && (
+                <motion.div
+                  initial={{ opacity: 0, y: 6, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 4, scale: 0.98 }}
+                  transition={{ duration: 0.14 }}
+                  className={`absolute left-0 mt-2.5 w-72 rounded-2xl border p-2 z-50 ${g.dropdown}`}
                 >
-                  [{proj.prefix}] {proj.name}
-                </option>
-              ))}
-            </select>
-            <ChevronDown
-              className={`w-3.5 h-3.5 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none ${
-                isDark ? "text-slate-400" : "text-slate-500"
-              }`}
-            />
+                  <div className={`px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-widest ${g.muted}`}>
+                    Project Workspaces ({projects.length})
+                  </div>
+                  <div className="space-y-1 max-h-64 overflow-y-auto mt-1">
+                    {projects.map((proj) => {
+                      const selected = activeProject?._id === proj._id;
+                      return (
+                        <button
+                          key={proj._id}
+                          type="button"
+                          onClick={() => {
+                            setActiveProject(proj);
+                            setShowWorkspaceMenu(false);
+                          }}
+                          className={`w-full flex items-center justify-between gap-2.5 px-2.5 py-2 rounded-xl text-left text-xs transition-all cursor-pointer border ${
+                            selected
+                              ? g.selectedRow
+                              : `border-transparent ${g.rowHover} ${isDark ? "text-zinc-300" : "text-slate-700"}`
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <span
+                              className={`px-1.5 py-0.5 rounded-md text-[10px] font-mono font-bold border shrink-0 ${g.badge}`}
+                            >
+                              {proj.prefix}
+                            </span>
+                            <div className="min-w-0">
+                              <span className="font-semibold block truncate">{proj.name}</span>
+                              {proj.description && (
+                                <span className={`text-[10px] block truncate ${g.muted}`}>
+                                  {proj.description}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          {selected && <Check className="w-3.5 h-3.5 shrink-0" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className={`mt-2 pt-2 border-t ${g.border}`}>
+                    <Link
+                      to="/projects"
+                      onClick={() => setShowWorkspaceMenu(false)}
+                      className={`flex items-center justify-center gap-1.5 w-full py-1.5 rounded-xl text-[11px] font-semibold transition-colors ${g.btnSecondary}`}
+                    >
+                      <FolderKanban className="w-3.5 h-3.5" />
+                      <span>Manage All Workspaces</span>
+                    </Link>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         )}
       </div>
 
-      {/* 2. Center: Pill Navigation Tabs with Sliding Morph Animation */}
+      {/* 2. Center: Spacious Modern Floating Glass Navigation Tray */}
       <nav
-        className={`hidden md:flex items-center p-1 rounded-full border shadow-sm relative ${
-          isDark
-            ? "bg-[#191a24] border-white/10"
-            : "bg-slate-100 border-slate-200"
-        }`}
+        className={`hidden md:flex items-center p-1 rounded-2xl border relative gap-0.5 min-w-0 ${g.navRail}`}
       >
         {navItems.map((item) => {
           const isActive =
             location.pathname === item.path ||
-            (item.path === "/" && location.pathname === "/board");
+            (item.aliases && item.aliases.includes(location.pathname));
+          const Icon = item.icon;
 
           return (
             <Link
               key={item.path}
               to={item.path}
-              className={`relative px-2.5 lg:px-3 xl:px-3.5 py-1.5 rounded-full text-[11px] xl:text-xs font-semibold tracking-tight transition-colors duration-150 select-none whitespace-nowrap ${
+              className={`relative flex items-center gap-1.5 px-2.5 xl:px-3 py-2 rounded-xl text-[11px] xl:text-xs font-medium tracking-tight transition-colors duration-150 select-none whitespace-nowrap ${
                 isActive
                   ? isDark
-                    ? "text-slate-950 font-bold"
-                    : "text-white font-bold"
+                    ? "text-white font-semibold"
+                    : "text-slate-950 font-semibold"
                   : isDark
-                  ? "text-slate-400 hover:text-white"
-                  : "text-slate-600 hover:text-slate-900"
+                  ? "text-zinc-400 hover:text-zinc-100"
+                  : "text-slate-600 hover:text-slate-950"
               }`}
             >
               {isActive && (
@@ -157,266 +238,289 @@ export default function Header() {
                     damping: 38,
                     mass: 0.8,
                   }}
-                  className={`absolute inset-0 rounded-full shadow-md ${
-                    isDark
-                      ? "bg-white shadow-white/10"
-                      : "bg-slate-900 shadow-slate-900/15"
-                  }`}
+                  className={`absolute inset-0 rounded-xl ${g.navActivePill}`}
                   style={{ zIndex: 0 }}
                 />
               )}
+              <Icon
+                className={`w-3.5 h-3.5 relative z-10 shrink-0 ${
+                  isActive ? "opacity-100" : "opacity-65"
+                }`}
+              />
               <span className="relative z-10">{item.label}</span>
             </Link>
           );
         })}
       </nav>
 
-      {/* 3. Right: Search, Theme Toggle, New Task, Notifications, Profile */}
-      <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
-        {/* Spotlight Quick Search Pill */}
-        <button
-          onClick={() => setIsCommandPaletteOpen(true)}
-          className={`group flex items-center gap-2 pl-3 pr-2.5 py-1.5 rounded-full border text-xs font-medium transition-all duration-150 cursor-pointer shadow-xs ${
-            isDark
-              ? "bg-[#191a24] border-white/10 text-slate-300 hover:text-white hover:border-white/20 hover:bg-[#20222f]"
-              : "bg-slate-100 border-slate-200 text-slate-600 hover:text-slate-900 hover:border-slate-300 hover:bg-slate-200/80"
-          }`}
-          title="Quick Search (⌘K or Ctrl+K)"
-        >
-          <Search className={`w-3.5 h-3.5 transition-transform group-hover:scale-110 ${
-            isDark ? "text-slate-400 group-hover:text-blue-400" : "text-slate-500 group-hover:text-blue-600"
-          }`} />
-          <span className="hidden md:inline text-xs font-normal opacity-80">
-            Search...
-          </span>
-          <kbd
-            className={`hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-mono font-semibold rounded border ${
-              isDark
-                ? "bg-white/5 border-white/15 text-slate-400"
-                : "bg-white border-slate-300 text-slate-600 shadow-xs"
-            }`}
-          >
-            ⌘K
-          </kbd>
-        </button>
-
-        {/* Theme Toggle */}
-        <button
-          onClick={toggleTheme}
-          className={`w-9 h-9 rounded-full border flex items-center justify-center transition-all cursor-pointer ${
-            isDark
-              ? "bg-[#191a24] border-white/10 text-slate-300 hover:text-white hover:border-white/20"
-              : "bg-slate-100 border-slate-200 text-slate-700 hover:text-slate-900 hover:bg-slate-200"
-          }`}
-          title={isDark ? "Switch to Light Theme" : "Switch to Dark Theme"}
-        >
-          {isDark ? (
-            <Sun className="w-4 h-4 text-amber-300" />
-          ) : (
-            <Moon className="w-4 h-4 text-slate-700" />
-          )}
-        </button>
-
-        {/* Office Chat & File Sharing */}
-        <button
-          onClick={() => setIsChatOpen(true)}
-          className={`h-9 px-3 rounded-full border flex items-center gap-1.5 text-xs font-semibold transition-all cursor-pointer ${
-            isDark
-              ? "bg-blue-600/15 border-blue-500/30 text-blue-300 hover:bg-blue-600/25 hover:text-white"
-              : "bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100"
-          }`}
-          title="Team Chat & File Sharing"
-        >
-          <MessageSquare className="w-3.5 h-3.5 text-blue-400" />
-          <span className="hidden lg:inline">Office Chat</span>
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-        </button>
-
-        {/* Notifications */}
-        <div className="relative">
+      {/* 3. Right: Modern Spacious Action & System Tray */}
+      <div className="flex items-center gap-2 shrink-0">
+        {/* Grouped Frosted System Utility Tray */}
+        <div className={`flex items-center gap-1 p-1 rounded-2xl border ${g.utilityTray}`}>
+          {/* Spotlight Search Trigger */}
           <button
-            onClick={() => setShowNotifications(!showNotifications)}
-            className={`w-9 h-9 rounded-full border flex items-center justify-center transition-all cursor-pointer relative ${
+            type="button"
+            onClick={() => setIsCommandPaletteOpen(true)}
+            className={`group h-9 flex items-center gap-1.5 px-2.5 rounded-xl text-xs font-medium transition-all duration-150 cursor-pointer border border-transparent ${
               isDark
-                ? "bg-[#191a24] border-white/10 text-slate-300 hover:text-white hover:border-white/20"
-                : "bg-slate-100 border-slate-200 text-slate-700 hover:text-slate-900 hover:bg-slate-200"
+                ? "text-zinc-300 hover:text-white hover:bg-white/[0.08]"
+                : "text-slate-600 hover:text-slate-950 hover:bg-white/90"
             }`}
-            title="Notifications"
+            title="Quick Search (⌘K or Ctrl+K)"
           >
-            <Bell className="w-4 h-4" />
-            {unreadCount > 0 && (
-              <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
+            <Search className="w-4 h-4 opacity-80 group-hover:opacity-100" />
+            <kbd
+              className={`hidden sm:inline-flex items-center px-1.5 py-0.5 text-[10px] font-mono font-semibold rounded-md border ${g.badge}`}
+            >
+              ⌘K
+            </kbd>
+          </button>
+
+          <div className={`h-5 w-px ${isDark ? "bg-white/[0.09]" : "bg-slate-900/[0.09]"}`} />
+
+          {/* Icon-Only Office Chat Trigger */}
+          <button
+            type="button"
+            onClick={() => setIsChatOpen(true)}
+            className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all cursor-pointer relative ${
+              isChatOpen
+                ? g.selectedRow
+                : isDark
+                ? "text-zinc-300 hover:text-white hover:bg-white/[0.09]"
+                : "text-slate-700 hover:text-slate-950 hover:bg-white"
+            }`}
+            title="Office Chat & File Sharing"
+            aria-label="Office Chat"
+          >
+            <MessageSquare className="w-[17px] h-[17px]" />
+            <span
+              className={`absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-emerald-400 ring-2 ${
+                isDark ? "ring-[#14161d]" : "ring-white"
+              }`}
+            />
+          </button>
+
+          {/* Theme Toggle */}
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
+              isDark
+                ? "text-zinc-300 hover:text-white hover:bg-white/[0.09]"
+                : "text-slate-700 hover:text-slate-950 hover:bg-white"
+            }`}
+            title={isDark ? "Switch to Light Theme" : "Switch to Dark Theme"}
+            aria-label="Toggle Theme"
+          >
+            {isDark ? (
+              <Sun className="w-[17px] h-[17px] text-amber-300" />
+            ) : (
+              <Moon className="w-[17px] h-[17px] text-slate-700" />
             )}
           </button>
 
-          {showNotifications && (
-            <div
-              className={`absolute right-0 mt-2 w-80 rounded-2xl border shadow-2xl p-3 z-50 ${
-                isDark
-                  ? "bg-[#191a24] border-white/15 text-white"
-                  : "bg-white border-slate-200 text-slate-900"
+          {/* Notifications Tray Trigger */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => {
+                setShowNotifications((prev) => !prev);
+                setShowProfileMenu(false);
+                setShowWorkspaceMenu(false);
+              }}
+              className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all cursor-pointer relative ${
+                showNotifications
+                  ? g.selectedRow
+                  : isDark
+                  ? "text-zinc-300 hover:text-white hover:bg-white/[0.09]"
+                  : "text-slate-700 hover:text-slate-950 hover:bg-white"
               }`}
+              title="Notifications"
+              aria-label="Notifications"
             >
-              <div
-                className={`flex items-center justify-between pb-2 border-b mb-2 ${
-                  isDark ? "border-white/10" : "border-slate-100"
-                }`}
-              >
-                <span className={`text-xs font-bold ${isDark ? "text-white" : "text-slate-900"}`}>
-                  Notifications ({unreadCount})
+              <Bell className="w-[17px] h-[17px]" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-[17px] h-[17px] px-1 rounded-full bg-rose-500 text-white text-[9px] font-mono font-bold flex items-center justify-center shadow-sm">
+                  {unreadCount > 9 ? "9+" : unreadCount}
                 </span>
-                {unreadCount > 0 && (
-                  <button
-                    onClick={handleMarkAllRead}
-                    className="text-[10px] text-blue-500 hover:underline font-semibold"
-                  >
-                    Mark all read
-                  </button>
-                )}
-              </div>
-              <div className="space-y-1.5 max-h-64 overflow-y-auto">
-                {notifications.map((n) => (
-                  <div
-                    key={n._id}
-                    onClick={() => handleNotificationClick(n)}
-                    className={`p-2.5 rounded-xl text-xs transition-all cursor-pointer ${
-                      n.isRead
-                        ? isDark
-                          ? "bg-white/5 text-slate-400 hover:bg-white/10"
-                          : "bg-slate-50 text-slate-500 hover:bg-slate-100"
-                        : isDark
-                        ? "bg-blue-600/20 text-white font-medium hover:bg-blue-600/30 border border-blue-500/30"
-                        : "bg-blue-50 text-blue-900 font-medium hover:bg-blue-100 border border-blue-200"
-                    }`}
-                  >
-                    <p className="line-clamp-2">{n.message}</p>
-                    <span className="text-[10px] text-slate-400 block mt-1">
-                      {new Date(n.createdAt).toLocaleTimeString("en-IN", {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </span>
+              )}
+            </button>
+
+            <AnimatePresence>
+              {showNotifications && (
+                <motion.div
+                  initial={{ opacity: 0, y: 6, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 4, scale: 0.98 }}
+                  transition={{ duration: 0.14 }}
+                  className={`absolute right-0 mt-3 w-80 sm:w-96 rounded-2xl border p-3.5 z-50 ${g.dropdown}`}
+                >
+                  <div className={`flex items-center justify-between pb-2.5 border-b mb-2.5 ${g.border}`}>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-xs font-bold ${g.heading}`}>Notifications</span>
+                      {unreadCount > 0 && (
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold border ${g.badge}`}>
+                          {unreadCount} new
+                        </span>
+                      )}
+                    </div>
+                    {unreadCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleMarkAllRead}
+                        className={`text-[11px] font-semibold px-2 py-1 rounded-lg transition-colors cursor-pointer ${g.btnSecondary}`}
+                      >
+                        Mark all read
+                      </button>
+                    )}
                   </div>
-                ))}
-                {notifications.length === 0 && (
-                  <p className="text-xs text-slate-400 italic text-center py-4">No notifications</p>
-                )}
-              </div>
-            </div>
-          )}
+                  <div className="space-y-1.5 max-h-72 overflow-y-auto pr-0.5">
+                    {notifications.map((n) => (
+                      <div
+                        key={n._id}
+                        onClick={() => handleNotificationClick(n)}
+                        className={`p-3 rounded-xl text-xs transition-all cursor-pointer border ${
+                          n.isRead
+                            ? `${g.subtleSurface} opacity-75 hover:opacity-100`
+                            : `${g.selectedRow} font-medium`
+                        }`}
+                      >
+                        <p className="line-clamp-2 leading-relaxed">{n.message}</p>
+                        <span className={`text-[10px] font-mono block mt-1 ${g.muted}`}>
+                          {new Date(n.createdAt).toLocaleTimeString("en-IN", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </span>
+                      </div>
+                    ))}
+                    {notifications.length === 0 && (
+                      <p className={`text-xs italic text-center py-6 ${g.muted}`}>
+                        You're all caught up — no notifications
+                      </p>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
 
-        {/* Create Task Button */}
+        {/* Prominent New Task CTA */}
         <button
+          type="button"
           onClick={() => setIsCreateTaskModalOpen(true)}
-          className={`flex items-center gap-1.5 text-xs font-semibold px-3.5 py-1.5 rounded-full transition-all active:scale-95 cursor-pointer ${
-            isDark
-              ? "bg-white text-slate-950 hover:bg-slate-200"
-              : "bg-slate-900 text-white hover:bg-slate-800"
-          }`}
+          className={`h-10 flex items-center gap-1.5 text-xs px-3 xl:px-3.5 rounded-xl transition-all active:scale-95 cursor-pointer ${g.btnPrimary}`}
+          title="Create New Task"
         >
-          <Plus className="w-3.5 h-3.5" />
-          <span>New Task</span>
+          <Plus className="w-4 h-4 shrink-0" />
+          <span className="hidden 2xl:inline">New Task</span>
+          <span className="hidden sm:inline 2xl:hidden">Task</span>
         </button>
 
-        {/* User Profile Chip */}
+        {/* Larger Profile & Session Tray */}
         <div className="relative">
           <button
-            onClick={() => setShowProfileMenu(!showProfileMenu)}
-            className={`flex items-center gap-2 pl-1.5 pr-2 py-1 rounded-full border transition-all cursor-pointer ${
-              isDark
-                ? "bg-[#191a24] border-white/10 hover:border-white/25 text-white"
-                : "bg-slate-100 border-slate-200 hover:border-slate-300 text-slate-900"
-            }`}
+            type="button"
+            onClick={() => {
+              setShowProfileMenu((prev) => !prev);
+              setShowNotifications(false);
+              setShowWorkspaceMenu(false);
+            }}
+            className={`h-10 flex items-center gap-2 pl-1.5 pr-2.5 rounded-xl transition-all cursor-pointer ${g.btnSecondary}`}
+            title={displayName}
           >
             <UserAvatar
               user={user}
-              className="w-7 h-7 rounded-full border border-white/20"
-              textClass="text-[11px]"
+              className="w-7 h-7 rounded-lg border border-white/15"
+              textClass="text-xs"
             />
-            <div className="hidden xl:block text-left leading-tight">
-              <span className={`text-xs font-bold block truncate max-w-[90px] ${isDark ? "text-white" : "text-slate-900"}`}>
-                {user?.fullname || "Guest"}
+            <div className="hidden 2xl:block text-left leading-tight">
+              <span className={`text-xs font-semibold block truncate max-w-[96px] ${g.heading}`}>
+                {displayName}
               </span>
-              <span className="text-[10px] text-slate-400 capitalize block">
+              <span className={`text-[10px] capitalize block ${g.muted}`}>
                 {user?.role || "employee"}
               </span>
             </div>
-            <ChevronDown className="w-3 h-3 text-slate-400 shrink-0" />
+            <ChevronDown
+              className={`w-3.5 h-3.5 shrink-0 transition-transform duration-150 ${g.muted} ${
+                showProfileMenu ? "rotate-180" : ""
+              }`}
+            />
           </button>
 
-          {showProfileMenu && (
-            <div
-              className={`absolute right-0 mt-2 w-60 rounded-2xl border shadow-2xl p-3 z-50 space-y-3 ${
-                isDark
-                  ? "bg-[#191a24] border-white/15 text-white"
-                  : "bg-white border-slate-200 text-slate-900"
-              }`}
-            >
-              <div
-                className={`flex items-center gap-2.5 pb-2 border-b ${
-                  isDark ? "border-white/10" : "border-slate-100"
-                }`}
+          <AnimatePresence>
+            {showProfileMenu && (
+              <motion.div
+                initial={{ opacity: 0, y: 6, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 4, scale: 0.98 }}
+                transition={{ duration: 0.14 }}
+                className={`absolute right-0 mt-2.5 w-64 rounded-2xl border p-3.5 z-50 space-y-3 ${g.dropdown}`}
               >
-                <UserAvatar
-                  user={user}
-                  className="w-8 h-8 rounded-full border border-white/20"
-                  textClass="text-xs"
-                />
-                <div className="min-w-0 flex-1">
-                  <p className={`text-xs font-bold truncate ${isDark ? "text-white" : "text-slate-900"}`}>
-                    {user?.fullname}
-                  </p>
-                  <p className="text-[10px] text-slate-400 truncate">{user?.email}</p>
-                  {user?.publicId && (
-                    <span className="inline-block mt-1 text-[10px] font-mono text-purple-300 font-bold bg-purple-500/10 border border-purple-500/20 px-2 py-0.5 rounded-md">
-                      {user?.publicId}
-                    </span>
-                  )}
+                <div className={`flex items-center gap-3 pb-3 border-b ${g.border}`}>
+                  <UserAvatar
+                    user={user}
+                    className="w-10 h-10 rounded-xl border border-white/20"
+                    textClass="text-sm"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className={`text-xs font-bold truncate ${g.heading}`}>{displayName}</p>
+                    <p className={`text-[10px] truncate ${g.muted}`}>{user?.email}</p>
+                    {user?.publicId && (
+                      <span
+                        className={`inline-block mt-1 text-[10px] font-mono font-bold border px-2 py-0.5 rounded-md ${g.badge}`}
+                      >
+                        {user?.publicId}
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </div>
 
-              {/* Profile & Account Link */}
-              <Link
-                to="/profile"
-                onClick={() => setShowProfileMenu(false)}
-                className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-colors ${
-                  isDark
-                    ? "bg-white/5 hover:bg-white/10 text-slate-200"
-                    : "bg-slate-100 hover:bg-slate-200 text-slate-800"
-                }`}
-              >
-                <UserIcon className="w-3.5 h-3.5 text-indigo-400" />
-                <span>Profile & Photo Settings</span>
-              </Link>
-
-              {/* Mobile Navigation Links */}
-              <div className={`md:hidden pt-2 border-t space-y-1 ${isDark ? "border-white/10" : "border-slate-100"}`}>
-                {navItems.map((n) => (
-                  <Link
-                    key={n.path}
-                    to={n.path}
-                    onClick={() => setShowProfileMenu(false)}
-                    className={`block px-3 py-1.5 rounded-lg text-xs font-medium ${
-                      isDark ? "text-slate-300 hover:text-white" : "text-slate-700 hover:text-slate-900"
-                    }`}
-                  >
-                    {n.label}
-                  </Link>
-                ))}
-              </div>
-
-              <div className={`pt-2 border-t ${isDark ? "border-white/10" : "border-slate-100"}`}>
-                <button
-                  onClick={handleLogout}
-                  className="w-full flex items-center justify-center gap-2 py-1.5 rounded-xl text-xs font-bold text-rose-500 hover:bg-rose-500/10 transition-colors"
+                {/* Profile & Account Link */}
+                <Link
+                  to="/profile"
+                  onClick={() => setShowProfileMenu(false)}
+                  className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold transition-colors ${g.btnSecondary}`}
                 >
-                  <LogOut className="w-3.5 h-3.5" />
-                  <span>Sign Out</span>
-                </button>
-              </div>
-            </div>
-          )}
+                  <UserIcon className={`w-4 h-4 ${g.accentIcon}`} />
+                  <span>Profile & Account Settings</span>
+                </Link>
+
+                {/* Mobile Navigation Links */}
+                <div className={`md:hidden pt-2 border-t space-y-1 ${g.border}`}>
+                  {navItems.map((n) => {
+                    const NavIcon = n.icon;
+                    return (
+                      <Link
+                        key={n.path}
+                        to={n.path}
+                        onClick={() => setShowProfileMenu(false)}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium ${g.rowHover} ${
+                          isDark ? "text-zinc-200" : "text-slate-700"
+                        }`}
+                      >
+                        <NavIcon className="w-3.5 h-3.5 opacity-70" />
+                        <span>{n.label}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
+
+                <div className={`pt-2 border-t ${g.border}`}>
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="w-full flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-bold text-rose-400 hover:bg-rose-500/15 transition-colors cursor-pointer"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>Sign Out</span>
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
     </header>

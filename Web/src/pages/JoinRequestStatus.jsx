@@ -27,11 +27,13 @@ import {
 import toast from "react-hot-toast";
 import UserAvatar from "../components/common/UserAvatar";
 import LiraLogo from "../components/common/LiraLogo";
+import { getGlassTokens } from "../styles/glassTheme";
 
 export default function JoinRequestStatus() {
   const { user, setUser, theme } = useApp();
   const navigate = useNavigate();
   const isDark = theme === "dark";
+  const g = getGlassTokens(isDark);
 
   const [copied, setCopied] = useState(false);
   const [pushEnabled, setPushEnabled] = useState(false);
@@ -63,7 +65,7 @@ export default function JoinRequestStatus() {
         if (res.isAuthenticated) {
           setUser(res.user);
           setTimeout(() => {
-            navigate("/board", { replace: true });
+            navigate("/", { replace: true });
           }, 1200);
         }
       });
@@ -107,7 +109,7 @@ export default function JoinRequestStatus() {
       setUser(res.user);
       if (res.user.status === "active" && res.user.isActive) {
         toast.success("You are approved! Entering workspace...");
-        navigate("/board", { replace: true });
+        navigate("/", { replace: true });
       } else {
         toast("Application is still under review by workspace admins", { icon: "⏳" });
       }
@@ -188,8 +190,8 @@ export default function JoinRequestStatus() {
 
   return (
     <div
-      className={`min-h-screen w-full px-6 sm:px-10 lg:px-16 py-8 select-none ${
-        isDark ? "bg-[#0c0d12] text-slate-100" : "bg-slate-50 text-slate-800"
+      className={`min-h-screen w-full px-6 sm:px-10 lg:px-16 py-8 lira-canvas-bg select-none ${
+        isDark ? "text-slate-100" : "text-slate-800"
       }`}
     >
       <div className="w-full max-w-5xl mx-auto space-y-6">
@@ -199,7 +201,7 @@ export default function JoinRequestStatus() {
 
           <button
             onClick={handleLogout}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-white/5 transition-all cursor-pointer"
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${g.btnSecondary}`}
           >
             <LogOut className="w-3.5 h-3.5" />
             <span>Sign Out</span>
@@ -207,13 +209,9 @@ export default function JoinRequestStatus() {
         </div>
 
         {/* Status Hero Card */}
-        <div
-          className={`rounded-3xl p-6 sm:p-8 shadow-2xl border space-y-6 ${
-            isDark ? "bg-[#14151f] border-white/10" : "bg-white border-slate-200"
-          }`}
-        >
+        <div className="rounded-3xl p-6 sm:p-8 lira-glass-glow space-y-6">
           {/* Top Banner Status */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/10">
+          <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b ${g.border}`}>
             <div className="space-y-1">
               <div className="flex items-center gap-2">
                 <span
@@ -231,10 +229,10 @@ export default function JoinRequestStatus() {
                   <span>{isRejected ? "Application Declined" : "Under Review"}</span>
                 </span>
               </div>
-              <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white">
+              <h1 className={`text-xl sm:text-2xl font-black tracking-tight ${g.heading}`}>
                 {isRejected ? "Join Request Declined" : "Join Request Under Review"}
               </h1>
-              <p className="text-xs text-slate-400">
+              <p className={`text-xs ${g.muted}`}>
                 {isRejected
                   ? "Your application was reviewed by a workspace administrator."
                   : "Your application to join Lira Workspace is awaiting Admin approval."}
@@ -242,14 +240,14 @@ export default function JoinRequestStatus() {
             </div>
 
             {/* Public ID Pill */}
-            <div className="p-3 rounded-2xl bg-[#191a26] border border-white/10 flex flex-col items-start sm:items-end gap-1">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+            <div className={`p-3 rounded-2xl border flex flex-col items-start sm:items-end gap-1 ${g.subtleSurface}`}>
+              <span className={`text-[10px] font-bold uppercase tracking-widest ${g.muted}`}>
                 Public Applicant ID
               </span>
               <button
                 type="button"
                 onClick={handleCopyPublicId}
-                className="flex items-center gap-2 px-3 py-1 rounded-lg bg-purple-950/40 border border-purple-500/30 text-purple-300 hover:bg-purple-900/50 text-xs font-mono font-bold transition-all cursor-pointer"
+                className={`flex items-center gap-2 px-3 py-1 rounded-lg border text-xs font-mono font-bold transition-all cursor-pointer ${g.badge}`}
                 title="Click to copy Public ID"
               >
                 <span>{publicId}</span>
@@ -259,23 +257,23 @@ export default function JoinRequestStatus() {
           </div>
 
           {/* Candidate Profile Details */}
-          <div className="flex items-center gap-4 p-4 rounded-2xl bg-[#191a26] border border-white/10">
+          <div className={`flex items-center gap-4 p-4 rounded-2xl border ${g.subtleSurface}`}>
             <UserAvatar
               user={user}
-              className="w-12 h-12 rounded-2xl border border-purple-500/30"
+              className="w-12 h-12 rounded-2xl border border-white/15"
               textClass="text-base"
             />
             <div className="flex-1 min-w-0">
-              <h2 className="text-sm font-bold text-white truncate">{user?.fullname}</h2>
-              <p className="text-xs text-slate-400 truncate">{user?.email}</p>
-              <div className="flex items-center gap-2 mt-1 text-[11px] text-purple-300 font-semibold">
+              <h2 className={`text-sm font-bold truncate ${g.heading}`}>{user?.fullname}</h2>
+              <p className={`text-xs truncate ${g.muted}`}>{user?.email}</p>
+              <div className={`flex items-center gap-2 mt-1 text-[11px] font-semibold ${g.accentIcon}`}>
                 <span className="flex items-center gap-1">
-                  <Building className="w-3 h-3 text-slate-400" />
+                  <Building className={`w-3 h-3 ${g.muted}`} />
                   <span>{user?.joinRequest?.requestedDepartmentName || user?.departmentName || "Engineering"}</span>
                 </span>
                 <span>•</span>
                 <span className="flex items-center gap-1">
-                  <Briefcase className="w-3 h-3 text-slate-400" />
+                  <Briefcase className={`w-3 h-3 ${g.muted}`} />
                   <span>{user?.joinRequest?.requestedJobTitle || user?.jobTitle || "Team Member"}</span>
                 </span>
               </div>
@@ -283,7 +281,7 @@ export default function JoinRequestStatus() {
 
             <button
               onClick={() => setIsEditing(!isEditing)}
-              className="px-3 py-1.5 rounded-xl text-xs font-semibold text-purple-300 hover:text-white bg-purple-500/10 border border-purple-500/20 hover:bg-purple-500/20 transition-all cursor-pointer"
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${g.btnSecondary}`}
             >
               {isEditing ? "Close" : "Edit Info"}
             </button>
@@ -291,43 +289,43 @@ export default function JoinRequestStatus() {
 
           {/* Edit Request Form (Optional Update) */}
           {isEditing && (
-            <form onSubmit={handleSubmitDetails} className="p-4 rounded-2xl bg-[#191a26] border border-white/10 space-y-3">
-              <h3 className="text-xs font-bold text-white">Update Join Details:</h3>
+            <form onSubmit={handleSubmitDetails} className={`p-4 rounded-2xl border space-y-3 ${g.subtleSurface}`}>
+              <h3 className={`text-xs font-bold ${g.heading}`}>Update Join Details:</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[11px] font-semibold text-slate-300 block mb-1">Target Department</label>
+                  <label className={`text-[11px] font-semibold block mb-1 ${g.muted}`}>Target Department</label>
                   <select
                     value={departmentName}
                     onChange={(e) => setDepartmentName(e.target.value)}
-                    className="w-full bg-[#14151f] border border-white/10 rounded-xl px-3 py-2 text-xs text-white font-semibold focus:outline-none"
+                    className={`w-full border rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none ${g.input}`}
                   >
-                    <option value="Engineering" className="bg-[#14151f]">Engineering</option>
-                    <option value="Operations" className="bg-[#14151f]">Operations</option>
-                    <option value="Marketing" className="bg-[#14151f]">Marketing</option>
-                    <option value="HR" className="bg-[#14151f]">Human Resources</option>
-                    <option value="Product" className="bg-[#14151f]">Product & Design</option>
+                    <option value="Engineering">Engineering</option>
+                    <option value="Operations">Operations</option>
+                    <option value="Marketing">Marketing</option>
+                    <option value="HR">Human Resources</option>
+                    <option value="Product">Product & Design</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="text-[11px] font-semibold text-slate-300 block mb-1">Job Title</label>
+                  <label className={`text-[11px] font-semibold block mb-1 ${g.muted}`}>Job Title</label>
                   <input
                     type="text"
                     value={jobTitle}
                     onChange={(e) => setJobTitle(e.target.value)}
-                    className="w-full bg-[#14151f] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
+                    className={`w-full border rounded-xl px-3 py-2 text-xs focus:outline-none ${g.input}`}
                     placeholder="e.g. Senior Frontend Engineer"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="text-[11px] font-semibold text-slate-300 block mb-1">Note to Admin</label>
+                <label className={`text-[11px] font-semibold block mb-1 ${g.muted}`}>Note to Admin</label>
                 <input
                   type="text"
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
-                  className="w-full bg-[#14151f] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
+                  className={`w-full border rounded-xl px-3 py-2 text-xs focus:outline-none ${g.input}`}
                   placeholder="e.g. Working on the sprint deliverables under Rahul"
                 />
               </div>
@@ -336,14 +334,14 @@ export default function JoinRequestStatus() {
                 <button
                   type="button"
                   onClick={() => setIsEditing(false)}
-                  className="px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-white"
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold ${g.muted}`}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="px-4 py-1.5 rounded-xl text-xs font-bold bg-purple-600 hover:bg-purple-500 text-white flex items-center gap-1.5 cursor-pointer shadow-lg shadow-purple-500/20"
+                  className={`px-4 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer ${g.btnPrimary}`}
                 >
                   <Send className="w-3.5 h-3.5" />
                   <span>{submitting ? "Saving..." : "Update Request"}</span>
@@ -414,8 +412,8 @@ export default function JoinRequestStatus() {
               disabled={pushEnabled}
               className={`w-full sm:w-1/2 py-2.5 px-4 rounded-xl text-xs font-bold transition-all border flex items-center justify-center gap-2 cursor-pointer ${
                 pushEnabled
-                  ? "bg-emerald-950/40 text-emerald-300 border-emerald-500/30"
-                  : "bg-[#191a26] text-purple-300 border-purple-500/30 hover:bg-purple-900/40"
+                  ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
+                  : g.btnSecondary
               }`}
             >
               <Bell className="w-4 h-4" />
@@ -426,7 +424,7 @@ export default function JoinRequestStatus() {
               type="button"
               onClick={handleManualRefresh}
               disabled={checking}
-              className="w-full sm:w-1/2 py-2.5 px-4 rounded-xl text-xs font-bold bg-white/5 hover:bg-white/10 text-white border border-white/10 transition-all flex items-center justify-center gap-2 cursor-pointer"
+              className={`w-full sm:w-1/2 py-2.5 px-4 rounded-xl text-xs font-bold transition-all border flex items-center justify-center gap-2 cursor-pointer ${g.btnSecondary}`}
             >
               <RefreshCw className={`w-4 h-4 ${checking ? "animate-spin" : ""}`} />
               <span>{checking ? "Checking..." : "Check Status Now"}</span>
@@ -435,11 +433,11 @@ export default function JoinRequestStatus() {
         </div>
 
         {/* Informative Footer Card */}
-        <div className="p-4 rounded-2xl bg-[#14151f] border border-white/5 flex items-center gap-3 text-xs text-slate-400">
-          <ShieldCheck className="w-5 h-5 text-purple-400 shrink-0" />
+        <div className={`p-4 rounded-2xl border flex items-center gap-3 text-xs ${g.subtleSurface} ${g.muted}`}>
+          <ShieldCheck className={`w-5 h-5 shrink-0 ${g.accentIcon}`} />
           <p>
             You can bookmark this page or keep it open. As soon as an Admin approves your public ID{" "}
-            <span className="font-mono text-purple-300 font-bold">{publicId}</span>, this tab will automatically transition into the workspace.
+            <span className={`font-mono font-bold ${g.heading}`}>{publicId}</span>, this tab will automatically transition into the workspace.
           </p>
         </div>
       </div>

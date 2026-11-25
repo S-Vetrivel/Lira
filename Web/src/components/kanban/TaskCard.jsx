@@ -12,10 +12,12 @@ import {
 } from "lucide-react";
 import { formatDateIN, getDisplayName } from "../../utils/formatters";
 import UserAvatar from "../common/UserAvatar";
+import { getGlassTokens } from "../../styles/glassTheme";
 
 export default function TaskCard({ task, onClick, onDragStart }) {
   const { theme } = useApp();
   const isDark = theme === "dark";
+  const g = getGlassTokens(isDark);
 
   const priorityConfig = {
     urgent: {
@@ -29,22 +31,22 @@ export default function TaskCard({ task, onClick, onDragStart }) {
       label: "High",
     },
     medium: {
-      bg: isDark ? "bg-purple-500/15 text-purple-300 border-purple-500/30" : "bg-purple-50 text-purple-700 border-purple-200",
-      dot: "bg-purple-500",
+      bg: g.badge,
+      dot: isDark ? "bg-zinc-300" : "bg-zinc-600",
       label: "Medium",
     },
     low: {
-      bg: isDark ? "bg-slate-500/15 text-slate-300 border-slate-500/30" : "bg-slate-100 text-slate-700 border-slate-200",
-      dot: "bg-slate-400",
+      bg: isDark ? "bg-white/[0.04] text-zinc-400 border-white/[0.08]" : "bg-slate-100 text-slate-600 border-slate-200",
+      dot: "bg-zinc-400",
       label: "Low",
     },
   }[task.priority || "medium"];
 
   const typeConfig = {
-    task: { icon: CheckSquare, color: isDark ? "text-blue-400" : "text-blue-600", label: "Task" },
+    task: { icon: CheckSquare, color: g.accentIcon, label: "Task" },
     bug: { icon: Bug, color: isDark ? "text-rose-400" : "text-rose-600", label: "Bug" },
     client_request: { icon: HelpCircle, color: isDark ? "text-teal-400" : "text-teal-600", label: "Request" },
-    approval: { icon: FileCheck2, color: isDark ? "text-purple-400" : "text-purple-600", label: "Approval" },
+    approval: { icon: FileCheck2, color: isDark ? "text-amber-400" : "text-amber-600", label: "Approval" },
   }[task.type || "task"];
 
   const TypeIcon = typeConfig.icon;
@@ -81,23 +83,15 @@ export default function TaskCard({ task, onClick, onDragStart }) {
       draggable
       onDragStart={(e) => onDragStart(e, task)}
       onClick={() => onClick(task)}
-      className={`rounded-2xl p-4 border transition-all duration-150 cursor-grab active:cursor-grabbing select-none space-y-3 group ${
-        isDark
-          ? "bg-[#191a24] border-white/10 hover:border-purple-500/40 hover:shadow-xl hover:-translate-y-0.5 text-white shadow-sm"
-          : "bg-white border-slate-200/90 hover:border-indigo-400 hover:shadow-lg hover:-translate-y-0.5 text-slate-900 shadow-xs"
+      className={`rounded-2xl p-4 lira-glass-glow transition-all duration-150 cursor-grab active:cursor-grabbing select-none space-y-3 group hover:-translate-y-0.5 ${
+        isDark ? "text-white" : "text-slate-900"
       }`}
     >
       {/* Top row: Key + Priority badge */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5">
           <TypeIcon className={`w-3.5 h-3.5 ${typeConfig.color} shrink-0`} />
-          <span
-            className={`font-mono text-xs font-bold transition-colors ${
-              isDark
-                ? "text-slate-200 group-hover:text-purple-400"
-                : "text-slate-700 group-hover:text-indigo-600"
-            }`}
-          >
+          <span className={`font-mono text-xs font-bold transition-colors ${g.heading}`}>
             {task.key}
           </span>
         </div>
@@ -112,9 +106,7 @@ export default function TaskCard({ task, onClick, onDragStart }) {
 
       {/* Task Title */}
       <h4
-        className={`text-xs sm:text-sm font-bold leading-snug line-clamp-2 ${
-          isDark ? "text-white" : "text-slate-900"
-        }`}
+        className={`text-xs sm:text-sm font-bold leading-snug line-clamp-2 ${g.heading}`}
       >
         {task.title}
       </h4>
@@ -134,18 +126,18 @@ export default function TaskCard({ task, onClick, onDragStart }) {
       {/* Subtasks Progress */}
       {totalSubtasks > 0 && (
         <div className="space-y-1 pt-1">
-          <div className="flex items-center justify-between text-[10px] text-slate-400">
+          <div className={`flex items-center justify-between text-[10px] ${g.muted}`}>
             <span className="flex items-center gap-1">
-              <ListTodo className={`w-3 h-3 ${isDark ? "text-purple-400" : "text-indigo-600"}`} />
-              <span className={isDark ? "text-slate-400" : "text-slate-600"}>Subtasks</span>
+              <ListTodo className={`w-3 h-3 ${g.accentIcon}`} />
+              <span>Subtasks</span>
             </span>
-            <span className={`font-mono font-semibold ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+            <span className={`font-mono font-semibold ${g.heading}`}>
               {completedSubtasks}/{totalSubtasks}
             </span>
           </div>
-          <div className={`w-full rounded-full h-1 overflow-hidden ${isDark ? "bg-white/10" : "bg-slate-200"}`}>
+          <div className={`w-full rounded-full h-1 overflow-hidden ${g.progressTrack}`}>
             <div
-              className="bg-gradient-to-r from-blue-500 to-indigo-500 h-full rounded-full transition-all"
+              className={`h-full rounded-full transition-all ${g.progressFill}`}
               style={{ width: `${(completedSubtasks / totalSubtasks) * 100}%` }}
             />
           </div>

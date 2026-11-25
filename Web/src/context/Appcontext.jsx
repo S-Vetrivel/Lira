@@ -32,14 +32,14 @@ export const AppProvider = ({ children }) => {
       document.documentElement.classList.remove("light");
       document.body.classList.add("dark");
       document.body.classList.remove("light");
-      document.body.style.backgroundColor = "#0c0d12";
-      document.body.style.color = "#f8fafc";
+      document.body.style.backgroundColor = "#090a0d";
+      document.body.style.color = "#f4f4f5";
     } else {
       document.documentElement.classList.remove("dark");
       document.documentElement.classList.add("light");
       document.body.classList.remove("dark");
       document.body.classList.add("light");
-      document.body.style.backgroundColor = "#f8fafc";
+      document.body.style.backgroundColor = "#f2f4f7";
       document.body.style.color = "#0f172a";
     }
   }, [theme]);

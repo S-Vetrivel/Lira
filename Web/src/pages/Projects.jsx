@@ -33,6 +33,7 @@ import {
   Settings2,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { getGlassTokens } from "../styles/glassTheme";
 
 export default function Projects() {
   const {
@@ -82,15 +83,12 @@ export default function Projects() {
   const [uploadingProjFile, setUploadingProjFile] = useState(false);
   const projFileInputRef = useRef(null);
 
-  const borderCol = isDark ? "border-white/[0.08]" : "border-slate-200";
-  const cardBg = isDark ? "bg-[#14151c]" : "bg-white";
-  const subtleBg = isDark ? "bg-[#191a24]" : "bg-slate-50";
-  const mutedText = isDark ? "text-slate-400" : "text-slate-500";
-  const inputClass = `w-full rounded-xl px-3.5 py-2 text-xs border focus:outline-none focus:border-indigo-500 ${
-    isDark
-      ? "bg-[#151720] border-white/[0.08] text-white placeholder-slate-500"
-      : "bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400"
-  }`;
+  const g = getGlassTokens(isDark);
+  const borderCol = g.border;
+  const cardBg = g.card;
+  const subtleBg = g.subtleSurface;
+  const mutedText = g.muted;
+  const inputClass = `w-full rounded-xl px-3.5 py-2 text-xs border focus:outline-none ${g.input}`;
 
   const handleCreateProject = async (e) => {
     e.preventDefault();
@@ -227,10 +225,10 @@ export default function Projects() {
     const deptKey = dept.name.toLowerCase().includes("engineer")
       ? "dept_engineering"
       : dept.name.toLowerCase().includes("human") || dept.name.toLowerCase().includes("hr")
-      ? "dept_hr"
-      : dept.name.toLowerCase().includes("finance")
-      ? "dept_finance"
-      : "dept_general";
+        ? "dept_hr"
+        : dept.name.toLowerCase().includes("finance")
+          ? "dept_finance"
+          : "dept_general";
 
     openRoomChat({
       id: deptKey,
@@ -242,24 +240,23 @@ export default function Projects() {
 
   const unassignedToDept = liveDept
     ? teamMembers.filter(
-        (m) =>
-          m.department?._id !== liveDept._id &&
-          m.department !== liveDept._id &&
-          m.departmentName !== liveDept.name
-      )
+      (m) =>
+        m.department?._id !== liveDept._id &&
+        m.department !== liveDept._id &&
+        m.departmentName !== liveDept.name
+    )
     : [];
 
   const nonProjectMembers = liveProj
     ? teamMembers.filter(
-        (m) => !(liveProj.members || []).some((pm) => (pm._id || pm) === m._id)
-      )
+      (m) => !(liveProj.members || []).some((pm) => (pm._id || pm) === m._id)
+    )
     : [];
 
   return (
     <div
-      className={`flex-1 w-full h-full min-h-0 overflow-y-auto p-5 sm:p-7 space-y-8 transition-colors duration-150 ${
-        isDark ? "bg-[#0c0d12]" : "bg-slate-50"
-      }`}
+      className={`flex-1 w-full h-full min-h-0 overflow-y-auto p-5 sm:p-7 space-y-8 transition-colors duration-150 ${isDark ? "text-slate-100" : "text-slate-900"
+        }`}
     >
       {/* Header Banner */}
       <div className={`flex flex-wrap items-center justify-between gap-4 pb-4 border-b ${borderCol}`}>
@@ -277,11 +274,7 @@ export default function Projects() {
             {user?.role === "admin" && (
               <button
                 onClick={() => setShowAddDeptDrawer(true)}
-                className={`flex items-center gap-1.5 border text-xs font-semibold px-4 py-2 rounded-full transition-colors cursor-pointer ${
-                  isDark
-                    ? "bg-white/5 hover:bg-white/10 border-white/10 text-slate-200"
-                    : "bg-white hover:bg-slate-100 border-slate-200 text-slate-800"
-                }`}
+                className={`flex items-center gap-1.5 border text-xs font-semibold px-4 py-2 rounded-full transition-colors cursor-pointer ${g.btnSecondary}`}
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>New Department</span>
@@ -289,9 +282,7 @@ export default function Projects() {
             )}
             <button
               onClick={() => setShowAddProjectDrawer(true)}
-              className={`flex items-center gap-1.5 text-xs font-semibold px-4 py-2 rounded-full transition-all cursor-pointer ${
-                isDark ? "bg-white text-slate-950 hover:bg-slate-200" : "bg-slate-900 text-white hover:bg-slate-800"
-              }`}
+              className={`flex items-center gap-1.5 text-xs font-semibold px-4 py-2 rounded-full cursor-pointer ${g.btnPrimary}`}
             >
               <Plus className="w-4 h-4" />
               <span>New Project</span>
@@ -304,8 +295,8 @@ export default function Projects() {
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <FolderTree className="w-4 h-4 text-indigo-500" />
-            <h2 className={`text-sm font-bold uppercase tracking-wider ${isDark ? "text-white" : "text-slate-900"}`}>
+            <FolderTree className={`w-4 h-4 ${g.accentIcon}`} />
+            <h2 className={`text-sm font-bold uppercase tracking-wider ${g.heading}`}>
               Project Workspaces
             </h2>
           </div>
@@ -319,26 +310,18 @@ export default function Projects() {
               <div
                 key={proj._id}
                 className={`p-5 rounded-2xl border transition-all flex flex-col justify-between gap-4 ${
-                  isActive
-                    ? "border-indigo-500 ring-1 ring-indigo-500/30 bg-indigo-500/[0.04]"
-                    : `${cardBg} ${borderCol} hover:border-indigo-500/40`
+                  isActive ? g.cardActive : `${cardBg} ${borderCol}`
                 }`}
               >
                 <div>
                   <div className="flex items-center justify-between gap-2 mb-3">
-                    <span
-                      className={`font-mono text-xs font-bold px-2.5 py-0.5 rounded-full border ${
-                        isDark
-                          ? "bg-indigo-500/15 text-indigo-300 border-indigo-500/30"
-                          : "bg-indigo-50 text-indigo-700 border-indigo-200"
-                      }`}
-                    >
+                    <span className={`font-mono text-xs font-bold px-2.5 py-0.5 rounded-full border ${g.badge}`}>
                       {proj.prefix}
                     </span>
 
                     <div className="flex items-center gap-1.5">
                       {isActive ? (
-                        <span className="text-[10px] font-bold text-indigo-400 bg-indigo-500/10 px-2.5 py-0.5 rounded-full border border-indigo-500/20">
+                        <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${g.selectedRow}`}>
                           Active Board
                         </span>
                       ) : (
@@ -347,11 +330,7 @@ export default function Projects() {
                             setActiveProject(proj);
                             toast.success(`Switched active board to ${proj.name}`);
                           }}
-                          className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full border transition-colors cursor-pointer ${
-                            isDark
-                              ? "border-white/10 text-slate-300 hover:bg-white/10"
-                              : "border-slate-200 text-slate-700 hover:bg-slate-100"
-                          }`}
+                          className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full border transition-colors cursor-pointer ${g.btnSecondary}`}
                         >
                           Switch Board
                         </button>
@@ -359,7 +338,7 @@ export default function Projects() {
                     </div>
                   </div>
 
-                  <h3 className={`font-bold text-base mb-1 leading-snug ${isDark ? "text-white" : "text-slate-900"}`}>
+                  <h3 className={`font-bold text-base mb-1 leading-snug ${g.heading}`}>
                     {proj.name}
                   </h3>
                   <p className={`text-xs line-clamp-2 mb-4 leading-relaxed ${mutedText}`}>
@@ -375,9 +354,7 @@ export default function Projects() {
                         <UserAvatar
                           key={m._id}
                           user={m}
-                          className={`w-6 h-6 rounded-full border-2 ${
-                            isDark ? "border-[#14151c]" : "border-white"
-                          }`}
+                          className={`w-6 h-6 rounded-full border-2 ${isDark ? "border-[#14151c]" : "border-white"}`}
                           textClass="text-[9px]"
                         />
                       ))}
@@ -392,9 +369,9 @@ export default function Projects() {
                     </span>
                   </div>
 
-                  <div className={`w-full rounded-full h-1.5 overflow-hidden ${isDark ? "bg-white/10" : "bg-slate-200"}`}>
+                  <div className={`w-full rounded-full h-1.5 overflow-hidden ${g.progressTrack}`}>
                     <div
-                      className="bg-indigo-500 h-full rounded-full transition-all"
+                      className={`h-full rounded-full transition-all ${g.progressFill}`}
                       style={{ width: `${proj.stats?.progressPercent || 0}%` }}
                     />
                   </div>
@@ -406,22 +383,14 @@ export default function Projects() {
                         setSelectedProj(proj);
                         setProjDrawerTab("overview");
                       }}
-                      className={`flex-1 py-1.5 px-3 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
-                        isDark
-                          ? "bg-white/[0.04] hover:bg-white/10 border-white/10 text-slate-200"
-                          : "bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-800"
-                      }`}
+                      className={`flex-1 py-1.5 px-3 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${g.btnSecondary}`}
                     >
-                      <Settings2 className="w-3.5 h-3.5 text-indigo-400" />
+                      <Settings2 className={`w-3.5 h-3.5 ${g.accentIcon}`} />
                       <span>Manage & Files</span>
                     </button>
                     <button
                       onClick={() => handleOpenProjectChat(proj)}
-                      className={`py-1.5 px-3 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
-                        isDark
-                          ? "bg-indigo-500/10 hover:bg-indigo-600 border-indigo-500/30 text-indigo-300 hover:text-white"
-                          : "bg-indigo-50 hover:bg-indigo-600 border-indigo-200 text-indigo-700 hover:text-white"
-                      }`}
+                      className={`py-1.5 px-3 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${g.btnSecondary}`}
                     >
                       <MessageSquare className="w-3.5 h-3.5" />
                       <span>Chat</span>
@@ -438,8 +407,8 @@ export default function Projects() {
       <div className={`space-y-4 pt-4 border-t ${borderCol}`}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <Building className="w-4 h-4 text-indigo-500" />
-            <h2 className={`text-sm font-bold uppercase tracking-wider ${isDark ? "text-white" : "text-slate-900"}`}>
+            <Building className={`w-4 h-4 ${g.accentIcon}`} />
+            <h2 className={`text-sm font-bold uppercase tracking-wider ${g.heading}`}>
               Departments & Staff Management
             </h2>
           </div>
@@ -451,24 +420,20 @@ export default function Projects() {
             <div
               key={dept._id}
               onClick={() => setSelectedDept(dept)}
-              className={`p-5 rounded-2xl border space-y-3 transition-all cursor-pointer group ${cardBg} ${borderCol} hover:border-indigo-500/50`}
+              className={`p-5 rounded-2xl border space-y-3 transition-all cursor-pointer group ${cardBg} ${borderCol}`}
             >
               <div className="flex items-center justify-between">
                 <span
                   className="w-3 h-3 rounded-full"
-                  style={{ backgroundColor: dept.color || "#6366f1" }}
+                  style={{ backgroundColor: dept.color || "#a1a1aa" }}
                 />
-                <span
-                  className={`font-mono text-xs font-bold px-2 py-0.5 rounded-md ${
-                    isDark ? "text-slate-300 bg-white/5" : "text-slate-700 bg-slate-100"
-                  }`}
-                >
+                <span className={`font-mono text-xs font-bold px-2 py-0.5 rounded-md border ${g.badge}`}>
                   {dept.code}
                 </span>
               </div>
 
               <div>
-                <h3 className={`font-bold text-sm group-hover:text-indigo-400 transition-colors ${isDark ? "text-white" : "text-slate-900"}`}>
+                <h3 className={`font-bold text-sm transition-colors ${g.heading}`}>
                   {dept.name}
                 </h3>
                 <p className={`text-xs line-clamp-2 mt-1 leading-relaxed ${mutedText}`}>
@@ -483,14 +448,12 @@ export default function Projects() {
                     <UserAvatar
                       key={m._id}
                       user={m}
-                      className={`w-6 h-6 rounded-full border-2 ${
-                        isDark ? "border-[#14151c]" : "border-white"
-                      }`}
+                      className={`w-6 h-6 rounded-full border-2 ${isDark ? "border-[#14151c]" : "border-white"}`}
                       textClass="text-[9px]"
                     />
                   ))}
                 </div>
-                <span className="text-[11px] font-semibold text-indigo-400 flex items-center gap-1">
+                <span className={`text-[11px] font-semibold flex items-center gap-1 ${g.accentIcon}`}>
                   Manage <ArrowRight className="w-3 h-3" />
                 </span>
               </div>
@@ -516,11 +479,10 @@ export default function Projects() {
           liveDept && (
             <button
               onClick={() => handleOpenDepartmentChat(liveDept)}
-              className={`px-3 py-1.5 rounded-lg border text-xs font-semibold flex items-center gap-1.5 cursor-pointer ${
-                isDark
-                  ? "bg-white/[0.05] hover:bg-white/10 border-white/10 text-slate-200"
-                  : "bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-800"
-              }`}
+              className={`px-3 py-1.5 rounded-lg border text-xs font-semibold flex items-center gap-1.5 cursor-pointer ${isDark
+                ? "bg-white/[0.05] hover:bg-white/10 border-white/10 text-slate-200"
+                : "bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-800"
+                }`}
             >
               <MessageSquare className="w-3.5 h-3.5 text-indigo-400" />
               <span>Dept Chat</span>
@@ -542,9 +504,8 @@ export default function Projects() {
                   <select
                     value={liveDept.lead?._id || liveDept.lead || ""}
                     onChange={(e) => handleDeptLeadChange(e.target.value)}
-                    className={`rounded-lg px-2.5 py-1.5 text-xs border focus:outline-none ${
-                      isDark ? "bg-[#0f1016] border-white/10 text-white" : "bg-white border-slate-200 text-slate-900"
-                    }`}
+                    className={`rounded-lg px-2.5 py-1.5 text-xs border focus:outline-none ${isDark ? "bg-[#0f1016] border-white/10 text-white" : "bg-white border-slate-200 text-slate-900"
+                      }`}
                   >
                     <option value="">Unassigned</option>
                     {teamMembers.map((m) => (
@@ -591,9 +552,8 @@ export default function Projects() {
                 <button
                   type="submit"
                   disabled={!assignUserId}
-                  className={`px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer disabled:opacity-40 ${
-                    isDark ? "bg-white text-slate-950 hover:bg-slate-200" : "bg-slate-900 text-white hover:bg-slate-800"
-                  }`}
+                  className={`px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer disabled:opacity-40 ${isDark ? "bg-white text-slate-950 hover:bg-slate-200" : "bg-slate-900 text-white hover:bg-slate-800"
+                    }`}
                 >
                   Assign to Department
                 </button>
@@ -637,11 +597,10 @@ export default function Projects() {
                         {m._id !== user?._id && (
                           <button
                             onClick={() => openDirectChat(m)}
-                            className={`px-2.5 py-1 rounded-lg border text-[11px] font-semibold cursor-pointer ${
-                              isDark
-                                ? "border-white/10 hover:bg-white/10 text-slate-200"
-                                : "border-slate-200 hover:bg-slate-200 text-slate-700"
-                            }`}
+                            className={`px-2.5 py-1 rounded-lg border text-[11px] font-semibold cursor-pointer ${isDark
+                              ? "border-white/10 hover:bg-white/10 text-slate-200"
+                              : "border-slate-200 hover:bg-slate-200 text-slate-700"
+                              }`}
                           >
                             DM
                           </button>
@@ -677,11 +636,10 @@ export default function Projects() {
           liveProj && (
             <button
               onClick={() => handleOpenProjectChat(liveProj)}
-              className={`px-3 py-1.5 rounded-lg border text-xs font-semibold flex items-center gap-1.5 cursor-pointer ${
-                isDark
-                  ? "bg-white/[0.05] hover:bg-white/10 border-white/10 text-slate-200"
-                  : "bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-800"
-              }`}
+              className={`px-3 py-1.5 rounded-lg border text-xs font-semibold flex items-center gap-1.5 cursor-pointer ${isDark
+                ? "bg-white/[0.05] hover:bg-white/10 border-white/10 text-slate-200"
+                : "bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-800"
+                }`}
             >
               <MessageSquare className="w-3.5 h-3.5 text-indigo-400" />
               <span>Project Chat</span>
@@ -695,21 +653,19 @@ export default function Projects() {
             <div className={`flex items-center gap-4 border-b ${borderCol}`}>
               <button
                 onClick={() => setProjDrawerTab("overview")}
-                className={`text-xs font-semibold pb-2.5 -mb-px border-b-2 cursor-pointer ${
-                  projDrawerTab === "overview"
-                    ? "border-indigo-500 text-indigo-400"
-                    : `border-transparent ${mutedText}`
-                }`}
+                className={`text-xs font-semibold pb-2.5 -mb-px border-b-2 cursor-pointer ${projDrawerTab === "overview"
+                  ? `border-current ${g.heading}`
+                  : `border-transparent ${mutedText}`
+                  }`}
               >
                 Team & Details ({liveProj.members?.length || 0})
               </button>
               <button
                 onClick={() => setProjDrawerTab("files")}
-                className={`text-xs font-semibold pb-2.5 -mb-px border-b-2 cursor-pointer ${
-                  projDrawerTab === "files"
-                    ? "border-indigo-500 text-indigo-400"
-                    : `border-transparent ${mutedText}`
-                }`}
+                className={`text-xs font-semibold pb-2.5 -mb-px border-b-2 cursor-pointer ${projDrawerTab === "files"
+                  ? `border-current ${g.heading}`
+                  : `border-transparent ${mutedText}`
+                  }`}
               >
                 Shared Files ({liveProj.files?.length || 0})
               </button>
@@ -751,9 +707,8 @@ export default function Projects() {
                     <button
                       type="submit"
                       disabled={!projMemberId}
-                      className={`px-4 py-2 rounded-xl text-xs font-semibold shrink-0 cursor-pointer disabled:opacity-40 ${
-                        isDark ? "bg-white text-slate-950" : "bg-slate-900 text-white"
-                      }`}
+                      className={`px-4 py-2 rounded-xl text-xs font-semibold shrink-0 cursor-pointer disabled:opacity-40 ${isDark ? "bg-white text-slate-950" : "bg-slate-900 text-white"
+                        }`}
                     >
                       Add
                     </button>
@@ -779,9 +734,8 @@ export default function Projects() {
                         {m._id !== user?._id && (
                           <button
                             onClick={() => openDirectChat(m)}
-                            className={`px-2.5 py-1 rounded-lg border text-[11px] font-semibold cursor-pointer ${
-                              isDark ? "border-white/10 hover:bg-white/10" : "border-slate-200 hover:bg-slate-200"
-                            }`}
+                            className={`px-2.5 py-1 rounded-lg border text-[11px] font-semibold cursor-pointer ${isDark ? "border-white/10 hover:bg-white/10" : "border-slate-200 hover:bg-slate-200"
+                              }`}
                           >
                             DM
                           </button>
@@ -809,9 +763,8 @@ export default function Projects() {
                   <button
                     onClick={() => projFileInputRef.current?.click()}
                     disabled={uploadingProjFile}
-                    className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 cursor-pointer ${
-                      isDark ? "bg-white text-slate-950 hover:bg-slate-200" : "bg-slate-900 text-white hover:bg-slate-800"
-                    }`}
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 cursor-pointer ${isDark ? "bg-white text-slate-950 hover:bg-slate-200" : "bg-slate-900 text-white hover:bg-slate-800"
+                      }`}
                   >
                     <Upload className="w-3.5 h-3.5" />
                     <span>{uploadingProjFile ? "Uploading..." : "Upload File"}</span>
@@ -855,9 +808,8 @@ export default function Projects() {
                             download={f.originalName}
                             target="_blank"
                             rel="noreferrer"
-                            className={`p-1.5 rounded-lg border ${
-                              isDark ? "border-white/10 hover:bg-white/10" : "border-slate-200 hover:bg-slate-200"
-                            }`}
+                            className={`p-1.5 rounded-lg border ${isDark ? "border-white/10 hover:bg-white/10" : "border-slate-200 hover:bg-slate-200"
+                              }`}
                             title="Download"
                           >
                             <Download className="w-3.5 h-3.5" />
@@ -949,9 +901,8 @@ export default function Projects() {
             <button
               type="submit"
               disabled={submittingProj}
-              className={`px-5 py-2 text-xs font-semibold rounded-xl cursor-pointer ${
-                isDark ? "bg-white text-slate-950 hover:bg-slate-200" : "bg-slate-900 text-white hover:bg-slate-800"
-              }`}
+              className={`px-5 py-2 text-xs font-semibold rounded-xl cursor-pointer ${isDark ? "bg-white text-slate-950 hover:bg-slate-200" : "bg-slate-900 text-white hover:bg-slate-800"
+                }`}
             >
               {submittingProj ? "Creating..." : "Create Project"}
             </button>
@@ -1028,9 +979,8 @@ export default function Projects() {
             <button
               type="submit"
               disabled={submittingDept}
-              className={`px-5 py-2 text-xs font-semibold rounded-xl cursor-pointer ${
-                isDark ? "bg-white text-slate-950 hover:bg-slate-200" : "bg-slate-900 text-white hover:bg-slate-800"
-              }`}
+              className={`px-5 py-2 text-xs font-semibold rounded-xl cursor-pointer ${isDark ? "bg-white text-slate-950 hover:bg-slate-200" : "bg-slate-900 text-white hover:bg-slate-800"
+                }`}
             >
               {submittingDept ? "Creating..." : "Create Department"}
             </button>

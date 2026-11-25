@@ -22,6 +22,8 @@ import {
   Sliders,
 } from "lucide-react";
 
+import { getGlassTokens } from "../../styles/glassTheme";
+
 export default function CommandPalette({ isOpen, onClose }) {
   const navigate = useNavigate();
   const {
@@ -36,6 +38,7 @@ export default function CommandPalette({ isOpen, onClose }) {
   } = useApp();
 
   const isDark = theme === "dark";
+  const g = getGlassTokens(isDark);
   const [query, setQuery] = useState("");
   const [filterType, setFilterType] = useState("all"); // 'all', 'actions', 'projects', 'team'
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -101,6 +104,19 @@ export default function CommandPalette({ isOpen, onClose }) {
         },
       },
       {
+        id: "nav-dashboard",
+        category: "actions",
+        title: "Go to Dashboard Overview",
+        subtitle: "Workspace velocity, metrics, and quick actions home hub",
+        icon: BarChart2,
+        shortcut: "G H",
+        badge: "Navigate",
+        action: () => {
+          navigate("/");
+          onClose();
+        },
+      },
+      {
         id: "nav-board",
         category: "actions",
         title: "Go to Sprint Board",
@@ -109,20 +125,7 @@ export default function CommandPalette({ isOpen, onClose }) {
         shortcut: "G B",
         badge: "Navigate",
         action: () => {
-          navigate("/");
-          onClose();
-        },
-      },
-      {
-        id: "nav-analytics",
-        category: "actions",
-        title: "Go to Analytics & Velocity",
-        subtitle: "Role-based executive, lead, or personal metrics",
-        icon: BarChart2,
-        shortcut: "G A",
-        badge: "Navigate",
-        action: () => {
-          navigate("/analytics");
+          navigate("/board");
           onClose();
         },
       },
@@ -276,19 +279,15 @@ export default function CommandPalette({ isOpen, onClose }) {
 
       {/* Spotlight Command Modal */}
       <div
-        className={`relative w-full max-w-2xl rounded-3xl shadow-2xl border overflow-hidden z-10 animate-in zoom-in-95 duration-150 flex flex-col max-h-[80vh] ${
-          isDark
-            ? "bg-[#13141d]/95 backdrop-blur-2xl border-white/10 text-white"
-            : "bg-white/95 backdrop-blur-2xl border-slate-200 text-slate-900"
+        className={`relative w-full max-w-2xl rounded-3xl glass-dropdown overflow-hidden z-10 animate-in zoom-in-95 duration-150 flex flex-col max-h-[80vh] ${
+          isDark ? "text-white" : "text-slate-900"
         }`}
       >
         {/* Search Input Bar */}
         <div
-          className={`flex items-center gap-3 px-5 py-4 border-b shrink-0 ${
-            isDark ? "border-white/10 bg-[#181926]/60" : "border-slate-200 bg-slate-50/80"
-          }`}
+          className={`flex items-center gap-3 px-5 py-4 border-b shrink-0 ${g.subHeader}`}
         >
-          <Search className={`w-5 h-5 shrink-0 ${isDark ? "text-indigo-400" : "text-indigo-600"}`} />
+          <Search className={`w-5 h-5 shrink-0 ${g.accentIcon}`} />
           <input
             ref={inputRef}
             type="text"
@@ -300,24 +299,20 @@ export default function CommandPalette({ isOpen, onClose }) {
             onKeyDown={handleKeyDown}
             placeholder="Search tasks, projects, people, or commands... (e.g. ENG-101, New Task, Rahul)"
             className={`flex-1 bg-transparent border-none text-sm font-medium focus:outline-none placeholder:text-xs ${
-              isDark ? "text-white placeholder-slate-500" : "text-slate-900 placeholder-slate-400"
+              isDark ? "text-white placeholder-zinc-500" : "text-slate-900 placeholder-slate-400"
             }`}
           />
           {query ? (
             <button
               onClick={() => setQuery("")}
-              className={`p-1 rounded-lg ${isDark ? "text-slate-400 hover:text-white" : "text-slate-400 hover:text-slate-700"}`}
+              className={`p-1 rounded-lg ${g.muted} hover:text-current`}
             >
               <X className="w-4 h-4" />
             </button>
           ) : (
             <div className="flex items-center gap-1.5 shrink-0">
               <span
-                className={`text-[10px] font-mono font-semibold px-2 py-0.5 rounded-md border ${
-                  isDark
-                    ? "bg-white/5 border-white/10 text-slate-400"
-                    : "bg-slate-200/60 border-slate-300 text-slate-600"
-                }`}
+                className={`text-[10px] font-mono font-semibold px-2 py-0.5 rounded-md border ${g.badge}`}
               >
                 ESC to close
               </span>
@@ -327,9 +322,7 @@ export default function CommandPalette({ isOpen, onClose }) {
 
         {/* Category Tabs */}
         <div
-          className={`flex items-center gap-1.5 px-5 py-2.5 border-b text-xs overflow-x-auto shrink-0 select-none ${
-            isDark ? "border-white/10 bg-[#161722]/40" : "border-slate-100 bg-slate-50/50"
-          }`}
+          className={`flex items-center gap-1.5 px-5 py-2.5 border-b text-xs overflow-x-auto shrink-0 select-none ${g.subtleSurface}`}
         >
           {[
             { id: "all", label: "All" },
@@ -344,13 +337,7 @@ export default function CommandPalette({ isOpen, onClose }) {
                 setSelectedIndex(0);
               }}
               className={`px-3 py-1 rounded-full text-[11px] font-semibold transition-all cursor-pointer ${
-                filterType === tab.id
-                  ? isDark
-                    ? "bg-white text-slate-950 font-bold shadow-xs"
-                    : "bg-slate-900 text-white font-bold shadow-xs"
-                  : isDark
-                  ? "text-slate-400 hover:text-white"
-                  : "text-slate-600 hover:text-slate-900"
+                filterType === tab.id ? g.pillActive : g.pillInactive
               }`}
             >
               {tab.label}
@@ -371,12 +358,8 @@ export default function CommandPalette({ isOpen, onClose }) {
                 onMouseEnter={() => setSelectedIndex(idx)}
                 className={`flex items-center justify-between p-3 rounded-2xl cursor-pointer transition-all border ${
                   isSelected
-                    ? isDark
-                      ? "bg-indigo-600/20 border-indigo-500/40 text-white shadow-sm"
-                      : "bg-indigo-50 border-indigo-200 text-indigo-950 shadow-xs"
-                    : isDark
-                    ? "border-transparent text-slate-300 hover:bg-white/5"
-                    : "border-transparent text-slate-700 hover:bg-slate-100"
+                    ? `${g.selectedRow} shadow-sm`
+                    : `border-transparent ${g.rowHover} ${isDark ? "text-zinc-300" : "text-slate-700"}`
                 }`}
               >
                 <div className="flex items-center gap-3 min-w-0">
@@ -390,11 +373,7 @@ export default function CommandPalette({ isOpen, onClose }) {
                   ) : (
                     <div
                       className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border ${
-                        isSelected
-                          ? "bg-indigo-600 text-white border-indigo-500"
-                          : isDark
-                          ? "bg-white/5 border-white/10 text-indigo-400"
-                          : "bg-white border-slate-200 text-indigo-600"
+                        isSelected ? g.pillActive : g.badge
                       }`}
                     >
                       <Icon className="w-4 h-4" />
@@ -404,23 +383,13 @@ export default function CommandPalette({ isOpen, onClose }) {
                   <div className="min-w-0">
                     <p
                       className={`text-xs font-bold truncate ${
-                        isSelected
-                          ? isDark
-                            ? "text-white"
-                            : "text-indigo-950"
-                          : isDark
-                          ? "text-slate-200"
-                          : "text-slate-900"
+                        isSelected ? g.heading : isDark ? "text-zinc-200" : "text-slate-900"
                       }`}
                     >
                       {item.title}
                     </p>
                     {item.subtitle && (
-                      <p
-                        className={`text-[11px] truncate ${
-                          isDark ? "text-slate-400" : "text-slate-500"
-                        }`}
-                      >
+                      <p className={`text-[11px] truncate ${g.muted}`}>
                         {item.subtitle}
                       </p>
                     )}
@@ -429,30 +398,18 @@ export default function CommandPalette({ isOpen, onClose }) {
 
                 <div className="flex items-center gap-2 shrink-0 ml-3">
                   {item.badge && (
-                    <span
-                      className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${
-                        isDark
-                          ? "bg-white/5 border-white/10 text-slate-400"
-                          : "bg-slate-100 border-slate-200 text-slate-600"
-                      }`}
-                    >
+                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${g.badge}`}>
                       {item.badge}
                     </span>
                   )}
                   {item.shortcut && (
-                    <span
-                      className={`text-[10px] font-mono px-2 py-0.5 rounded-md border hidden sm:inline-block ${
-                        isDark
-                          ? "bg-white/5 border-white/10 text-slate-400"
-                          : "bg-slate-100 border-slate-200 text-slate-600"
-                      }`}
-                    >
+                    <span className={`text-[10px] font-mono px-2 py-0.5 rounded-md border hidden sm:inline-block ${g.badge}`}>
                       {item.shortcut}
                     </span>
                   )}
                   <CornerDownLeft
                     className={`w-3.5 h-3.5 transition-opacity ${
-                      isSelected ? "opacity-100 text-indigo-500" : "opacity-0"
+                      isSelected ? `opacity-100 ${g.accentIcon}` : "opacity-0"
                     }`}
                   />
                 </div>
@@ -462,11 +419,11 @@ export default function CommandPalette({ isOpen, onClose }) {
 
           {filteredItems.length === 0 && (
             <div className="py-12 text-center space-y-2">
-              <Search className="w-8 h-8 mx-auto text-slate-500/50" />
-              <p className={`text-xs font-semibold ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+              <Search className="w-8 h-8 mx-auto text-zinc-500/50" />
+              <p className={`text-xs font-semibold ${g.muted}`}>
                 No matching results for "{query}"
               </p>
-              <p className="text-[11px] text-slate-500">
+              <p className={`text-[11px] ${g.muted}`}>
                 Press Enter to look up ticket key directly or type another query.
               </p>
             </div>
@@ -475,9 +432,7 @@ export default function CommandPalette({ isOpen, onClose }) {
 
         {/* Footer Navigation Bar */}
         <div
-          className={`px-5 py-2.5 border-t flex items-center justify-between text-[11px] shrink-0 select-none ${
-            isDark ? "border-white/10 bg-[#161722]/60 text-slate-400" : "border-slate-200 bg-slate-50 text-slate-500"
-          }`}
+          className={`px-5 py-2.5 border-t flex items-center justify-between text-[11px] shrink-0 select-none ${g.subtleSurface} ${g.muted}`}
         >
           <div className="flex items-center gap-4">
             <span className="flex items-center gap-1">

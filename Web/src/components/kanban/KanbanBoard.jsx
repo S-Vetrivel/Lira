@@ -3,6 +3,7 @@ import { useApp } from "../../context/Appcontext";
 import TaskCard from "./TaskCard";
 import { getTasks, updateTaskStatus } from "../../services/api";
 import { getSocket } from "../../services/socket";
+import { getGlassTokens } from "../../styles/glassTheme";
 import {
   Filter,
   UserCheck,
@@ -40,6 +41,7 @@ const COLUMNS = [
 export default function KanbanBoard({ onSelectTask }) {
   const { user, activeProject, teamMembers, setIsCreateTaskModalOpen, theme } = useApp();
   const isDark = theme === "dark";
+  const g = getGlassTokens(isDark);
 
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -209,50 +211,34 @@ export default function KanbanBoard({ onSelectTask }) {
 
   return (
     <div
-      className={`flex-1 w-full h-full min-h-0 flex flex-col overflow-hidden transition-colors duration-150 ${
-        isDark ? "bg-[#0c0d12]" : "bg-slate-50"
-      }`}
+      className={`flex-1 w-full h-full min-h-0 flex flex-col overflow-hidden transition-colors duration-150 ${g.canvas}`}
     >
       {/* 1. Sub-Header Toolbar: Sprint Info & Quick Filter Pills */}
       <div
-        className={`w-full px-6 py-3 border-b flex flex-wrap items-center justify-between gap-3 shrink-0 select-none transition-colors duration-150 ${
-          isDark
-            ? "bg-[#0e0f16] border-white/10 text-white"
-            : "bg-white border-slate-200 text-slate-900"
-        }`}
+        className={`w-full px-6 py-3 border-b flex flex-wrap items-center justify-between gap-3 shrink-0 select-none transition-colors duration-150 ${g.subHeader}`}
       >
         {/* Left: Project title & count */}
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
             <span
-              className={`font-mono text-xs font-bold px-2.5 py-0.5 rounded-full border ${
-                isDark
-                  ? "bg-blue-500/10 text-blue-400 border-blue-500/20"
-                  : "bg-blue-50 text-blue-700 border-blue-200"
-              }`}
+              className={`font-mono text-xs font-bold px-2.5 py-0.5 rounded-full border ${g.badge}`}
             >
               {activeProject?.prefix || "ENG"}
             </span>
-            <h2
-              className={`text-sm font-bold tracking-tight ${
-                isDark ? "text-white" : "text-slate-900"
-              }`}
-            >
+            <h2 className={`text-sm font-bold tracking-tight ${g.heading}`}>
               {activeProject?.name || "Sprint Board"}
             </h2>
-            <span className="text-xs text-slate-400 font-medium">
+            <span className={`text-xs font-medium ${g.muted}`}>
               ({filteredTasks.length} {filteredTasks.length === 1 ? "task" : "tasks"})
             </span>
           </div>
 
           <button
             onClick={fetchTasks}
-            className={`p-1.5 rounded-lg transition-colors ${
-              isDark ? "text-slate-400 hover:text-white hover:bg-white/5" : "text-slate-500 hover:text-slate-900 hover:bg-slate-100"
-            }`}
+            className={`p-1.5 rounded-lg transition-colors cursor-pointer ${g.iconBtn}`}
             title="Refresh Board"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin text-indigo-400" : ""}`} />
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
           </button>
         </div>
 
@@ -261,12 +247,8 @@ export default function KanbanBoard({ onSelectTask }) {
           {/* Quick Filter: My Tasks */}
           <button
             onClick={() => setFilterMyTasks(!filterMyTasks)}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-all ${
-              filterMyTasks
-                ? "bg-indigo-600 text-white font-bold shadow-xs"
-                : isDark
-                ? "bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10"
-                : "bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200"
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-all cursor-pointer ${
+              filterMyTasks ? g.pillActive : g.pillInactive
             }`}
           >
             <UserCheck className="w-3.5 h-3.5" />
@@ -276,12 +258,10 @@ export default function KanbanBoard({ onSelectTask }) {
           {/* Quick Filter: Due Today */}
           <button
             onClick={() => setFilterDueToday(!filterDueToday)}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-all ${
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-all cursor-pointer ${
               filterDueToday
-                ? "bg-amber-600 text-white font-bold shadow-xs"
-                : isDark
-                ? "bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10"
-                : "bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200"
+                ? "bg-amber-500 text-zinc-950 font-bold shadow-xs"
+                : g.pillInactive
             }`}
           >
             <Calendar className="w-3.5 h-3.5" />
@@ -291,12 +271,10 @@ export default function KanbanBoard({ onSelectTask }) {
           {/* Quick Filter: Overdue */}
           <button
             onClick={() => setFilterOverdue(!filterOverdue)}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-all ${
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-all cursor-pointer ${
               filterOverdue
-                ? "bg-rose-600 text-white font-bold shadow-xs"
-                : isDark
-                ? "bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10"
-                : "bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200"
+                ? "bg-rose-500 text-white font-bold shadow-xs"
+                : g.pillInactive
             }`}
           >
             <AlertTriangle className="w-3.5 h-3.5" />
@@ -309,20 +287,16 @@ export default function KanbanBoard({ onSelectTask }) {
           <select
             value={selectedAssignee}
             onChange={(e) => setSelectedAssignee(e.target.value)}
-            className={`text-xs font-medium rounded-full px-3 py-1 focus:outline-none cursor-pointer border ${
-              isDark
-                ? "bg-white/5 border-white/10 text-slate-300"
-                : "bg-slate-100 border-slate-200 text-slate-700"
-            }`}
+            className={`text-xs font-medium rounded-full px-3 py-1 focus:outline-none cursor-pointer border ${g.input}`}
           >
-            <option value="" className={isDark ? "bg-[#191a24] text-white" : "bg-white text-slate-900"}>
+            <option value="" className={isDark ? "bg-[#14151a] text-white" : "bg-white text-slate-900"}>
               All Assignees
             </option>
             {teamMembers.map((m) => (
               <option
                 key={m._id}
                 value={m._id}
-                className={isDark ? "bg-[#191a24] text-white" : "bg-white text-slate-900"}
+                className={isDark ? "bg-[#14151a] text-white" : "bg-white text-slate-900"}
               >
                 {m.fullname}
               </option>
@@ -333,28 +307,22 @@ export default function KanbanBoard({ onSelectTask }) {
           <select
             value={selectedPriority}
             onChange={(e) => setSelectedPriority(e.target.value)}
-            className={`text-xs font-medium rounded-full px-3 py-1 focus:outline-none cursor-pointer border ${
-              isDark
-                ? "bg-white/5 border-white/10 text-slate-300"
-                : "bg-slate-100 border-slate-200 text-slate-700"
-            }`}
+            className={`text-xs font-medium rounded-full px-3 py-1 focus:outline-none cursor-pointer border ${g.input}`}
           >
-            <option value="" className={isDark ? "bg-[#191a24] text-white" : "bg-white text-slate-900"}>
+            <option value="" className={isDark ? "bg-[#14151a] text-white" : "bg-white text-slate-900"}>
               All Priorities
             </option>
-            <option value="urgent" className={isDark ? "bg-[#191a24] text-white" : "bg-white text-slate-900"}>Urgent</option>
-            <option value="high" className={isDark ? "bg-[#191a24] text-white" : "bg-white text-slate-900"}>High</option>
-            <option value="medium" className={isDark ? "bg-[#191a24] text-white" : "bg-white text-slate-900"}>Medium</option>
-            <option value="low" className={isDark ? "bg-[#191a24] text-white" : "bg-white text-slate-900"}>Low</option>
+            <option value="urgent" className={isDark ? "bg-[#14151a] text-white" : "bg-white text-slate-900"}>Urgent</option>
+            <option value="high" className={isDark ? "bg-[#14151a] text-white" : "bg-white text-slate-900"}>High</option>
+            <option value="medium" className={isDark ? "bg-[#14151a] text-white" : "bg-white text-slate-900"}>Medium</option>
+            <option value="low" className={isDark ? "bg-[#14151a] text-white" : "bg-white text-slate-900"}>Low</option>
           </select>
 
           {/* Clear Filters */}
           {hasActiveFilters && (
             <button
               onClick={resetFilters}
-              className={`text-xs font-semibold px-2 py-1 rounded flex items-center gap-1 ${
-                isDark ? "text-indigo-400 hover:text-indigo-300" : "text-indigo-600 hover:text-indigo-800"
-              }`}
+              className={`text-xs font-semibold px-2.5 py-1 rounded-full flex items-center gap-1 cursor-pointer ${g.btnSecondary}`}
             >
               <X className="w-3 h-3" />
               <span>Reset</span>
@@ -384,21 +352,13 @@ export default function KanbanBoard({ onSelectTask }) {
                 onDragOver={(e) => handleDragOver(e, column.id)}
                 onDragLeave={() => setDragOverColumn(null)}
                 onDrop={(e) => handleDrop(e, column.id)}
-                className={`flex flex-col h-full rounded-2xl border transition-all duration-150 overflow-hidden ${
-                  isTargeted
-                    ? "border-indigo-500 ring-2 ring-indigo-500/20 bg-indigo-500/10"
-                    : isDark
-                    ? "bg-[#12131a] border-white/10"
-                    : "bg-slate-100/90 border-slate-200"
+                className={`flex flex-col h-full rounded-2xl transition-all duration-150 overflow-hidden ${
+                  isTargeted ? g.cardActive : g.card
                 }`}
               >
                 {/* Column Header */}
                 <div
-                  className={`px-4 py-3 border-b flex items-center justify-between shrink-0 ${
-                    isDark
-                      ? "bg-[#161722] border-white/5 text-slate-200"
-                      : "bg-white/80 border-slate-200 text-slate-800"
-                  }`}
+                  className={`px-4 py-3 border-b flex items-center justify-between shrink-0 ${g.subHeader}`}
                 >
                   <div className="flex items-center gap-2">
                     <span className={`w-2 h-2 rounded-full ${column.dot}`} />
@@ -407,11 +367,7 @@ export default function KanbanBoard({ onSelectTask }) {
                     </h3>
                   </div>
                   <span
-                    className={`text-[11px] font-mono font-bold px-2 py-0.5 rounded-full border ${
-                      isDark
-                        ? "text-slate-400 bg-white/5 border-white/10"
-                        : "text-slate-600 bg-slate-100 border-slate-200"
-                    }`}
+                    className={`text-[11px] font-mono font-bold px-2 py-0.5 rounded-full border ${g.badge}`}
                   >
                     {columnTasks.length}
                   </span>
@@ -432,15 +388,13 @@ export default function KanbanBoard({ onSelectTask }) {
                   {columnTasks.length === 0 && (
                     <div
                       className={`h-44 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center text-center p-4 ${
-                        isDark ? "border-white/10 text-slate-500" : "border-slate-300 text-slate-400"
+                        isDark ? "border-white/10 text-zinc-500" : "border-slate-300 text-slate-400"
                       }`}
                     >
                       <p className="text-xs font-medium">No tasks in {column.title}</p>
                       <button
                         onClick={() => setIsCreateTaskModalOpen(true)}
-                        className={`mt-2 text-xs font-semibold flex items-center gap-1 ${
-                          isDark ? "text-indigo-400 hover:text-indigo-300" : "text-indigo-600 hover:text-indigo-800"
-                        }`}
+                        className={`mt-2 text-xs font-semibold flex items-center gap-1 cursor-pointer ${g.heading} hover:underline`}
                       >
                         <Plus className="w-3.5 h-3.5" />
                         <span>Add task</span>

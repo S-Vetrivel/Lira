@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useApp } from "../context/Appcontext";
 import LiraLogo from "../components/common/LiraLogo";
 import { isPendingOrRestricted } from "../components/auth/AuthGuards";
+import { getGlassTokens } from "../styles/glassTheme";
 import {
   ArrowRight,
   Kanban,
@@ -112,6 +113,7 @@ const CAPABILITIES = [
 export default function Landing() {
   const { user, theme, toggleTheme } = useApp();
   const isDark = theme === "dark";
+  const g = getGlassTokens(isDark);
   const [activePreview, setActivePreview] = useState("board");
 
   const currentTab =
@@ -120,33 +122,42 @@ export default function Landing() {
   const isAuthenticatedActive = user && !isPendingOrRestricted(user);
   const isPending = user && isPendingOrRestricted(user);
 
-  const surfaceBg = isDark ? "bg-[#0c0d12] text-slate-100" : "bg-slate-50 text-slate-900";
-  const panelBg = isDark ? "bg-[#12131a] border-white/[0.08]" : "bg-white border-slate-200";
-  const subtleText = isDark ? "text-slate-400" : "text-slate-600";
+  const surfaceBg = g.canvas;
+  const panelBg = g.card;
+  const glowPanelBg = g.cardGlow;
+  const subtleText = g.muted;
 
   return (
-    <div className={`min-h-screen w-full flex flex-col transition-colors duration-150 ${surfaceBg}`}>
+    <div className={`min-h-screen w-full flex flex-col relative overflow-x-hidden transition-colors duration-150 ${surfaceBg}`}>
+      {/* Ambient Neutral Gray Glass Mist */}
+      <div className="pointer-events-none fixed inset-0 overflow-hidden z-0">
+        <div
+          className={`absolute -top-36 -left-24 w-[580px] h-[580px] rounded-full blur-3xl ${
+            isDark ? "bg-zinc-300/[0.06]" : "bg-slate-400/20"
+          }`}
+        />
+        <div
+          className={`absolute top-1/3 right-[-120px] w-[500px] h-[500px] rounded-full blur-3xl ${
+            isDark ? "bg-zinc-400/[0.05]" : "bg-slate-300/25"
+          }`}
+        />
+      </div>
+
       {/* Full-Width Sticky Header */}
-      <header
-        className={`sticky top-0 z-40 w-full border-b backdrop-blur-md ${
-          isDark
-            ? "bg-[#0c0d12]/85 border-white/[0.08]"
-            : "bg-white/85 border-slate-200"
-        }`}
-      >
-        <div className="w-full px-6 sm:px-10 lg:px-16 h-16 flex items-center justify-between gap-4">
+      <header className={`sticky top-0 z-40 w-full border-b ${g.header}`}>
+        <div className="w-full px-6 sm:px-10 lg:px-16 h-[68px] flex items-center justify-between gap-4">
           <Link to="/" className="shrink-0">
             <LiraLogo size="md" showBadge isDark={isDark} />
           </Link>
 
           <nav className={`hidden md:flex items-center gap-7 text-xs font-semibold ${subtleText}`}>
-            <a href="#capabilities" className="hover:text-indigo-400 transition-colors">
+            <a href="#capabilities" className={`transition-colors ${isDark ? "hover:text-white" : "hover:text-slate-950"}`}>
               Capabilities
             </a>
-            <a href="#preview" className="hover:text-indigo-400 transition-colors">
+            <a href="#preview" className={`transition-colors ${isDark ? "hover:text-white" : "hover:text-slate-950"}`}>
               Workspace Modules
             </a>
-            <a href="#onboarding" className="hover:text-indigo-400 transition-colors">
+            <a href="#onboarding" className={`transition-colors ${isDark ? "hover:text-white" : "hover:text-slate-950"}`}>
               Access & Governance
             </a>
           </nav>
@@ -156,35 +167,23 @@ export default function Landing() {
               type="button"
               onClick={toggleTheme}
               aria-label="Toggle theme"
-              className={`p-2 rounded-xl border transition-colors cursor-pointer ${
-                isDark
-                  ? "bg-white/[0.04] border-white/[0.08] text-slate-300 hover:bg-white/[0.08]"
-                  : "bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200"
-              }`}
+              className={`w-9 h-9 rounded-xl border flex items-center justify-center transition-colors cursor-pointer ${g.iconBtn}`}
             >
-              {isDark ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4" />}
+              {isDark ? <Sun className="w-4 h-4 text-amber-300" /> : <Moon className="w-4 h-4" />}
             </button>
 
             {isAuthenticatedActive ? (
               <Link
-                to="/board"
-                className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
-                  isDark
-                    ? "bg-white text-slate-950 hover:bg-slate-200"
-                    : "bg-slate-900 text-white hover:bg-slate-800"
-                }`}
+                to="/"
+                className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold ${g.btnPrimary}`}
               >
-                <span>Open Workspace</span>
+                <span>Open Dashboard</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </Link>
             ) : isPending ? (
               <Link
                 to="/join-request"
-                className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
-                  isDark
-                    ? "bg-white text-slate-950 hover:bg-slate-200"
-                    : "bg-slate-900 text-white hover:bg-slate-800"
-                }`}
+                className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold ${g.btnPrimary}`}
               >
                 <span>View Application Status</span>
                 <ArrowRight className="w-3.5 h-3.5" />
@@ -193,21 +192,13 @@ export default function Landing() {
               <>
                 <Link
                   to="/login"
-                  className={`px-4 py-2 rounded-xl text-xs font-semibold border transition-colors ${
-                    isDark
-                      ? "border-white/[0.1] text-slate-200 hover:bg-white/[0.05]"
-                      : "border-slate-200 text-slate-700 hover:bg-slate-100"
-                  }`}
+                  className={`px-4 py-2 rounded-xl text-xs font-semibold border transition-colors ${g.btnSecondary}`}
                 >
                   Sign In
                 </Link>
                 <Link
                   to="/signup"
-                  className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
-                    isDark
-                      ? "bg-white text-slate-950 hover:bg-slate-200"
-                      : "bg-slate-900 text-white hover:bg-slate-800"
-                  }`}
+                  className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold ${g.btnPrimary}`}
                 >
                   <span>Request Access</span>
                   <ArrowRight className="w-3.5 h-3.5" />
@@ -219,70 +210,56 @@ export default function Landing() {
       </header>
 
       {/* Main Full-Page Content */}
-      <main className="flex-1 w-full">
+      <main className="flex-1 w-full relative z-10">
         {/* Hero Band */}
-        <section className={`w-full border-b ${isDark ? "border-white/[0.06]" : "border-slate-200"}`}>
+        <section className={`w-full border-b ${g.border}`}>
           <div className="w-full px-6 sm:px-10 lg:px-16 py-14 lg:py-20 grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-center">
             {/* Hero Copy */}
             <div className="lg:col-span-6 space-y-6">
               <div
-                className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border text-[11px] font-semibold ${
-                  isDark
-                    ? "bg-white/[0.04] border-white/[0.08] text-slate-300"
-                    : "bg-white border-slate-200 text-slate-700"
-                }`}
+                className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border backdrop-blur-md text-[11px] font-semibold ${g.badge}`}
               >
-                <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
                 <span>Unified Workspace & Operations Platform</span>
               </div>
 
               <h1
-                className={`text-4xl sm:text-5xl xl:text-6xl font-extrabold tracking-tight leading-[1.08] ${
-                  isDark ? "text-white" : "text-slate-950"
-                }`}
+                className={`text-4xl sm:text-5xl xl:text-6xl font-extrabold tracking-tight leading-[1.08] ${g.heading}`}
               >
-                Run teams, projects, and approvals in one clean workspace.
+                Run teams, projects, and{" "}
+                <span className={`bg-gradient-to-r bg-clip-text text-transparent ${isDark ? "from-white via-zinc-300 to-zinc-500" : "from-zinc-950 via-zinc-600 to-zinc-400"}`}>
+                  approvals
+                </span>{" "}
+                in one glass workspace.
               </h1>
 
               <p className={`text-sm sm:text-base max-w-2xl leading-relaxed ${subtleText}`}>
                 Lira brings sprint boards, department staffing, formal approval workflows,
                 shared project files, direct messaging, and administrative audit trails
-                together without visual clutter.
+                together cleanly.
               </p>
 
               <div className="flex flex-wrap items-center gap-3 pt-1">
                 {isAuthenticatedActive ? (
                   <Link
-                    to="/board"
-                    className={`inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold transition-all ${
-                      isDark
-                        ? "bg-white text-slate-950 hover:bg-slate-200"
-                        : "bg-slate-900 text-white hover:bg-slate-800"
-                    }`}
+                    to="/"
+                    className={`inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold ${g.btnPrimary}`}
                   >
-                    <span>Go to Workspace Board</span>
+                    <span>Go to Dashboard Home</span>
                     <ArrowRight className="w-4 h-4" />
                   </Link>
                 ) : (
                   <>
                     <Link
                       to="/login"
-                      className={`inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold transition-all ${
-                        isDark
-                          ? "bg-white text-slate-950 hover:bg-slate-200"
-                          : "bg-slate-900 text-white hover:bg-slate-800"
-                      }`}
+                      className={`inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold ${g.btnPrimary}`}
                     >
                       <span>Sign In to Workspace</span>
                       <ArrowRight className="w-4 h-4" />
                     </Link>
                     <Link
                       to="/signup"
-                      className={`inline-flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-semibold border transition-colors ${
-                        isDark
-                          ? "bg-white/[0.03] border-white/[0.1] text-slate-200 hover:bg-white/[0.08]"
-                          : "bg-white border-slate-200 text-slate-800 hover:bg-slate-100"
-                      }`}
+                      className={`inline-flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-semibold border transition-colors ${g.btnSecondary}`}
                     >
                       <span>Request Team Access</span>
                     </Link>
@@ -290,7 +267,7 @@ export default function Landing() {
                 )}
               </div>
 
-              <div className={`pt-4 border-t grid grid-cols-3 gap-4 max-w-lg ${isDark ? "border-white/[0.06]" : "border-slate-200"}`}>
+              <div className={`pt-4 border-t grid grid-cols-3 gap-4 max-w-lg ${g.border}`}>
                 <div>
                   <p className={`text-xs font-bold ${isDark ? "text-white" : "text-slate-900"}`}>Side Drawers</p>
                   <p className={`text-[11px] mt-0.5 ${subtleText}`}>Inspect tasks & teams without losing context</p>
@@ -308,12 +285,10 @@ export default function Landing() {
 
             {/* Hero Interactive Workspace Preview */}
             <div id="preview" className="lg:col-span-6">
-              <div className={`rounded-2xl border overflow-hidden shadow-2xl ${panelBg}`}>
+              <div className={`rounded-2xl overflow-hidden ${glowPanelBg}`}>
                 {/* Preview Chrome Bar */}
                 <div
-                  className={`px-4 py-3 border-b flex flex-wrap items-center justify-between gap-2 ${
-                    isDark ? "border-white/[0.06] bg-[#161822]" : "border-slate-200 bg-slate-100/70"
-                  }`}
+                  className={`px-4 py-3 border-b flex flex-wrap items-center justify-between gap-2 backdrop-blur-xl ${g.subHeader}`}
                 >
                   <div className="flex items-center gap-1.5">
                     {PREVIEW_TABS.map((tab) => {
@@ -324,14 +299,8 @@ export default function Landing() {
                           key={tab.id}
                           type="button"
                           onClick={() => setActivePreview(tab.id)}
-                          className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer ${
-                            active
-                              ? isDark
-                                ? "bg-white text-slate-950"
-                                : "bg-slate-900 text-white"
-                              : isDark
-                              ? "text-slate-400 hover:text-white hover:bg-white/[0.05]"
-                              : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/70"
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all cursor-pointer ${
+                            active ? g.pillActive : g.pillInactive
                           }`}
                         >
                           <Icon className="w-3.5 h-3.5" />
@@ -348,7 +317,7 @@ export default function Landing() {
                 {/* Preview Body */}
                 <div className="p-5 sm:p-6 space-y-4">
                   <div>
-                    <h2 className={`text-sm font-bold ${isDark ? "text-white" : "text-slate-900"}`}>
+                    <h2 className={`text-sm font-bold ${g.heading}`}>
                       {currentTab.title}
                     </h2>
                     <p className={`text-xs mt-1 ${subtleText}`}>
@@ -360,19 +329,11 @@ export default function Landing() {
                     {currentTab.rows.map((row) => (
                       <div
                         key={row.key}
-                        className={`p-3.5 rounded-xl border flex items-center justify-between gap-3 ${
-                          isDark
-                            ? "bg-[#0e0f15] border-white/[0.06]"
-                            : "bg-slate-50 border-slate-200"
-                        }`}
+                        className={`p-3.5 rounded-xl border backdrop-blur-md flex items-center justify-between gap-3 ${g.subtleSurface}`}
                       >
                         <div className="flex items-center gap-3 min-w-0">
                           <span
-                            className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border shrink-0 ${
-                              isDark
-                                ? "bg-indigo-500/10 border-indigo-500/30 text-indigo-300"
-                                : "bg-indigo-50 border-indigo-200 text-indigo-700"
-                            }`}
+                            className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border shrink-0 ${g.badge}`}
                           >
                             {row.key}
                           </span>
@@ -382,11 +343,7 @@ export default function Landing() {
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
                           <span
-                            className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
-                              isDark
-                                ? "bg-white/[0.04] border-white/[0.08] text-slate-300"
-                                : "bg-white border-slate-200 text-slate-600"
-                            }`}
+                            className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${g.badge}`}
                           >
                             {row.tag}
                           </span>
@@ -404,10 +361,10 @@ export default function Landing() {
         <section id="capabilities" className="w-full px-6 sm:px-10 lg:px-16 py-16 space-y-8">
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
             <div className="space-y-2">
-              <p className="text-[11px] font-bold uppercase tracking-widest text-indigo-400">
+              <p className={`text-[11px] font-bold uppercase tracking-widest ${g.muted}`}>
                 Core Capabilities
               </p>
-              <h2 className={`text-2xl sm:text-3xl font-extrabold tracking-tight ${isDark ? "text-white" : "text-slate-950"}`}>
+              <h2 className={`text-2xl sm:text-3xl font-extrabold tracking-tight ${g.heading}`}>
                 Built for daily operational execution
               </h2>
             </div>
@@ -423,20 +380,14 @@ export default function Landing() {
               return (
                 <div
                   key={cap.title}
-                  className={`p-6 rounded-2xl border space-y-3 transition-colors ${panelBg} ${
-                    isDark ? "hover:border-white/[0.16]" : "hover:border-slate-300"
-                  }`}
+                  className="p-6 rounded-2xl lira-glass space-y-3"
                 >
                   <div
-                    className={`w-9 h-9 rounded-xl border flex items-center justify-center ${
-                      isDark
-                        ? "bg-white/[0.04] border-white/[0.08] text-indigo-400"
-                        : "bg-indigo-50 border-indigo-200 text-indigo-600"
-                    }`}
+                    className={`w-9 h-9 rounded-xl border flex items-center justify-center ${g.badge}`}
                   >
                     <Icon className="w-4 h-4" />
                   </div>
-                  <h3 className={`text-sm font-bold ${isDark ? "text-white" : "text-slate-900"}`}>
+                  <h3 className={`text-sm font-bold ${g.heading}`}>
                     {cap.title}
                   </h3>
                   <p className={`text-xs leading-relaxed ${subtleText}`}>
@@ -451,27 +402,21 @@ export default function Landing() {
         {/* Onboarding & Access Flow */}
         <section
           id="onboarding"
-          className={`w-full border-t px-6 sm:px-10 lg:px-16 py-16 ${
-            isDark ? "border-white/[0.06] bg-[#0f1017]" : "border-slate-200 bg-white"
-          }`}
+          className={`w-full border-t px-6 sm:px-10 lg:px-16 py-16 ${g.border}`}
         >
           <div className="space-y-8">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
-                <p className="text-[11px] font-bold uppercase tracking-widest text-indigo-400">
+                <p className={`text-[11px] font-bold uppercase tracking-widest ${g.muted}`}>
                   Access & Security Guards
                 </p>
-                <h2 className={`text-2xl font-extrabold tracking-tight mt-1 ${isDark ? "text-white" : "text-slate-950"}`}>
+                <h2 className={`text-2xl font-extrabold tracking-tight mt-1 ${g.heading}`}>
                   Verified onboarding from request to active board
                 </h2>
               </div>
               <Link
                 to="/signup"
-                className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold border transition-colors self-start ${
-                  isDark
-                    ? "bg-white text-slate-950 hover:bg-slate-200 border-transparent"
-                    : "bg-slate-900 text-white hover:bg-slate-800 border-transparent"
-                }`}
+                className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold self-start ${g.btnPrimary}`}
               >
                 <span>Submit Join Request</span>
                 <ArrowRight className="w-3.5 h-3.5" />
@@ -503,17 +448,15 @@ export default function Landing() {
                 return (
                   <div
                     key={item.step}
-                    className={`p-5 rounded-2xl border space-y-2.5 ${
-                      isDark ? "bg-[#12131a] border-white/[0.08]" : "bg-slate-50 border-slate-200"
-                    }`}
+                    className="p-5 rounded-2xl lira-glass-glow space-y-2.5"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="font-mono text-xs font-bold text-indigo-400">
+                      <span className={`font-mono text-xs font-bold ${g.accentIcon}`}>
                         STEP {item.step}
                       </span>
-                      <Icon className="w-4 h-4 text-indigo-400" />
+                      <Icon className={`w-4 h-4 ${g.accentIcon}`} />
                     </div>
-                    <h3 className={`text-sm font-bold ${isDark ? "text-white" : "text-slate-900"}`}>
+                    <h3 className={`text-sm font-bold ${g.heading}`}>
                       {item.title}
                     </h3>
                     <p className={`text-xs leading-relaxed ${subtleText}`}>{item.text}</p>
@@ -527,21 +470,19 @@ export default function Landing() {
 
       {/* Clean Full-Width Footer */}
       <footer
-        className={`w-full border-t px-6 sm:px-10 lg:px-16 py-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs ${
-          isDark ? "border-white/[0.08] text-slate-400" : "border-slate-200 text-slate-500"
-        }`}
+        className={`relative z-10 w-full border-t px-6 sm:px-10 lg:px-16 py-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs ${g.header}`}
       >
         <LiraLogo size="sm" isDark={isDark} />
         <div className="flex items-center gap-6 font-medium">
-          <Link to="/login" className="hover:text-indigo-400 transition-colors">
+          <Link to="/login" className="hover:underline transition-colors">
             Sign In
           </Link>
-          <Link to="/signup" className="hover:text-indigo-400 transition-colors">
+          <Link to="/signup" className="hover:underline transition-colors">
             Request Access
           </Link>
           {isAuthenticatedActive && (
-            <Link to="/board" className="hover:text-indigo-400 transition-colors">
-              Workspace Board
+            <Link to="/" className="hover:underline transition-colors">
+              Dashboard Home
             </Link>
           )}
         </div>

@@ -9,10 +9,12 @@ import {
 import { useApp } from "../context/Appcontext";
 import { getTasks } from "../services/api";
 import TaskDrawer from "../components/task/TaskDrawer";
+import { getGlassTokens } from "../styles/glassTheme";
 
 export default function CalendarView() {
   const { activeProject, theme, setIsCreateTaskModalOpen } = useApp();
   const isDark = theme === "dark";
+  const g = getGlassTokens(isDark);
 
   const [currentDate, setCurrentDate] = useState(new Date());
   const [tasks, setTasks] = useState([]);
@@ -71,30 +73,22 @@ export default function CalendarView() {
   return (
     <div
       className={`flex-1 w-full h-full min-h-0 flex flex-col overflow-hidden transition-colors duration-150 ${
-        isDark ? "bg-[#0c0d12] text-slate-200" : "bg-slate-50 text-slate-800"
+        isDark ? "text-slate-200" : "text-slate-800"
       }`}
     >
       {/* Top Sub-Header */}
       <div
-        className={`px-6 py-3.5 border-b flex flex-wrap items-center justify-between gap-3 shrink-0 ${
-          isDark ? "bg-[#0e0f16] border-white/10 text-white" : "bg-white border-slate-200 text-slate-900"
-        }`}
+        className={`px-6 py-3.5 border-b flex flex-wrap items-center justify-between gap-3 shrink-0 ${g.subHeader}`}
       >
         <div className="flex items-center gap-3">
-          <div
-            className={`w-9 h-9 rounded-xl border flex items-center justify-center ${
-              isDark
-                ? "bg-indigo-500/15 border-indigo-500/30 text-indigo-400"
-                : "bg-indigo-50 border-indigo-200 text-indigo-600"
-            }`}
-          >
+          <div className={`w-9 h-9 rounded-xl border flex items-center justify-center ${g.badge}`}>
             <CalendarIcon className="w-4 h-4" />
           </div>
           <div>
-            <h1 className={`text-sm sm:text-base font-bold tracking-tight ${isDark ? "text-white" : "text-slate-900"}`}>
+            <h1 className={`text-sm sm:text-base font-bold tracking-tight ${g.heading}`}>
               Operational Schedule & Deadlines
             </h1>
-            <p className={`text-xs ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+            <p className={`text-xs ${g.muted}`}>
               {activeProject ? `[${activeProject.prefix}] ${activeProject.name}` : "All Workspaces"} • Scheduled tasks & upcoming deadlines
             </p>
           </div>
@@ -104,49 +98,33 @@ export default function CalendarView() {
         <div className="flex items-center gap-2 flex-wrap">
           <button
             onClick={loadTasks}
-            className={`p-2 rounded-full border transition-colors cursor-pointer ${
-              isDark
-                ? "bg-white/5 hover:bg-white/10 border-white/10 text-slate-300"
-                : "bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-700"
-            }`}
+            className={`p-2 rounded-full border transition-colors cursor-pointer ${g.iconBtn}`}
             title="Refresh Calendar"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin text-indigo-400" : ""}`} />
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
           </button>
 
           <button
             onClick={goToToday}
-            className={`px-3 py-1.5 rounded-full border text-xs font-semibold transition-colors cursor-pointer ${
-              isDark
-                ? "bg-white/5 hover:bg-white/10 border-white/10 text-slate-200"
-                : "bg-white hover:bg-slate-100 border-slate-200 text-slate-700"
-            }`}
+            className={`px-3 py-1.5 rounded-full border text-xs font-semibold transition-colors cursor-pointer ${g.btnSecondary}`}
           >
             Today
           </button>
 
-          <div
-            className={`flex items-center gap-1 border p-1 rounded-full ${
-              isDark ? "bg-[#181924] border-white/10" : "bg-slate-100 border-slate-200"
-            }`}
-          >
+          <div className={`flex items-center gap-1 border p-1 rounded-full ${g.subtleSurface}`}>
             <button
               onClick={prevMonth}
-              className={`p-1.5 rounded-full transition-colors cursor-pointer ${
-                isDark ? "text-slate-400 hover:text-white hover:bg-white/10" : "text-slate-600 hover:text-slate-900 hover:bg-white"
-              }`}
+              className={`p-1.5 rounded-full transition-colors cursor-pointer ${g.muted} hover:text-current`}
               title="Previous Month"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
-            <span className={`text-xs font-bold px-3 font-mono min-w-[125px] text-center ${isDark ? "text-white" : "text-slate-900"}`}>
+            <span className={`text-xs font-bold px-3 font-mono min-w-[125px] text-center ${g.heading}`}>
               {monthNames[month]} {year}
             </span>
             <button
               onClick={nextMonth}
-              className={`p-1.5 rounded-full transition-colors cursor-pointer ${
-                isDark ? "text-slate-400 hover:text-white hover:bg-white/10" : "text-slate-600 hover:text-slate-900 hover:bg-white"
-              }`}
+              className={`p-1.5 rounded-full transition-colors cursor-pointer ${g.muted} hover:text-current`}
               title="Next Month"
             >
               <ChevronRight className="w-4 h-4" />
@@ -155,9 +133,7 @@ export default function CalendarView() {
 
           <button
             onClick={() => setIsCreateTaskModalOpen(true)}
-            className={`px-3.5 py-2 rounded-full font-semibold text-xs flex items-center gap-1.5 cursor-pointer transition-colors ${
-              isDark ? "bg-white text-slate-950 hover:bg-slate-200" : "bg-slate-900 text-white hover:bg-slate-800"
-            }`}
+            className={`px-3.5 py-2 rounded-full font-semibold text-xs flex items-center gap-1.5 cursor-pointer ${g.btnPrimary}`}
           >
             <Plus className="w-3.5 h-3.5" /> Add Task
           </button>
@@ -169,11 +145,7 @@ export default function CalendarView() {
         <div className="min-w-[720px] flex-1 flex flex-col">
           {/* Weekday Labels */}
           <div
-            className={`grid grid-cols-7 border-b text-center py-2 text-[10px] font-bold uppercase tracking-wider shrink-0 ${
-              isDark
-                ? "bg-[#12131a] border-white/10 text-slate-400"
-                : "bg-slate-100 border-slate-200 text-slate-600"
-            }`}
+            className={`grid grid-cols-7 border-b text-center py-2 text-[10px] font-bold uppercase tracking-wider shrink-0 ${g.subHeader} ${g.muted}`}
           >
             <span>Sun</span>
             <span>Mon</span>
@@ -186,8 +158,8 @@ export default function CalendarView() {
 
           {/* Calendar Grid */}
           <div
-            className={`flex-1 grid grid-cols-7 auto-rows-fr border-l ${
-              isDark ? "border-white/5 bg-[#0c0d12]" : "border-slate-200 bg-white"
+            className={`flex-1 grid grid-cols-7 auto-rows-fr border-l backdrop-blur-xl ${
+              isDark ? "border-white/[0.08] bg-white/[0.015]" : "border-slate-900/[0.08] bg-white/55"
             }`}
           >
             {/* Blank days before month start */}
@@ -195,7 +167,7 @@ export default function CalendarView() {
               <div
                 key={`empty-start-${i}`}
                 className={`p-2 min-h-[100px] border-r border-b ${
-                  isDark ? "bg-[#0a0b10] border-white/5" : "bg-slate-50/70 border-slate-200"
+                  isDark ? "bg-black/20 border-white/[0.06]" : "bg-slate-50/70 border-slate-200"
                 }`}
               />
             ))}
@@ -212,32 +184,20 @@ export default function CalendarView() {
               return (
                 <div
                   key={`day-${day}`}
-                  className={`p-2 min-h-[100px] border-r border-b flex flex-col justify-between transition-colors ${
-                    isDark ? "border-white/10" : "border-slate-200"
-                  } ${
-                    isToday
-                      ? isDark
-                        ? "bg-indigo-500/10 ring-1 ring-inset ring-indigo-500/40"
-                        : "bg-indigo-50/70 ring-1 ring-inset ring-indigo-400"
-                      : isDark
-                      ? "hover:bg-white/[0.02]"
-                      : "hover:bg-slate-50"
+                  className={`p-2 min-h-[100px] border-r border-b flex flex-col justify-between transition-colors ${g.border} ${
+                    isToday ? g.selectedRow : g.rowHover
                   }`}
                 >
                   <div className="flex items-center justify-between mb-1">
                     <span
                       className={`text-xs font-bold font-mono px-1.5 py-0.5 rounded-md ${
-                        isToday
-                          ? "bg-indigo-600 text-white shadow-sm"
-                          : isDark
-                          ? "text-slate-400"
-                          : "text-slate-600"
+                        isToday ? g.pillActive : g.muted
                       }`}
                     >
                       {day}
                     </span>
                     {dayTasks.length > 0 && (
-                      <span className="text-[9px] text-slate-400 font-mono">
+                      <span className={`text-[9px] font-mono ${g.muted}`}>
                         {dayTasks.length} due
                       </span>
                     )}
@@ -259,13 +219,11 @@ export default function CalendarView() {
                             ? isDark
                               ? "bg-amber-500/15 border-amber-500/30 text-amber-300"
                               : "bg-amber-50 border-amber-200 text-amber-800"
-                            : isDark
-                            ? "bg-[#181924] border-white/10 text-slate-200 hover:border-indigo-500/40"
-                            : "bg-slate-100 border-slate-200 text-slate-800 hover:border-indigo-300"
+                            : `${g.subtleSurface} ${g.heading}`
                         }`}
                       >
                         <div className="flex items-center gap-1 font-semibold truncate">
-                          <span className="text-[9px] text-indigo-400 font-mono shrink-0">
+                          <span className={`text-[9px] font-mono shrink-0 ${g.muted}`}>
                             {t.key}
                           </span>
                           <span className="truncate">{t.title}</span>
@@ -273,7 +231,7 @@ export default function CalendarView() {
                       </button>
                     ))}
                     {dayTasks.length > 3 && (
-                      <span className="text-[9px] text-slate-400 block text-center font-mono">
+                      <span className={`text-[9px] block text-center font-mono ${g.muted}`}>
                         +{dayTasks.length - 3} more
                       </span>
                     )}
@@ -287,7 +245,7 @@ export default function CalendarView() {
               <div
                 key={`empty-end-${i}`}
                 className={`p-2 min-h-[100px] border-r border-b ${
-                  isDark ? "bg-[#0a0b10] border-white/5" : "bg-slate-50/70 border-slate-200"
+                  isDark ? "bg-black/20 border-white/[0.06]" : "bg-slate-50/70 border-slate-200"
                 }`}
               />
             ))}

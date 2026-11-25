@@ -1,29 +1,82 @@
 import React, { useState, useEffect, useMemo } from "react";
+import { Link } from "react-router-dom";
 import { useApp } from "../context/Appcontext";
 import { getManagerOverview } from "../services/api";
-import { formatINR, formatNumberIN, formatDateIN } from "../utils/formatters";
+import { formatINR, formatNumberIN, formatDateIN, getDisplayName } from "../utils/formatters";
 import UserAvatar from "../components/common/UserAvatar";
+import { getGlassTokens } from "../styles/glassTheme";
 import {
-  ChevronDown,
   Calendar as CalendarIcon,
   IndianRupee,
-  PieChart,
   RefreshCw,
-  Globe,
   ShieldCheck,
   Briefcase,
   User,
   CheckSquare,
   Activity,
-  Bug,
+  TrendingUp,
+  Clock,
+  Layers,
   Zap,
-  ClipboardCheck,
-  FileText,
+  ArrowUpRight,
+  BarChart2,
+  Circle,
+  Kanban,
+  FileCheck2,
+  Users,
+  MessageSquare,
+  Plus,
+  FolderKanban,
 } from "lucide-react";
 
+const PRIORITY_DOT = {
+  urgent: "bg-rose-500",
+  high: "bg-amber-400",
+  medium: "bg-zinc-400",
+  low: "bg-zinc-600",
+};
+
+const STATUS_BADGE = {
+  in_progress: { label: "In Progress", cls: "bg-sky-500/15 text-sky-400 border-sky-500/25" },
+  done: { label: "Done", cls: "bg-emerald-500/15 text-emerald-400 border-emerald-500/25" },
+  review: { label: "Review", cls: "bg-amber-500/15 text-amber-300 border-amber-500/25" },
+  submitted_for_review: { label: "Sign-off", cls: "bg-amber-500/15 text-amber-300 border-amber-500/25" },
+  redo_requested: { label: "Revision", cls: "bg-rose-500/15 text-rose-400 border-rose-500/25" },
+  todo: { label: "To Do", cls: "bg-zinc-500/15 text-zinc-400 border-zinc-500/25" },
+};
+
+function StatPill({ label, value, accent }) {
+  return (
+    <div className={`flex flex-col items-center px-3.5 py-2 rounded-xl border backdrop-blur-sm shrink-0 ${accent}`}>
+      <span className="text-[9px] uppercase tracking-widest font-semibold opacity-65 mb-0.5 whitespace-nowrap">
+        {label}
+      </span>
+      <span className="text-sm font-bold font-display tabular-nums tracking-tight leading-none">
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function SectionLabel({ children, className = "" }) {
+  return (
+    <span className={`text-[10px] font-semibold uppercase tracking-widest opacity-55 ${className}`}>
+      {children}
+    </span>
+  );
+}
+
 export default function Analytics() {
-  const { user, activeProject, setSelectedTaskKeyOrId, theme } = useApp();
+  const {
+    user,
+    activeProject,
+    setSelectedTaskKeyOrId,
+    setIsCreateTaskModalOpen,
+    setIsChatOpen,
+    theme,
+  } = useApp();
   const isDark = theme === "dark";
+  const g = getGlassTokens(isDark);
 
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -35,9 +88,7 @@ export default function Analytics() {
     setLoading(true);
     try {
       const res = await getManagerOverview(activeProject?._id);
-      if (res.success) {
-        setData(res);
-      }
+      if (res.success) setData(res);
     } catch (err) {
       console.error("Failed to load analytics:", err);
     } finally {
@@ -80,29 +131,22 @@ export default function Analytics() {
   } = data || {};
 
   const currentRole = user?.role || "employee";
+  const firstName = getDisplayName(user, "there").split(" ")[0];
 
-  // Slice real throughput data based on selected time filter
   const visibleCurve = useMemo(() => {
-    if (!throughputCurve || throughputCurve.length === 0) return [];
+    if (!throughputCurve?.length) return [];
     if (timeFilter === "Today") return throughputCurve.slice(-2);
     if (timeFilter === "Week") return throughputCurve.slice(-7);
     return throughputCurve;
   }, [throughputCurve, timeFilter]);
 
-  // Filtered tickets based on dropdown selection
   const filteredTickets = useMemo(() => {
-    if (selectedTaskType === "Urgent") {
-      return topPriorityTickets.filter((t) => t.priority === "urgent");
-    }
-    if (selectedTaskType === "High") {
-      return topPriorityTickets.filter(
-        (t) => t.priority === "urgent" || t.priority === "high"
-      );
-    }
+    if (selectedTaskType === "Urgent") return topPriorityTickets.filter((t) => t.priority === "urgent");
+    if (selectedTaskType === "High")
+      return topPriorityTickets.filter((t) => t.priority === "urgent" || t.priority === "high");
     return topPriorityTickets;
   }, [topPriorityTickets, selectedTaskType]);
 
-  // Role-aware status breakdown
   const activeStatusBreakdown = useMemo(() => {
     if (currentRole === "employee" && userRoleData?.myStatusBreakdown) {
       return userRoleData.myStatusBreakdown;
@@ -110,57 +154,52 @@ export default function Analytics() {
     return statusBreakdown;
   }, [currentRole, userRoleData, statusBreakdown]);
 
-  // Generate SVG path points strictly from real database throughputCurve
   const svgPathData = useMemo(() => {
-    if (!visibleCurve || visibleCurve.length === 0) {
-      return null;
-    }
-
-    const width = 390;
-    const height = 85;
-    const paddingX = 12;
-    const maxActions = Math.max(...visibleCurve.map((d) => d.actions), 1);
-    const maxHours = Math.max(...visibleCurve.map((d) => d.hours), 1);
-    const stepX =
-      visibleCurve.length > 1
-        ? (width - paddingX * 2) / (visibleCurve.length - 1)
-        : 0;
-
-    const points = visibleCurve.map((d, i) => {
-      const x = visibleCurve.length === 1 ? width / 2 : paddingX + i * stepX;
-      const y = height - (d.actions / maxActions) * (height - 20);
-      const hy = height - (d.hours / maxHours) * (height - 24);
-      return { x, y, hy, hours: d.hours, actions: d.actions, date: d.date };
+    if (!visibleCurve?.length) return null;
+    const W = 420;
+    const H = 90;
+    const px = 14;
+    const maxA = Math.max(...visibleCurve.map((d) => d.actions), 1);
+    const maxH = Math.max(...visibleCurve.map((d) => d.hours), 1);
+    const stepX = visibleCurve.length > 1 ? (W - px * 2) / (visibleCurve.length - 1) : 0;
+    const pts = visibleCurve.map((d, i) => {
+      const x = visibleCurve.length === 1 ? W / 2 : px + i * stepX;
+      return {
+        x,
+        y: H - (d.actions / maxA) * (H - 18),
+        hy: H - (d.hours / maxH) * (H - 22),
+        ...d,
+      };
     });
-
-    let pathD = `M ${points[0].x},${points[0].y}`;
-    let hoursD = `M ${points[0].x},${points[0].hy}`;
-    for (let i = 1; i < points.length; i++) {
-      const prev = points[i - 1];
-      const curr = points[i];
-      const cx = (prev.x + curr.x) / 2;
-      pathD += ` C ${cx},${prev.y} ${cx},${curr.y} ${curr.x},${curr.y}`;
-      hoursD += ` C ${cx},${prev.hy} ${cx},${curr.hy} ${curr.x},${curr.hy}`;
+    let pathD = `M ${pts[0].x},${pts[0].y}`;
+    let hoursD = `M ${pts[0].x},${pts[0].hy}`;
+    for (let i = 1; i < pts.length; i++) {
+      const p = pts[i - 1];
+      const c = pts[i];
+      const cx = (p.x + c.x) / 2;
+      pathD += ` C ${cx},${p.y} ${cx},${c.y} ${c.x},${c.y}`;
+      hoursD += ` C ${cx},${p.hy} ${cx},${c.hy} ${c.x},${c.hy}`;
     }
-
-    const areaD = `${pathD} L ${points[points.length - 1].x},95 L ${points[0].x},95 Z`;
-    const lastIdx = points.length - 1;
-    const activeX = points[lastIdx]?.x || width / 2;
-    const activeY = points[lastIdx]?.y || height;
-    const activeHY = points[lastIdx]?.hy || height;
-
-    return { pathD, areaD, hoursD, activeX, activeY, activeHY, points };
+    const areaD = `${pathD} L ${pts[pts.length - 1].x},${H + 5} L ${pts[0].x},${H + 5} Z`;
+    const last = pts[pts.length - 1];
+    return {
+      pathD,
+      areaD,
+      hoursD,
+      activeX: last?.x ?? W / 2,
+      activeY: last?.y ?? H,
+      activeHY: last?.hy ?? H,
+      points: pts,
+    };
   }, [visibleCurve]);
 
-  // Real current month calendar matrix
   const today = new Date();
-  const currentMonthName = today.toLocaleDateString("en-IN", { month: "short" });
+  const currentMonthName = today.toLocaleDateString("en-IN", { month: "long" });
   const currentYear = today.getFullYear();
   const currentMonth = today.getMonth();
   const currentDayNumber = today.getDate();
   const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-  const firstDayOffsetMon = (new Date(currentYear, currentMonth, 1).getDay() + 6) % 7; // Mon = 0 .. Sun = 6
-
+  const firstDayOffsetMon = (new Date(currentYear, currentMonth, 1).getDay() + 6) % 7;
   const dueDaysSet = useMemo(() => {
     const s = new Set();
     currentMonthDueDays.forEach((d) => s.add(d.day));
@@ -168,9 +207,7 @@ export default function Analytics() {
   }, [currentMonthDueDays]);
 
   const displayedVelocity = useMemo(() => {
-    if (velocityFilter === "Day") {
-      return weeklyVelocity.filter((v) => v.isToday);
-    }
+    if (velocityFilter === "Day") return weeklyVelocity.filter((v) => v.isToday);
     return weeklyVelocity;
   }, [weeklyVelocity, velocityFilter]);
 
@@ -178,374 +215,418 @@ export default function Analytics() {
   const realValuationINR =
     summary.sprintValuationINR ?? Math.round((summary.totalLoggedHours || 0) * hourlyRate);
 
-  return (
-    <div
-      className={`flex-1 w-full h-full min-h-0 flex flex-col lg:justify-between p-3 sm:p-4 lg:p-4 xl:p-5 gap-2.5 sm:gap-3 xl:gap-3.5 overflow-y-auto lg:overflow-hidden max-w-[1680px] mx-auto select-none transition-colors duration-150 ${
-        isDark ? "text-slate-100" : "text-slate-800"
-      }`}
-    >
-      {/* 1. COMPACT ROLE-AWARE EXECUTIVE HEADER BANNER */}
-      <div
-        className={`px-4 py-2.5 sm:px-5 sm:py-3 rounded-2xl border shrink-0 transition-all ${
-          isDark
-            ? "bg-[#14151c] border-white/10 shadow-lg"
-            : "bg-white border-slate-200 shadow-xs"
-        }`}
-      >
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
-            {currentRole === "admin" && (
-              <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-purple-500/15 text-purple-400 border border-purple-500/20 flex items-center gap-1 shrink-0">
-                <ShieldCheck className="w-3 h-3" />
-                Executive
-              </span>
-            )}
-            {currentRole === "manager" && (
-              <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-blue-500/15 text-blue-400 border border-blue-500/20 flex items-center gap-1 shrink-0">
-                <Briefcase className="w-3 h-3" />
-                Lead
-              </span>
-            )}
-            {currentRole === "employee" && (
-              <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 flex items-center gap-1 shrink-0">
-                <User className="w-3 h-3" />
-                Contributor
-              </span>
-            )}
+  const statusSegments = useMemo(() => {
+    const total = Object.values(activeStatusBreakdown).reduce((s, v) => s + (v.count || 0), 0);
+    const items = [
+      { key: "inProgress", label: "In Progress", barCls: isDark ? "bg-zinc-200" : "bg-zinc-800", dot: isDark ? "#e4e4e7" : "#27272a" },
+      { key: "review", label: "In Review", barCls: isDark ? "bg-amber-400" : "bg-amber-500", dot: "#f59e0b" },
+      { key: "done", label: "Done", barCls: "bg-emerald-400", dot: "#34d399" },
+      { key: "todo", label: "To Do", barCls: isDark ? "bg-zinc-600" : "bg-slate-300", dot: isDark ? "#52525b" : "#cbd5e1" },
+    ];
+    return {
+      total,
+      items: items.map((item) => {
+        const count = activeStatusBreakdown[item.key]?.count || 0;
+        const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+        return { ...item, count, pct };
+      }),
+    };
+  }, [activeStatusBreakdown, isDark]);
 
-            <div className="min-w-0">
-              <h1 className={`text-sm sm:text-base xl:text-lg font-black tracking-tight truncate ${isDark ? "text-white" : "text-slate-900"}`}>
-                {currentRole === "admin" && "Company-Wide Health & Velocity"}
-                {currentRole === "manager" && "Sprint Velocity & Team Capacity"}
-                {currentRole === "employee" && "Personal Workload & Delivery Velocity"}
-              </h1>
-            </div>
-            <span className={`hidden md:inline text-xs truncate ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-              • {activeProject ? `[${activeProject.prefix}] ${activeProject.name}` : "All Workspaces"}
-            </span>
-          </div>
-
-          {/* Quick Metrics Bar */}
-          <div className="flex items-center gap-2 sm:gap-2.5 shrink-0 overflow-x-auto">
-            {currentRole === "admin" && (
-              <>
-                <div className={`px-2.5 py-1 rounded-xl border text-center ${isDark ? "bg-[#1b1c26] border-white/10" : "bg-slate-100 border-slate-200"}`}>
-                  <span className={`text-[9px] uppercase font-bold block ${isDark ? "text-slate-400" : "text-slate-500"}`}>Workspaces</span>
-                  <span className={`text-xs font-black ${isDark ? "text-white" : "text-slate-900"}`}>
-                    {formatNumberIN(userRoleData.adminMetrics?.totalProjectsCount ?? projectProgress.length)}
-                  </span>
-                </div>
-                <div className={`px-2.5 py-1 rounded-xl border text-center ${isDark ? "bg-[#1b1c26] border-white/10" : "bg-slate-100 border-slate-200"}`}>
-                  <span className={`text-[9px] uppercase font-bold block ${isDark ? "text-slate-400" : "text-slate-500"}`}>Staff</span>
-                  <span className={`text-xs font-black ${isDark ? "text-white" : "text-slate-900"}`}>
-                    {formatNumberIN(userRoleData.adminMetrics?.totalUsersCount ?? teamWorkload.length)}
-                  </span>
-                </div>
-                <div className={`px-2.5 py-1 rounded-xl border text-center ${isDark ? "bg-[#1b1c26] border-white/10" : "bg-slate-100 border-slate-200"}`}>
-                  <span className={`text-[9px] uppercase font-bold block ${isDark ? "text-slate-400" : "text-slate-500"}`}>Depts</span>
-                  <span className={`text-xs font-black ${isDark ? "text-white" : "text-slate-900"}`}>
-                    {formatNumberIN(userRoleData.adminMetrics?.totalDepartmentsCount ?? departmentBreakdown.length)}
-                  </span>
-                </div>
-                <div className={`px-2.5 py-1 rounded-xl border text-center ${isDark ? "bg-emerald-500/10 border-emerald-500/20" : "bg-emerald-50 border-emerald-200"}`}>
-                  <span className="text-[9px] uppercase font-bold text-emerald-600 block">Done</span>
-                  <span className="text-xs font-black text-emerald-600">{summary.completionRate}%</span>
-                </div>
-              </>
-            )}
-
-            {currentRole === "manager" && (
-              <>
-                <div className={`px-2.5 py-1 rounded-xl border text-center ${isDark ? "bg-[#1b1c26] border-white/10" : "bg-slate-100 border-slate-200"}`}>
-                  <span className={`text-[9px] uppercase font-bold block ${isDark ? "text-slate-400" : "text-slate-500"}`}>Tickets</span>
-                  <span className={`text-xs font-black ${isDark ? "text-white" : "text-slate-900"}`}>{formatNumberIN(summary.totalTasks)}</span>
-                </div>
-                <div className={`px-2.5 py-1 rounded-xl border text-center ${isDark ? "bg-[#1b1c26] border-white/10" : "bg-slate-100 border-slate-200"}`}>
-                  <span className={`text-[9px] uppercase font-bold block ${isDark ? "text-slate-400" : "text-slate-500"}`}>Unassigned</span>
-                  <span className={`text-xs font-black ${isDark ? "text-amber-400" : "text-amber-600"}`}>
-                    {formatNumberIN(userRoleData.managerMetrics?.unassignedTasksCount ?? 0)}
-                  </span>
-                </div>
-                <div className={`px-2.5 py-1 rounded-xl border text-center ${
-                  (userRoleData.managerMetrics?.overloadedMembersCount || 0) > 0
-                    ? isDark ? "bg-rose-500/15 border-rose-500/30 text-rose-400" : "bg-rose-50 border-rose-200 text-rose-700"
-                    : isDark ? "bg-[#1b1c26] border-white/10" : "bg-slate-100 border-slate-200"
-                }`}>
-                  <span className="text-[9px] uppercase font-bold block">Overloaded</span>
-                  <span className="text-xs font-black">{formatNumberIN(userRoleData.managerMetrics?.overloadedMembersCount ?? 0)}</span>
-                </div>
-                <div className={`px-2.5 py-1 rounded-xl border text-center ${isDark ? "bg-indigo-500/10 border-indigo-500/20" : "bg-indigo-50 border-indigo-200"}`}>
-                  <span className="text-[9px] uppercase font-bold text-indigo-500 block">Sprint</span>
-                  <span className="text-xs font-black text-indigo-500">{summary.completionRate}%</span>
-                </div>
-              </>
-            )}
-
-            {currentRole === "employee" && (
-              <>
-                <div className={`px-2.5 py-1 rounded-xl border text-center ${isDark ? "bg-[#1b1c26] border-white/10" : "bg-slate-100 border-slate-200"}`}>
-                  <span className={`text-[9px] uppercase font-bold block ${isDark ? "text-slate-400" : "text-slate-500"}`}>Assigned</span>
-                  <span className={`text-xs font-black ${isDark ? "text-white" : "text-slate-900"}`}>{formatNumberIN(userRoleData.myMetrics?.totalTasks ?? 0)}</span>
-                </div>
-                <div className={`px-2.5 py-1 rounded-xl border text-center ${isDark ? "bg-[#1b1c26] border-white/10" : "bg-slate-100 border-slate-200"}`}>
-                  <span className={`text-[9px] uppercase font-bold block ${isDark ? "text-slate-400" : "text-slate-500"}`}>In Flight</span>
-                  <span className="text-xs font-black text-blue-500">{formatNumberIN(userRoleData.myMetrics?.inProgressTasks ?? 0)}</span>
-                </div>
-                <div className={`px-2.5 py-1 rounded-xl border text-center ${isDark ? "bg-[#1b1c26] border-white/10" : "bg-slate-100 border-slate-200"}`}>
-                  <span className={`text-[9px] uppercase font-bold block ${isDark ? "text-slate-400" : "text-slate-500"}`}>Logged</span>
-                  <span className={`text-xs font-black ${isDark ? "text-amber-400" : "text-amber-600"}`}>
-                    {userRoleData.myMetrics?.loggedHours ?? 0}h / {userRoleData.myMetrics?.estimatedHours ?? 0}h
-                  </span>
-                </div>
-                <div className={`px-2.5 py-1 rounded-xl border text-center ${isDark ? "bg-emerald-500/10 border-emerald-500/20" : "bg-emerald-50 border-emerald-200"}`}>
-                  <span className="text-[9px] uppercase font-bold text-emerald-600 block">Done</span>
-                  <span className="text-xs font-black text-emerald-600">{userRoleData.myMetrics?.completionRate ?? 0}%</span>
-                </div>
-              </>
-            )}
-
-            <button
-              onClick={loadOverview}
-              className={`p-1.5 rounded-xl border transition-all cursor-pointer ${
-                isDark
-                  ? "bg-[#1b1c26] border-white/10 text-slate-300 hover:text-white hover:bg-white/10"
-                  : "bg-slate-100 border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-200"
-              }`}
-              title="Refresh"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
-            </button>
-          </div>
+  if (loading) {
+    return (
+      <div className={`flex-1 w-full h-full flex items-center justify-center ${g.muted}`}>
+        <div className="flex flex-col items-center gap-3">
+          <RefreshCw className="w-6 h-6 animate-spin opacity-60" />
+          <span className="text-sm font-medium tracking-wide">Loading workspace dashboard…</span>
         </div>
       </div>
+    );
+  }
 
-      {/* 2. ROW 1: Throughput (Chart), Calendar (Real Current Month), Velocity (Bars) */}
-      <div className="lg:flex-1 lg:min-h-0 grid grid-cols-1 lg:grid-cols-12 gap-2.5 sm:gap-3 xl:gap-3.5 items-stretch shrink-0 lg:shrink">
-        {/* Card 1: Throughput & Delivery Curve */}
-        <div
-          className={`lg:col-span-5 p-3.5 xl:p-4 rounded-2xl border flex flex-col justify-between overflow-hidden transition-all ${
-            isDark ? "bg-[#14151c] border-white/10 shadow-lg" : "bg-white border-slate-200/90 shadow-xs"
-          }`}
-        >
-          <div>
-            <div className="flex items-center justify-between gap-2 mb-2">
-              <div>
-                <h3 className={`text-xs xl:text-sm font-bold tracking-tight ${isDark ? "text-white" : "text-slate-900"}`}>
-                  Throughput & Delivery Curve
-                </h3>
-                <span className={`text-[10px] block ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-                  Live activity logs & work hours ({visibleCurve.length}d window)
-                </span>
+  const roleMeta = {
+    admin: {
+      label: "Executive",
+      icon: ShieldCheck,
+      accent: g.badge,
+    },
+    manager: {
+      label: "Lead",
+      icon: Briefcase,
+      accent: g.badge,
+    },
+    employee: {
+      label: "Contributor",
+      icon: User,
+      accent: "bg-emerald-500/15 text-emerald-400 border-emerald-500/25",
+    },
+  }[currentRole];
+  const RoleIcon = roleMeta.icon;
+
+  return (
+    <div className={`flex-1 w-full h-full overflow-y-auto ${g.heading}`}>
+      <div className="max-w-[1680px] mx-auto px-4 sm:px-6 lg:px-7 py-5 space-y-5 select-none">
+        {/* 1. HERO HOME BANNER + QUICK ACTION LAUNCHPAD */}
+        <div className={`rounded-2xl p-4 sm:p-5 border flex flex-col gap-4 ${g.cardGlow}`}>
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div className="flex items-center gap-4 min-w-0">
+              <UserAvatar
+                user={user}
+                className="w-12 h-12 rounded-2xl border border-white/15 shadow-sm"
+                textClass="text-base"
+              />
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap mb-1">
+                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${roleMeta.accent}`}>
+                    <RoleIcon className="w-3 h-3" />
+                    {roleMeta.label}
+                  </span>
+                  <span className={`text-[11px] font-medium ${g.muted}`}>
+                    {activeProject ? `[${activeProject.prefix}] ${activeProject.name}` : "All Workspaces"}
+                  </span>
+                </div>
+                <h1 className={`text-xl sm:text-2xl font-display font-bold tracking-tight truncate leading-tight ${g.heading}`}>
+                  {currentRole === "admin" && `Good day, ${firstName} — Organization Overview`}
+                  {currentRole === "manager" && `Good day, ${firstName} — Sprint & Team Overview`}
+                  {currentRole === "employee" && `Welcome back, ${firstName}`}
+                </h1>
+                <p className={`text-xs mt-0.5 ${g.muted}`}>
+                  {new Date().toLocaleDateString("en-IN", {
+                    weekday: "long",
+                    day: "numeric",
+                    month: "long",
+                    year: "numeric",
+                  })}
+                </p>
               </div>
-              <div
-                className={`flex items-center p-0.5 rounded-full border text-[10px] font-medium ${
-                  isDark ? "bg-[#1b1c26] border-white/5" : "bg-slate-100 border-slate-200"
-                }`}
+            </div>
+
+            {/* KPI Summary Strip */}
+            <div className="flex items-center gap-2 flex-wrap shrink-0">
+              {currentRole === "admin" && (
+                <>
+                  <StatPill
+                    label="Workspaces"
+                    value={formatNumberIN(userRoleData.adminMetrics?.totalProjectsCount ?? projectProgress.length)}
+                    accent={g.subtleSurface}
+                  />
+                  <StatPill
+                    label="Staff"
+                    value={formatNumberIN(userRoleData.adminMetrics?.totalUsersCount ?? teamWorkload.length)}
+                    accent={g.subtleSurface}
+                  />
+                  <StatPill
+                    label="Depts"
+                    value={formatNumberIN(userRoleData.adminMetrics?.totalDepartmentsCount ?? departmentBreakdown.length)}
+                    accent={g.subtleSurface}
+                  />
+                  <StatPill
+                    label="Completion"
+                    value={`${summary.completionRate}%`}
+                    accent={isDark ? "bg-emerald-500/15 border-emerald-500/25 text-emerald-300" : "bg-emerald-50 border-emerald-200 text-emerald-700"}
+                  />
+                </>
+              )}
+              {currentRole === "manager" && (
+                <>
+                  <StatPill label="Tickets" value={formatNumberIN(summary.totalTasks)} accent={g.subtleSurface} />
+                  <StatPill label="Logged" value={`${summary.totalLoggedHours || 0}h`} accent={g.subtleSurface} />
+                  <StatPill
+                    label="Completion"
+                    value={`${summary.completionRate}%`}
+                    accent={isDark ? "bg-emerald-500/15 border-emerald-500/25 text-emerald-300" : "bg-emerald-50 border-emerald-200 text-emerald-700"}
+                  />
+                  {(userRoleData.managerMetrics?.unassignedTasksCount || 0) > 0 && (
+                    <StatPill
+                      label="Unassigned"
+                      value={formatNumberIN(userRoleData.managerMetrics?.unassignedTasksCount ?? 0)}
+                      accent={isDark ? "bg-amber-500/15 border-amber-500/25 text-amber-300" : "bg-amber-50 border-amber-200 text-amber-700"}
+                    />
+                  )}
+                </>
+              )}
+              {currentRole === "employee" && (
+                <>
+                  <StatPill label="My Tasks" value={formatNumberIN(userRoleData.myMetrics?.totalTasks || 0)} accent={g.subtleSurface} />
+                  <StatPill
+                    label="Done"
+                    value={formatNumberIN(userRoleData.myMetrics?.doneTasks || 0)}
+                    accent={isDark ? "bg-emerald-500/15 border-emerald-500/25 text-emerald-300" : "bg-emerald-50 border-emerald-200 text-emerald-700"}
+                  />
+                  <StatPill label="Logged" value={`${userRoleData.myMetrics?.loggedHours || 0}h`} accent={g.subtleSurface} />
+                  {(userRoleData.myMetrics?.overdueCount || 0) > 0 && (
+                    <StatPill
+                      label="Overdue"
+                      value={formatNumberIN(userRoleData.myMetrics?.overdueCount ?? 0)}
+                      accent={isDark ? "bg-rose-500/15 border-rose-500/25 text-rose-300" : "bg-rose-50 border-rose-200 text-rose-700"}
+                    />
+                  )}
+                </>
+              )}
+
+              <button
+                type="button"
+                onClick={loadOverview}
+                className={`w-10 h-10 rounded-xl flex items-center justify-center border transition-all cursor-pointer ${g.iconBtn}`}
+                title="Refresh Dashboard"
               >
-                {["Today", "Week", "Month", "All"].map((period) => (
+                <RefreshCw className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* Quick Home Navigation Shortcuts */}
+          <div className={`pt-3 border-t flex items-center justify-between gap-2 flex-wrap ${g.border}`}>
+            <div className="flex items-center gap-2 flex-wrap">
+              <Link
+                to="/board"
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${g.btnSecondary}`}
+              >
+                <Kanban className="w-3.5 h-3.5 opacity-75" />
+                <span>Open Sprint Board</span>
+              </Link>
+              <Link
+                to="/my-work"
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${g.btnSecondary}`}
+              >
+                <CheckSquare className="w-3.5 h-3.5 opacity-75" />
+                <span>My Day</span>
+              </Link>
+              <Link
+                to="/requests"
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${g.btnSecondary}`}
+              >
+                <FileCheck2 className="w-3.5 h-3.5 opacity-75" />
+                <span>Approvals</span>
+              </Link>
+              <Link
+                to="/team"
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${g.btnSecondary}`}
+              >
+                <Users className="w-3.5 h-3.5 opacity-75" />
+                <span>Team</span>
+              </Link>
+              <Link
+                to="/projects"
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${g.btnSecondary}`}
+              >
+                <FolderKanban className="w-3.5 h-3.5 opacity-75" />
+                <span>Workspaces</span>
+              </Link>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setIsChatOpen(true)}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${g.btnSecondary}`}
+              >
+                <MessageSquare className="w-3.5 h-3.5 opacity-75" />
+                <span>Team Chat</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsCreateTaskModalOpen(true)}
+                className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs transition-all cursor-pointer ${g.btnPrimary}`}
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>New Task</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* 2. TOP ANALYTICS GRID (3 cards) */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+          {/* Col A: Throughput Curve (5/12) */}
+          <div className={`lg:col-span-5 rounded-2xl p-5 border flex flex-col gap-3.5 overflow-hidden ${g.cardGlow}`}>
+            <div className="flex items-center justify-between gap-2 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className={`w-8 h-8 rounded-xl flex items-center justify-center border ${g.badge}`}>
+                  <Activity className="w-4 h-4 opacity-80" />
+                </div>
+                <div>
+                  <h2 className={`text-sm font-display font-bold leading-tight ${g.heading}`}>
+                    Throughput & Delivery
+                  </h2>
+                  <SectionLabel>Live logs · {timeFilter.toLowerCase()} window</SectionLabel>
+                </div>
+              </div>
+              <div className={`flex items-center p-0.5 rounded-full border gap-0.5 ${g.subtleSurface}`}>
+                {["Today", "Week", "Month", "All"].map((f) => (
                   <button
-                    key={period}
-                    onClick={() => setTimeFilter(period)}
-                    className={`px-2 py-0.5 rounded-full transition-all cursor-pointer ${
-                      timeFilter === period
-                        ? isDark
-                          ? "bg-white text-slate-950 font-bold shadow-xs"
-                          : "bg-slate-900 text-white font-bold shadow-xs"
-                        : isDark
-                        ? "text-slate-400 hover:text-white"
-                        : "text-slate-600 hover:text-slate-900"
+                    key={f}
+                    type="button"
+                    onClick={() => setTimeFilter(f)}
+                    className={`px-2.5 py-1 rounded-full text-[10px] font-semibold transition-all cursor-pointer ${
+                      timeFilter === f ? g.pillActive : g.muted
                     }`}
                   >
-                    {period}
+                    {f}
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* Real Metric Numbers */}
-            <div className="flex items-baseline gap-4 mb-2">
+            <div className="flex items-center gap-5 shrink-0">
               <div>
-                <div className="flex items-center gap-1.5">
-                  <span className={`text-xl xl:text-2xl font-black tracking-tight ${isDark ? "text-white" : "text-slate-900"}`}>
-                    {formatNumberIN(
-                      currentRole === "employee"
-                        ? userRoleData.myMetrics?.totalTasks ?? summary.totalTasks
-                        : summary.totalTasks
-                    )}
+                <div className="flex items-center gap-2">
+                  <span className={`text-2xl font-display font-bold tabular-nums ${g.heading}`}>
+                    {formatNumberIN(summary.inProgressTasks)}
                   </span>
-                  <span className="text-[9px] font-bold bg-emerald-500/15 text-emerald-500 px-1.5 py-0.2 rounded-full border border-emerald-500/20">
-                    ↗ {summary.completionRate}%
+                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${g.badge}`}>
+                    In Flight
                   </span>
                 </div>
-                <span className={`text-[10px] font-medium block ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-                  {currentRole === "employee" ? "Assigned tickets" : "Active workspace tickets"}
+                <span className={`block text-[10px] mt-0.5 ${g.muted}`}>Active workspace tickets</span>
+              </div>
+              <div className={`w-px h-9 ${isDark ? "bg-white/[0.08]" : "bg-slate-200"}`} />
+              <div>
+                <span className={`text-2xl font-display font-bold tabular-nums ${g.heading}`}>
+                  {summary.totalLoggedHours || 0}
+                  <span className="text-sm font-medium opacity-50 ml-0.5">h</span>
+                </span>
+                <span className={`block text-[10px] mt-0.5 ${g.muted}`}>Logged team effort</span>
+              </div>
+              <div className={`w-px h-9 ${isDark ? "bg-white/[0.08]" : "bg-slate-200"}`} />
+              <div>
+                <span className={`text-2xl font-display font-bold tabular-nums ${g.heading}`}>
+                  {summary.overdueCount || 0}
+                </span>
+                <span className={`block text-[10px] mt-0.5 ${g.muted}`}>Overdue tickets</span>
+              </div>
+            </div>
+
+            <div className="flex-1 relative min-h-[100px]">
+              <div className={`absolute top-0 right-0 z-10 flex items-center gap-2 rounded-full px-2.5 py-1 text-[10px] border backdrop-blur-md ${g.badge}`}>
+                <span className="flex items-center gap-1 font-semibold">
+                  <span className={`w-1.5 h-1.5 rounded-full inline-block ${isDark ? "bg-zinc-200" : "bg-zinc-800"}`} />
+                  {visibleCurve.reduce((a, d) => a + d.actions, 0)} Events
+                </span>
+                <span className="opacity-30">·</span>
+                <span className="flex items-center gap-1 font-semibold text-amber-400">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
+                  {Math.round(visibleCurve.reduce((a, d) => a + d.hours, 0) * 10) / 10}h
                 </span>
               </div>
 
-              <div>
-                <div className="flex items-center gap-1.5">
-                  <span className={`text-lg xl:text-xl font-extrabold tracking-tight ${isDark ? "text-white" : "text-slate-900"}`}>
-                    {currentRole === "employee"
-                      ? `${userRoleData.myMetrics?.loggedHours || 0}h`
-                      : `${summary.totalLoggedHours || 0}h`}
-                  </span>
-                  <span className="text-[9px] font-bold bg-indigo-500/15 text-indigo-400 px-1.5 py-0.2 rounded-full border border-indigo-500/20">
-                    {summary.totalEstimatedHours}h est.
-                  </span>
+              {svgPathData ? (
+                <svg viewBox="0 0 420 100" className="w-full h-full overflow-visible">
+                  <defs>
+                    <linearGradient id="actGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={isDark ? "#d4d4d8" : "#52525b"} stopOpacity="0.32" />
+                      <stop offset="100%" stopColor={isDark ? "#d4d4d8" : "#52525b"} stopOpacity="0" />
+                    </linearGradient>
+                  </defs>
+                  <line
+                    x1={svgPathData.activeX}
+                    y1="4"
+                    x2={svgPathData.activeX}
+                    y2="95"
+                    stroke={isDark ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.09)"}
+                    strokeDasharray="2 3"
+                  />
+                  <path d={svgPathData.areaD} fill="url(#actGrad)" />
+                  <path
+                    d={svgPathData.pathD}
+                    fill="none"
+                    stroke={isDark ? "#e4e4e7" : "#3f3f46"}
+                    strokeWidth="2.2"
+                    strokeLinecap="round"
+                  />
+                  <path
+                    d={svgPathData.hoursD}
+                    fill="none"
+                    stroke="#f59e0b"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    opacity="0.8"
+                  />
+                  <circle
+                    cx={svgPathData.activeX}
+                    cy={svgPathData.activeY}
+                    r="4"
+                    fill={isDark ? "#fff" : "#09090b"}
+                    stroke={isDark ? "#090a0d" : "#fff"}
+                    strokeWidth="2"
+                  />
+                  <circle
+                    cx={svgPathData.activeX}
+                    cy={svgPathData.activeHY}
+                    r="3"
+                    fill="#f59e0b"
+                    stroke={isDark ? "#090a0d" : "#fff"}
+                    strokeWidth="1.5"
+                  />
+                </svg>
+              ) : (
+                <div className="h-full flex items-center justify-center gap-2 opacity-40">
+                  <Activity className="w-4 h-4" />
+                  <span className="text-xs">No timeline activity yet</span>
                 </div>
-                <span className={`text-[10px] font-medium block ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-                  Logged work effort
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Real Data Curve */}
-          <div className="relative pt-1 w-full">
-            <div
-              className={`absolute top-0 right-4 z-10 flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[9px] shadow-md border ${
-                isDark
-                  ? "bg-[#222330] border-white/10 text-white"
-                  : "bg-white border-slate-200 text-slate-800"
-              }`}
-            >
-              <span className="flex items-center gap-1 text-purple-400 font-bold">
-                <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />
-                {visibleCurve.reduce((acc, d) => acc + d.actions, 0)} Events
-              </span>
-              <span className={isDark ? "text-slate-500" : "text-slate-400"}>•</span>
-              <span className="flex items-center gap-1 text-amber-500 font-bold">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                {Math.round(visibleCurve.reduce((acc, d) => acc + d.hours, 0) * 10) / 10}h
-              </span>
+              )}
             </div>
 
-            {svgPathData ? (
-              <svg viewBox="0 0 390 100" className="w-full h-16 xl:h-20 2xl:h-24 overflow-visible">
-                <defs>
-                  <linearGradient id="purpleGradMini" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#818cf8" stopOpacity="0.4" />
-                    <stop offset="100%" stopColor="#818cf8" stopOpacity="0" />
-                  </linearGradient>
-                </defs>
-
-                <line
-                  x1={svgPathData.activeX}
-                  y1="5"
-                  x2={svgPathData.activeX}
-                  y2="90"
-                  stroke={isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.15)"}
-                  strokeDasharray="2 2"
-                />
-
-                <path d={svgPathData.areaD} fill="url(#purpleGradMini)" />
-                <path
-                  d={svgPathData.pathD}
-                  fill="none"
-                  stroke="#818cf8"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                />
-                <path
-                  d={svgPathData.hoursD}
-                  fill="none"
-                  stroke="#f59e0b"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  opacity="0.85"
-                />
-
-                <circle
-                  cx={svgPathData.activeX}
-                  cy={svgPathData.activeY}
-                  r="3.5"
-                  fill="#818cf8"
-                  stroke={isDark ? "#ffffff" : "#0f172a"}
-                  strokeWidth="1.5"
-                />
-                <circle
-                  cx={svgPathData.activeX}
-                  cy={svgPathData.activeHY}
-                  r="2.5"
-                  fill="#f59e0b"
-                  stroke={isDark ? "#ffffff" : "#0f172a"}
-                  strokeWidth="1"
-                />
-              </svg>
-            ) : (
-              <div className="h-20 flex items-center justify-center text-xs text-slate-500">
-                <Activity className="w-4 h-4 mr-1.5 opacity-60" />
-                <span>No recorded timeline activity yet</span>
+            {svgPathData && (
+              <div className={`flex items-center justify-between text-[9px] font-mono shrink-0 ${g.muted}`}>
+                {visibleCurve.map((d, i) => {
+                  if (visibleCurve.length > 8 && i % 2 !== 0 && i !== visibleCurve.length - 1) return null;
+                  return (
+                    <span key={d.date} className={d.dayNumber === currentDayNumber ? `font-bold ${g.heading}` : ""}>
+                      {d.dayNumber}
+                    </span>
+                  );
+                })}
               </div>
             )}
-
-            <div className={`flex items-center justify-between text-[9px] font-mono pt-0.5 ${isDark ? "text-slate-500" : "text-slate-400"}`}>
-              {visibleCurve.map((d, i) => {
-                if (visibleCurve.length > 8 && i % 2 !== 0 && i !== visibleCurve.length - 1) {
-                  return null;
-                }
-                return (
-                  <span
-                    key={d.date}
-                    className={d.dayNumber === currentDayNumber ? `font-bold ${isDark ? "text-white" : "text-slate-900"}` : ""}
-                  >
-                    {d.dayNumber}
-                  </span>
-                );
-              })}
-            </div>
           </div>
-        </div>
 
-        {/* Card 2: Real Current Month Calendar & INR Sprint Valuation */}
-        <div
-          className={`lg:col-span-3 p-3.5 xl:p-4 rounded-2xl border flex flex-col justify-between overflow-hidden transition-all ${
-            isDark ? "bg-[#14151c] border-white/10 shadow-lg" : "bg-white border-slate-200/90 shadow-xs"
-          }`}
-        >
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-1.5">
-                <CalendarIcon className="w-3.5 h-3.5 text-indigo-400" />
-                <span className={`text-xs font-bold ${isDark ? "text-white" : "text-slate-900"}`}>
-                  {currentMonthName} {currentYear}
-                </span>
+          {/* Col B: Calendar & Valuation (3/12) */}
+          <div className={`lg:col-span-3 rounded-2xl p-5 border flex flex-col gap-3 overflow-hidden ${g.card}`}>
+            <div className="flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className={`w-8 h-8 rounded-xl flex items-center justify-center border ${g.badge}`}>
+                  <CalendarIcon className="w-4 h-4 opacity-80" />
+                </div>
+                <div>
+                  <h2 className={`text-sm font-display font-bold leading-tight ${g.heading}`}>
+                    {currentMonthName} {currentYear}
+                  </h2>
+                  <SectionLabel>Schedule & Deadlines</SectionLabel>
+                </div>
               </div>
-              <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full border ${
-                isDark ? "bg-indigo-500/15 border-indigo-500/30 text-indigo-300" : "bg-indigo-50 border-indigo-200 text-indigo-700"
-              }`}>
-                {currentMonthDueDays.length} Due
-              </span>
+              {currentMonthDueDays.length > 0 && (
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border bg-amber-500/15 border-amber-500/25 text-amber-400`}>
+                  {currentMonthDueDays.length} Due
+                </span>
+              )}
             </div>
 
-            {/* Real Calendar Matrix */}
-            <div className="grid grid-cols-7 gap-0.5 text-center text-[9px] font-mono">
-              {["M", "T", "W", "T", "F", "S", "S"].map((d, idx) => (
-                <div key={idx} className={`py-0.5 font-bold ${isDark ? "text-slate-500" : "text-slate-400"}`}>
+            <div className="grid grid-cols-7 gap-y-0.5 text-center text-[10px] flex-1 tabular-nums">
+              {["M", "T", "W", "T", "F", "S", "S"].map((d, i) => (
+                <div key={i} className={`py-1 font-bold tracking-widest ${g.muted}`}>
                   {d}
                 </div>
               ))}
-
-              {Array.from({ length: firstDayOffsetMon }).map((_, idx) => (
-                <div key={`pad-${idx}`} className="py-0.5" />
+              {Array.from({ length: firstDayOffsetMon }).map((_, i) => (
+                <div key={`p${i}`} />
               ))}
-
               {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((day) => {
                 const isToday = day === currentDayNumber;
                 const hasDue = dueDaysSet.has(day);
                 return (
                   <div
                     key={day}
-                    className={`py-0.5 rounded-md font-semibold relative ${
+                    className={`py-1 mx-0.5 rounded-lg font-semibold transition-colors ${
                       isToday
-                        ? "bg-indigo-600 text-white font-black shadow-xs"
+                        ? isDark
+                          ? "bg-white text-zinc-950 font-bold shadow-xs"
+                          : "bg-zinc-900 text-white font-bold shadow-xs"
                         : hasDue
                         ? isDark
                           ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
                           : "bg-amber-100 text-amber-800 border border-amber-300"
-                        : isDark
-                        ? "text-slate-400"
-                        : "text-slate-600"
+                        : g.muted
                     }`}
                   >
                     {day}
@@ -553,541 +634,397 @@ export default function Analytics() {
                 );
               })}
             </div>
-          </div>
 
-          {/* Bottom Card: Real INR Sprint Valuation / Personal Effort */}
-          <div
-            className={`mt-2 p-2.5 rounded-xl border flex items-center justify-between ${
-              isDark
-                ? "bg-gradient-to-r from-[#1c1d27] to-[#252636] border-white/10"
-                : "bg-slate-50 border-slate-200"
-            }`}
-          >
-            <div>
-              <span className={`text-[9px] uppercase tracking-wider block font-semibold ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-                {currentRole === "employee" ? "Logged Effort" : "Sprint Valuation (INR)"}
-              </span>
-              <span className={`text-base xl:text-lg font-black tracking-tight ${isDark ? "text-white" : "text-slate-900"}`}>
-                {currentRole === "employee"
-                  ? `${userRoleData.myMetrics?.loggedHours || 0} Hours`
-                  : formatINR(realValuationINR)}
-              </span>
-              <span className={`text-[9px] block ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-                {currentRole === "employee"
-                  ? `${userRoleData.myMetrics?.doneTasks || 0} tasks resolved`
-                  : `${summary.totalLoggedHours || 0}h logged @ ${formatINR(hourlyRate)}/hr`}
-              </span>
-            </div>
-            <div
-              className={`w-7 h-7 rounded-lg flex items-center justify-center border shrink-0 ${
-                isDark
-                  ? "bg-indigo-500/20 text-indigo-300 border-indigo-500/30"
-                  : "bg-indigo-100 text-indigo-600 border-indigo-200"
-              }`}
-            >
-              <IndianRupee className="w-3.5 h-3.5" />
+            <div className={`mt-auto p-3 rounded-xl border flex items-center justify-between shrink-0 ${g.subtleSurface}`}>
+              <div>
+                <SectionLabel>{currentRole === "employee" ? "Logged Effort" : "Sprint Valuation"}</SectionLabel>
+                <span className={`text-base font-display font-bold tabular-nums block mt-0.5 ${g.heading}`}>
+                  {currentRole === "employee"
+                    ? `${userRoleData.myMetrics?.loggedHours || 0}h logged`
+                    : formatINR(realValuationINR)}
+                </span>
+                <span className={`text-[10px] ${g.muted}`}>
+                  {currentRole === "employee"
+                    ? `${userRoleData.myMetrics?.doneTasks || 0} tasks resolved`
+                    : `${summary.totalLoggedHours || 0}h @ ${formatINR(hourlyRate)}/hr`}
+                </span>
+              </div>
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center border shrink-0 ${g.badge}`}>
+                <IndianRupee className="w-4 h-4 opacity-75" />
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Card 3: Weekly Burnup & Real Effort */}
-        <div
-          className={`lg:col-span-4 p-3.5 xl:p-4 rounded-2xl border flex flex-col justify-between overflow-hidden transition-all ${
-            isDark ? "bg-[#14151c] border-white/10 shadow-lg" : "bg-white border-slate-200/90 shadow-xs"
-          }`}
-        >
-          <div>
-            <div className="flex items-center justify-between gap-2 mb-2">
-              <h3 className={`text-xs xl:text-sm font-bold tracking-tight ${isDark ? "text-white" : "text-slate-900"}`}>
-                Weekly Burnup & Effort
-              </h3>
-              <div
-                className={`flex items-center p-0.5 rounded-full border text-[10px] font-medium ${
-                  isDark ? "bg-[#1b1c26] border-white/5" : "bg-slate-100 border-slate-200"
-                }`}
-              >
-                {["Day", "Week"].map((period) => (
+          {/* Col C: Weekly Burnup (4/12) */}
+          <div className={`lg:col-span-4 rounded-2xl p-5 border flex flex-col gap-3 overflow-hidden ${g.card}`}>
+            <div className="flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className={`w-8 h-8 rounded-xl flex items-center justify-center border ${g.badge}`}>
+                  <BarChart2 className="w-4 h-4 opacity-80" />
+                </div>
+                <div>
+                  <h2 className={`text-sm font-display font-bold leading-tight ${g.heading}`}>
+                    Weekly Burnup
+                  </h2>
+                  <SectionLabel>Tasks completed · effort</SectionLabel>
+                </div>
+              </div>
+              <div className={`flex items-center p-0.5 rounded-full border gap-0.5 ${g.subtleSurface}`}>
+                {["Day", "Week"].map((p) => (
                   <button
-                    key={period}
-                    onClick={() => setVelocityFilter(period)}
-                    className={`px-2 py-0.5 rounded-full transition-all cursor-pointer ${
-                      velocityFilter === period
-                        ? isDark
-                          ? "bg-white text-slate-950 font-bold shadow-xs"
-                          : "bg-slate-900 text-white font-bold shadow-xs"
-                        : isDark
-                        ? "text-slate-400 hover:text-white"
-                        : "text-slate-600 hover:text-slate-900"
+                    key={p}
+                    type="button"
+                    onClick={() => setVelocityFilter(p)}
+                    className={`px-2.5 py-1 rounded-full text-[10px] font-semibold transition-all cursor-pointer ${
+                      velocityFilter === p ? g.pillActive : g.muted
                     }`}
                   >
-                    {period}
+                    {p}
                   </button>
                 ))}
               </div>
             </div>
 
-            <div className="flex items-center justify-between mb-2">
-              <div>
-                <span className={`text-xl xl:text-2xl font-black tracking-tight ${isDark ? "text-white" : "text-slate-900"}`}>
-                  {summary.doneTasks} / {summary.totalTasks}
+            <div className="shrink-0">
+              <span className={`text-2xl font-display font-bold tabular-nums ${g.heading}`}>
+                {summary.doneTasks || 0}
+                <span className="text-sm font-normal opacity-45 ml-1">
+                  / {summary.totalTasks || 0}
                 </span>
-                <span className={`text-[10px] font-medium block ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-                  Tasks completed this cycle
+              </span>
+              <span className={`block text-[10px] mt-0.5 ${g.muted}`}>
+                Tasks completed · {displayedVelocity.reduce((s, v) => s + (v.tasksCount || 0), 0)} touched this {velocityFilter.toLowerCase()}
+              </span>
+              <div className={`flex items-center gap-2 mt-1.5 text-[10px] font-semibold ${g.muted}`}>
+                <span className="flex items-center gap-1 tabular-nums">
+                  <Clock className="w-3 h-3" />
+                  {displayedVelocity.reduce((s, v) => s + (v.hours || 0), 0).toFixed(1)}h logged
                 </span>
-              </div>
-
-              <div className="flex items-center gap-1.5">
-                <div
-                  className={`flex items-center gap-1 px-2 py-1 rounded-xl border text-[10px] font-bold ${
-                    isDark ? "bg-[#1b1c26] border-white/10 text-white" : "bg-slate-100 border-slate-200 text-slate-900"
-                  }`}
-                >
-                  <span>{summary.inProgressTasks + summary.reviewTasks} In Flight</span>
-                </div>
-                <div
-                  className={`flex items-center gap-1 px-2 py-1 rounded-xl border text-[10px] font-bold ${
-                    isDark
-                      ? "bg-[#1b1c26] border-white/10 text-amber-300"
-                      : "bg-amber-50 border-amber-200 text-amber-800"
-                  }`}
-                >
-                  <span>{summary.totalLoggedHours}h</span>
-                </div>
+                <span className={`px-2 py-0.5 rounded-full border ${g.badge}`}>
+                  {displayedVelocity.filter((v) => (v.hours || 0) > 0 || (v.tasksCount || 0) > 0).length} Active Days
+                </span>
               </div>
             </div>
-          </div>
 
-          {/* Real Bar Chart */}
-          <div className="space-y-1 pt-1">
-            <div className="flex items-end justify-between gap-1.5 h-16 xl:h-20 2xl:h-24 px-1">
-              {displayedVelocity.map((v) => {
-                const maxBarHours = Math.max(...weeklyVelocity.map((x) => x.hours), 1);
-                const heightPercent =
-                  v.hours > 0 ? Math.max(18, Math.round((v.hours / maxBarHours) * 85)) : 8;
-
-                return (
-                  <div
-                    key={v.day}
-                    className="flex-1 flex flex-col items-center gap-0.5 h-full justify-end relative"
-                    title={`${v.day}: ${v.hours}h logged across ${v.tasksCount} tasks`}
-                  >
-                    {v.hours > 0 && (
-                      <span className="text-[8px] font-bold bg-indigo-500 text-white px-1 rounded-sm shadow-xs">
-                        {v.hours}h
-                      </span>
-                    )}
+            <div className="flex-1 flex items-end gap-1.5 min-h-[100px] pt-2">
+              {displayedVelocity.length > 0 ? (
+                displayedVelocity.map((v, i) => {
+                  const maxH = Math.max(...displayedVelocity.map((x) => x.hours || 0), 1);
+                  const hPct = ((v.hours || 0) / maxH) * 100;
+                  const maxT = Math.max(...displayedVelocity.map((x) => x.tasksCount || 0), 1);
+                  const tPct = ((v.tasksCount || 0) / maxT) * 100;
+                  const barHeight = Math.max(hPct, tPct, 12);
+                  return (
                     <div
-                      style={{ height: `${heightPercent}%` }}
-                      className={`w-full max-w-[26px] rounded-xl transition-all ${
-                        v.hours > 0
-                          ? v.isToday
-                            ? "bg-indigo-500 shadow-md shadow-indigo-500/20"
-                            : "bg-indigo-500/60"
-                          : isDark
-                          ? "bg-[#222330]"
-                          : "bg-slate-200"
-                      }`}
-                    />
-                    {v.tasksCount > 0 && (
-                      <div className="w-full max-w-[26px] h-3 rounded-lg bg-amber-400 flex items-center justify-center">
-                        <span className="text-[7px] font-black text-slate-950">{v.tasksCount}</span>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className={`flex items-center justify-between text-[9px] font-medium px-1 ${isDark ? "text-slate-500" : "text-slate-400"}`}>
-              {displayedVelocity.map((v) => (
-                <span
-                  key={v.day}
-                  className={`flex-1 text-center ${v.isToday ? `font-bold ${isDark ? "text-white" : "text-slate-900"}` : ""}`}
-                >
-                  {v.day}
-                </span>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* 3. ROW 2: Top Tickets (List), Status Bubbles, Role-Specific Widget */}
-      <div className="lg:flex-1 lg:min-h-0 grid grid-cols-1 lg:grid-cols-12 gap-2.5 sm:gap-3 xl:gap-3.5 items-stretch shrink-0 lg:shrink">
-        {/* Card 4: Top Priority Tickets */}
-        <div
-          className={`lg:col-span-4 p-3.5 xl:p-4 rounded-2xl border flex flex-col justify-between overflow-hidden transition-all ${
-            isDark ? "bg-[#14151c] border-white/10 shadow-lg" : "bg-white border-slate-200/90 shadow-xs"
-          }`}
-        >
-          <div className="flex items-center justify-between mb-2 shrink-0">
-            <h3 className={`text-xs xl:text-sm font-bold tracking-tight ${isDark ? "text-white" : "text-slate-900"}`}>
-              Top Priority Tickets
-            </h3>
-            <div className="relative">
-              <select
-                value={selectedTaskType}
-                onChange={(e) => setSelectedTaskType(e.target.value)}
-                className={`appearance-none text-[10px] font-semibold rounded-full pl-2.5 pr-6 py-0.5 border cursor-pointer focus:outline-none ${
-                  isDark
-                    ? "bg-[#1b1c26] text-slate-300 border-white/10"
-                    : "bg-slate-100 text-slate-700 border-slate-200"
-                }`}
-              >
-                <option value="All">All Priorities</option>
-                <option value="High">High & Urgent</option>
-                <option value="Urgent">Urgent Only</option>
-              </select>
-              <ChevronDown className="w-2.5 h-2.5 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
-            </div>
-          </div>
-
-          <div className="space-y-1.5 flex-1 min-h-0 overflow-y-auto pr-0.5">
-            {filteredTickets.length > 0 ? (
-              filteredTickets.slice(0, 3).map((item) => {
-                const isUrgent = item.priority === "urgent";
-                const isHigh = item.priority === "high";
-
-                const tagBg = isUrgent
-                  ? isDark
-                    ? "bg-rose-500/20 text-rose-300 border-rose-500/30"
-                    : "bg-rose-50 text-rose-700 border-rose-200"
-                  : isHigh
-                  ? isDark
-                    ? "bg-amber-500/20 text-amber-300 border-amber-500/30"
-                    : "bg-amber-50 text-amber-700 border-amber-200"
-                  : isDark
-                  ? "bg-blue-500/20 text-blue-300 border-blue-500/30"
-                  : "bg-blue-50 text-blue-700 border-blue-200";
-
-                const TypeIcon =
-                  item.type === "bug"
-                    ? Bug
-                    : item.type === "request" || item.type === "client_request"
-                    ? Zap
-                    : item.type === "approval"
-                    ? ClipboardCheck
-                    : FileText;
-
-                return (
-                  <div
-                    key={item.id}
-                    onClick={() => setSelectedTaskKeyOrId(item.key || item.id)}
-                    className={`p-2 rounded-xl border transition-all flex items-center justify-between gap-2.5 cursor-pointer group ${
-                      isDark
-                        ? "bg-[#1b1c26] border-white/5 hover:border-white/20"
-                        : "bg-slate-50 border-slate-200 hover:border-indigo-300 shadow-xs"
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 min-w-0">
+                      key={v.day || i}
+                      className="flex-1 flex flex-col items-center gap-1.5 h-full justify-end"
+                      title={`${v.day}: ${v.tasksCount || 0} tasks touched · ${(v.hours || 0).toFixed(1)}h logged`}
+                    >
                       <div
-                        className={`w-7 h-7 rounded-lg border flex items-center justify-center shrink-0 ${
-                          isDark ? "bg-white/5 border-white/10 text-slate-300" : "bg-white border-slate-200 text-slate-600"
+                        className={`w-full relative rounded-t-lg overflow-hidden transition-all border ${
+                          isDark
+                            ? "bg-white/[0.05] border-white/[0.08] hatched-bar"
+                            : "bg-slate-200/70 border-slate-300/60 hatched-bar-light"
+                        }`}
+                        style={{ height: `${barHeight}%` }}
+                      >
+                        {(v.hours || 0) > 0 && (
+                          <div
+                            className={`absolute bottom-0 left-0 right-0 rounded-t-lg transition-all ${
+                              isDark ? "bg-zinc-200" : "bg-zinc-800"
+                            }`}
+                            style={{ height: `${Math.max(hPct, 25)}%` }}
+                          />
+                        )}
+                      </div>
+                      <span
+                        className={`text-[10px] font-mono font-semibold ${
+                          v.isToday ? `${g.heading} underline underline-offset-4` : g.muted
                         }`}
                       >
-                        <TypeIcon className="w-3.5 h-3.5" />
-                      </div>
-                      <div className="min-w-0">
-                        <h4
-                          className={`text-xs font-bold truncate transition-colors ${
-                            isDark
-                              ? "text-white group-hover:text-indigo-300"
-                              : "text-slate-900 group-hover:text-indigo-600"
-                          }`}
-                        >
-                          [{item.key}] {item.title}
-                        </h4>
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          <span className={`text-[8px] font-bold px-1.5 py-0.2 rounded-sm border capitalize ${tagBg}`}>
-                            {item.priority}
-                          </span>
-                          <span className={`text-[9px] truncate ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-                            {item.assigneeName} • {item.loggedHours}h / {item.estimatedHours}h
-                          </span>
-                        </div>
-                      </div>
+                        {v.day || ""}
+                      </span>
                     </div>
-
-                    <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border shrink-0 capitalize ${
-                        isDark
-                          ? "text-slate-300 bg-white/5 border-white/5"
-                          : "text-slate-700 bg-white border-slate-200"
-                      }`}
-                    >
-                      {item.status.replace(/_/g, " ")}
-                    </span>
-                  </div>
-                );
-              })
-            ) : (
-              <div className={`p-4 text-center text-xs italic ${isDark ? "text-slate-500" : "text-slate-400"}`}>
-                No active priority tickets
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Card 5: Status Distribution Bubbles */}
-        <div
-          className={`lg:col-span-3 p-3.5 xl:p-4 rounded-2xl border flex flex-col justify-between overflow-hidden transition-all ${
-            isDark ? "bg-[#14151c] border-white/10 shadow-lg" : "bg-white border-slate-200/90 shadow-xs"
-          }`}
-        >
-          <div className="flex items-center justify-between mb-1 shrink-0">
-            <div>
-              <h3 className={`text-xs xl:text-sm font-bold tracking-tight ${isDark ? "text-white" : "text-slate-900"}`}>
-                Status Distribution
-              </h3>
-              <span className={`text-[9px] ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-                {currentRole === "employee" ? "Your workload breakdown" : "Sprint cycle completion"}
-              </span>
-            </div>
-            <div
-              className={`w-6 h-6 rounded-full border flex items-center justify-center ${
-                isDark
-                  ? "bg-white/5 border-white/10 text-slate-300"
-                  : "bg-slate-100 border-slate-200 text-slate-700"
-              }`}
-            >
-              <PieChart className="w-3 h-3" />
-            </div>
-          </div>
-
-          <div className="relative h-28 xl:h-32 2xl:h-36 flex items-center justify-center overflow-hidden">
-            <div className="absolute left-4 bottom-1 w-20 h-20 xl:w-22 xl:h-22 rounded-full bg-indigo-500 flex flex-col items-center justify-center text-white font-black shadow-lg shadow-indigo-500/25 z-10">
-              <span className="text-lg xl:text-xl font-black">{activeStatusBreakdown.inProgress.percentage}%</span>
-              <span className="text-[8px] font-bold uppercase opacity-90">In Flight</span>
-              <span className="text-[8px] opacity-75 font-mono">{activeStatusBreakdown.inProgress.count} t</span>
-            </div>
-
-            <div className="absolute right-4 bottom-2 w-16 h-16 xl:w-18 xl:h-18 rounded-full bg-amber-400 flex flex-col items-center justify-center text-slate-950 font-black shadow-md shadow-amber-500/25 z-20">
-              <span className="text-sm xl:text-base font-black">{activeStatusBreakdown.done.percentage}%</span>
-              <span className="text-[7px] font-bold text-slate-900 uppercase">Done</span>
-              <span className="text-[7px] opacity-75 font-mono">{activeStatusBreakdown.done.count} t</span>
-            </div>
-
-            <div className="absolute top-1 right-14 w-12 h-12 xl:w-14 xl:h-14 rounded-full bg-sky-400 flex flex-col items-center justify-center text-slate-950 font-black shadow-sm shadow-sky-500/25 z-15">
-              <span className="text-xs xl:text-sm font-black">{activeStatusBreakdown.review.percentage}%</span>
-              <span className="text-[7px] font-bold text-slate-900 uppercase">Rev</span>
-            </div>
-
-            <div className="absolute top-4 right-3 w-8 h-8 rounded-full bg-emerald-400 flex flex-col items-center justify-center text-slate-950 text-[9px] font-black shadow-xs shadow-emerald-500/25 z-30">
-              <span>{activeStatusBreakdown.todo.percentage}%</span>
+                  );
+                })
+              ) : (
+                <div className="w-full flex items-center justify-center gap-2 opacity-35 pb-4">
+                  <BarChart2 className="w-4 h-4" />
+                  <span className="text-xs">No velocity data</span>
+                </div>
+              )}
             </div>
           </div>
         </div>
 
-        {/* Card 6: Dynamic Role Widget */}
-        <div
-          className={`lg:col-span-5 p-3.5 xl:p-4 rounded-2xl border flex flex-col justify-between overflow-hidden transition-all ${
-            isDark ? "bg-[#14151c] border-white/10 shadow-lg" : "bg-white border-slate-200/90 shadow-xs"
-          }`}
-        >
-          {currentRole === "admin" && (
-            <div className="flex flex-col h-full justify-between">
-              <div className="flex items-center justify-between mb-2 shrink-0">
+        {/* 3. BOTTOM WORKSPACE GRID */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+          {/* Top Priority Tickets (5/12) */}
+          <div className={`lg:col-span-5 rounded-2xl p-5 border flex flex-col gap-3 overflow-hidden ${g.card}`}>
+            <div className="flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className={`w-8 h-8 rounded-xl flex items-center justify-center border ${g.badge}`}>
+                  <Zap className="w-4 h-4 opacity-80" />
+                </div>
                 <div>
-                  <h3 className={`text-xs xl:text-sm font-bold tracking-tight ${isDark ? "text-white" : "text-slate-900"}`}>
-                    Department Capacity
-                  </h3>
-                  <span className={`text-[9px] ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-                    Enterprise department output & effort
-                  </span>
-                </div>
-                <div className="text-right">
-                  <span className={`text-base xl:text-lg font-black tracking-tight ${isDark ? "text-white" : "text-slate-900"}`}>
-                    {summary.totalLoggedHours || 0} hrs
-                  </span>
-                  <span className={`text-[9px] block -mt-0.5 ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-                    Across teams
-                  </span>
+                  <h2 className={`text-sm font-display font-bold leading-tight ${g.heading}`}>
+                    Priority Focus Queue
+                  </h2>
+                  <SectionLabel>Click any ticket to open drawer</SectionLabel>
                 </div>
               </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 items-center flex-1 min-h-0">
-                <div
-                  className={`p-2 rounded-xl border flex items-center justify-center h-full min-h-[80px] ${
-                    isDark ? "bg-[#1b1c26] border-white/5" : "bg-slate-50 border-slate-200"
-                  }`}
-                >
-                  <div className="text-center space-y-1">
-                    <Globe className={`w-6 h-6 mx-auto ${isDark ? "text-indigo-400/60" : "text-indigo-600/60"}`} />
-                    <span className={`text-[9px] font-mono block ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-                      {formatINR(realValuationINR)} logged
-                    </span>
-                    <span className="text-[9px] font-bold text-emerald-500 bg-emerald-500/10 px-2 py-0.2 rounded-full border border-emerald-500/20">
-                      {summary.overdueCount > 0 ? `${summary.overdueCount} Overdue` : "All On Track"}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="space-y-1 flex-1 min-h-0 overflow-y-auto">
-                  {departmentBreakdown.slice(0, 4).map((dept) => (
-                    <div
-                      key={dept.id}
-                      className={`flex items-center justify-between p-1.5 rounded-lg transition-colors text-xs ${
-                        isDark
-                          ? "bg-white/5 hover:bg-white/10 text-slate-200"
-                          : "bg-slate-100 hover:bg-slate-200 text-slate-800"
-                      }`}
-                    >
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <span
-                          className="w-2 h-2 rounded-full shrink-0"
-                          style={{ backgroundColor: dept.color || "#6366f1" }}
-                        />
-                        <span className="font-semibold truncate text-[11px]">{dept.name}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5 font-mono shrink-0">
-                        <span className="text-[9px] opacity-75">{dept.taskCount}t</span>
-                        <span className="font-bold text-[10px]">{dept.hoursLogged}h</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {currentRole === "manager" && (
-            <div className="flex flex-col h-full justify-between">
-              <div className="flex items-center justify-between mb-2 shrink-0">
-                <div>
-                  <h3 className={`text-xs xl:text-sm font-bold tracking-tight ${isDark ? "text-white" : "text-slate-900"}`}>
-                    Team Workload & Overload Flags
-                  </h3>
-                  <span className={`text-[9px] ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-                    Capacity monitoring (alert at 5+ open)
-                  </span>
-                </div>
-                <div className="text-right">
-                  <span className={`text-base xl:text-lg font-black tracking-tight ${
-                    (userRoleData.managerMetrics?.overloadedMembersCount || 0) > 0 ? "text-rose-500" : "text-emerald-500"
-                  }`}>
-                    {userRoleData.managerMetrics?.overloadedMembersCount || 0}
-                  </span>
-                  <span className={`text-[9px] block -mt-0.5 ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-                    Overloaded
-                  </span>
-                </div>
-              </div>
-
-              <div className="space-y-1.5 flex-1 min-h-0 overflow-y-auto pr-0.5">
-                {teamWorkload.slice(0, 4).map((m) => (
-                  <div
-                    key={m.userId}
-                    className={`flex items-center justify-between p-2 rounded-xl border transition-all text-xs ${
-                      m.isOverloaded
-                        ? isDark
-                          ? "bg-rose-500/10 border-rose-500/30 text-rose-300"
-                          : "bg-rose-50 border-rose-200 text-rose-800"
-                        : isDark
-                        ? "bg-[#1b1c26] border-white/5 text-slate-200"
-                        : "bg-slate-50 border-slate-200 text-slate-800"
+              <div className={`flex items-center p-0.5 rounded-full border gap-0.5 ${g.subtleSurface}`}>
+                {["All", "Urgent", "High"].map((f) => (
+                  <button
+                    key={f}
+                    type="button"
+                    onClick={() => setSelectedTaskType(f)}
+                    className={`px-2.5 py-1 rounded-full text-[10px] font-semibold transition-all cursor-pointer ${
+                      selectedTaskType === f ? g.pillActive : g.muted
                     }`}
                   >
-                    <div className="flex items-center gap-2 min-w-0">
-                      <UserAvatar
-                        user={m}
-                        name={m.name}
-                        className="w-6 h-6 rounded-full border border-white/10"
-                        textClass="text-[10px]"
-                      />
-                      <div className="min-w-0">
-                        <span className="font-bold block truncate text-[11px]">{m.name}</span>
-                        <span className="text-[9px] opacity-75 truncate block">
-                          {m.jobTitle} • {m.departmentName}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-bold ${
-                        m.isOverloaded
-                          ? "bg-rose-500 text-white"
-                          : isDark
-                          ? "bg-white/10 text-slate-300"
-                          : "bg-slate-200 text-slate-700"
-                      }`}>
-                        {m.openTasks} open
-                      </span>
-                      <span className="font-mono text-[9px] opacity-80">{m.hoursLogged}h</span>
-                    </div>
-                  </div>
+                    {f}
+                  </button>
                 ))}
               </div>
             </div>
-          )}
 
-          {currentRole === "employee" && (
-            <div className="flex flex-col h-full justify-between">
-              <div className="flex items-center justify-between mb-2 shrink-0">
-                <div>
-                  <h3 className={`text-xs xl:text-sm font-bold tracking-tight ${isDark ? "text-white" : "text-slate-900"}`}>
-                    My Deliverables & Deadlines
-                  </h3>
-                  <span className={`text-[9px] ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-                    Your upcoming task deadlines and progress
-                  </span>
-                </div>
-                <div className="text-right">
-                  <span className="text-base xl:text-lg font-black text-emerald-500">
-                    {userRoleData.myMetrics?.doneTasks || 0} / {userRoleData.myMetrics?.totalTasks || 0}
-                  </span>
-                  <span className={`text-[9px] block -mt-0.5 ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-                    Completed tasks
-                  </span>
-                </div>
-              </div>
-
-              <div className="space-y-1.5 flex-1 min-h-0 overflow-y-auto pr-0.5">
-                {topPriorityTickets.length > 0 ? (
-                  topPriorityTickets.slice(0, 3).map((t) => (
+            <div className="flex flex-col gap-2 flex-1 overflow-y-auto max-h-[260px] pr-0.5">
+              {filteredTickets.length > 0 ? (
+                filteredTickets.map((t) => {
+                  const sb = STATUS_BADGE[t.status] || STATUS_BADGE.todo;
+                  return (
                     <div
                       key={t.id}
                       onClick={() => setSelectedTaskKeyOrId(t.key || t.id)}
-                      className={`flex items-center justify-between p-2 rounded-xl border transition-all text-xs cursor-pointer group ${
-                        isDark
-                          ? "bg-[#1b1c26] border-white/5 hover:border-white/20 text-slate-200"
-                          : "bg-slate-50 border-slate-200 hover:border-indigo-300 text-slate-800"
-                      }`}
+                      className={`flex items-center gap-3 p-3 rounded-xl border transition-all cursor-pointer group ${g.subtleSurface} ${g.rowHover}`}
                     >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <CheckSquare className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
-                        <div className="min-w-0">
-                          <span className={`font-bold block truncate text-[11px] transition-colors ${
-                            isDark ? "group-hover:text-indigo-300" : "group-hover:text-indigo-600"
-                          }`}>
-                            [{t.key}] {t.title}
-                          </span>
-                          <span className={`text-[9px] block ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-                            Due: {t.dueDate ? formatDateIN(t.dueDate, { day: "2-digit", month: "short" }) : "Sprint end"}
-                          </span>
+                      <span className={`w-2 h-2 rounded-full shrink-0 ${PRIORITY_DOT[t.priority] || "bg-zinc-400"}`} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <span className={`text-[10px] font-mono font-bold ${g.muted}`}>{t.key}</span>
+                          {t.assigneeName && (
+                            <span className={`text-[10px] truncate ${g.muted}`}>· {t.assigneeName}</span>
+                          )}
                         </div>
+                        <span className={`text-xs font-semibold leading-snug block truncate ${g.heading}`}>
+                          {t.title}
+                        </span>
+                        {t.dueDate && (
+                          <span className={`text-[10px] mt-0.5 flex items-center gap-1 ${g.muted}`}>
+                            <CalendarIcon className="w-2.5 h-2.5" />
+                            Due {formatDateIN(t.dueDate, { day: "2-digit", month: "short" })}
+                          </span>
+                        )}
                       </div>
-
-                      <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-bold capitalize shrink-0 ${
-                        t.priority === "urgent"
-                          ? "bg-rose-500/20 text-rose-400 border border-rose-500/30"
-                          : t.priority === "high"
-                          ? "bg-amber-500/20 text-amber-400 border border-amber-500/30"
-                          : isDark
-                          ? "bg-white/10 text-slate-300"
-                          : "bg-slate-200 text-slate-700"
-                      }`}>
-                        {t.status.replace(/_/g, " ")}
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${sb.cls}`}>
+                        {sb.label}
                       </span>
+                      <ArrowUpRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-60 transition-opacity shrink-0" />
                     </div>
-                  ))
-                ) : (
-                  <div className={`p-3 text-center text-xs italic ${isDark ? "text-slate-500" : "text-slate-400"}`}>
-                    All assigned tasks completed!
-                  </div>
-                )}
-              </div>
+                  );
+                })
+              ) : (
+                <div className={`flex-1 flex flex-col items-center justify-center gap-2 py-10 ${g.muted}`}>
+                  <CheckSquare className="w-7 h-7 opacity-40" />
+                  <span className="text-xs font-medium">All caught up — no matching priority tickets</span>
+                </div>
+              )}
             </div>
-          )}
+          </div>
+
+          {/* Status Distribution Mix (3/12) */}
+          <div className={`lg:col-span-3 rounded-2xl p-5 border flex flex-col gap-3.5 overflow-hidden ${g.card}`}>
+            <div className="flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className={`w-8 h-8 rounded-xl flex items-center justify-center border ${g.badge}`}>
+                  <Layers className="w-4 h-4 opacity-80" />
+                </div>
+                <div>
+                  <h2 className={`text-sm font-display font-bold leading-tight ${g.heading}`}>
+                    Status Distribution
+                  </h2>
+                  <SectionLabel>{statusSegments.total} tracked tasks</SectionLabel>
+                </div>
+              </div>
+              <span className={`text-sm font-display font-bold tabular-nums ${g.heading}`}>
+                {summary.completionRate}%
+              </span>
+            </div>
+
+            {/* Clean Stacked Segmented Bar */}
+            <div className={`w-full h-3 rounded-full overflow-hidden flex gap-0.5 p-0.5 ${g.progressTrack}`}>
+              {statusSegments.items.map(
+                (seg) =>
+                  seg.pct > 0 && (
+                    <div
+                      key={seg.key}
+                      className={`h-full rounded-full transition-all duration-500 ${seg.barCls}`}
+                      style={{ width: `${seg.pct}%` }}
+                      title={`${seg.label}: ${seg.count} (${seg.pct}%)`}
+                    />
+                  )
+              )}
+            </div>
+
+            {/* Status Metric Rows */}
+            <div className="grid grid-cols-2 gap-2 flex-1">
+              {statusSegments.items.map((seg) => (
+                <div key={seg.key} className={`p-3 rounded-xl border flex flex-col justify-between ${g.subtleSurface}`}>
+                  <div className="flex items-center justify-between">
+                    <span className="w-2 h-2 rounded-full" style={{ background: seg.dot }} />
+                    <span className={`text-[10px] font-mono font-bold tabular-nums ${g.muted}`}>{seg.pct}%</span>
+                  </div>
+                  <div className="mt-2">
+                    <span className={`text-lg font-display font-bold tabular-nums block leading-none ${g.heading}`}>
+                      {seg.count}
+                    </span>
+                    <span className={`text-[10px] font-medium mt-1 block ${g.muted}`}>{seg.label}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Department Capacity / Deliverables (4/12) */}
+          <div className={`lg:col-span-4 rounded-2xl p-5 border flex flex-col gap-3 overflow-hidden ${g.card}`}>
+            {currentRole === "admin" || currentRole === "manager" ? (
+              <>
+                <div className="flex items-center justify-between shrink-0">
+                  <div className="flex items-center gap-2.5">
+                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center border ${g.badge}`}>
+                      <TrendingUp className="w-4 h-4 opacity-80" />
+                    </div>
+                    <div>
+                      <h2 className={`text-sm font-display font-bold leading-tight ${g.heading}`}>
+                        Department Capacity
+                      </h2>
+                      <SectionLabel>Workload & effort across teams</SectionLabel>
+                    </div>
+                  </div>
+                  <span className={`text-[10px] font-mono font-bold px-2.5 py-1 rounded-full border ${g.badge}`}>
+                    {summary.totalLoggedHours || 0} hrs
+                  </span>
+                </div>
+
+                <div className="flex flex-col gap-2.5 flex-1 overflow-y-auto max-h-[220px] pr-0.5">
+                  {departmentBreakdown.length > 0 ? (
+                    departmentBreakdown.map((dept, i) => {
+                      const deptHours = dept.hoursLogged ?? dept.loggedHours ?? 0;
+                      const maxH = Math.max(...departmentBreakdown.map((d) => d.hoursLogged ?? d.loggedHours ?? 0), 1);
+                      const pct = Math.max((deptHours / maxH) * 100, dept.taskCount > 0 ? 12 : 0);
+                      return (
+                        <div key={dept.name || i} className={`p-2.5 rounded-xl border ${g.subtleSurface}`}>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className={`text-xs font-semibold ${g.heading}`}>{dept.name}</span>
+                            <div className="flex items-center gap-2 text-[10px] font-mono tabular-nums">
+                              <span className={`font-bold ${g.heading}`}>{deptHours}h</span>
+                              <span className={g.muted}>{dept.taskCount || 0} tasks</span>
+                            </div>
+                          </div>
+                          <div className={`w-full h-1.5 rounded-full overflow-hidden ${g.progressTrack}`}>
+                            <div
+                              className={`h-full rounded-full transition-all duration-500 ${g.progressFill}`}
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      {teamWorkload.slice(0, 5).map((m, i) => {
+                        const maxT = Math.max(...teamWorkload.map((x) => x.openTasks || 0), 1);
+                        const pct = ((m.openTasks || 0) / maxT) * 100;
+                        return (
+                          <div key={m.userId || i} className={`flex items-center gap-2.5 p-2 rounded-xl border ${g.subtleSurface}`}>
+                            <UserAvatar
+                              user={{ fullname: m.name, avatar: m.profileImageUrl || m.avatar }}
+                              className="w-7 h-7 rounded-full border border-white/15"
+                              textClass="text-[10px]"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between mb-1">
+                                <span className={`text-xs font-semibold truncate ${g.heading}`}>{m.name}</span>
+                                <span className={`font-mono text-[10px] tabular-nums ${g.muted}`}>{m.openTasks} open</span>
+                              </div>
+                              <div className={`w-full h-1.5 rounded-full overflow-hidden ${g.progressTrack}`}>
+                                <div
+                                  className={`h-full rounded-full ${m.isOverloaded ? "bg-rose-400" : g.progressFill}`}
+                                  style={{ width: `${pct}%` }}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                <div className={`flex items-center justify-between text-[10px] pt-1 font-medium ${g.muted}`}>
+                  <span className="flex items-center gap-1.5">
+                    <Circle className="w-2 h-2 fill-emerald-400 text-emerald-400" />
+                    Live synced with MongoDB workload
+                  </span>
+                  <Link to="/team" className="hover:underline font-semibold">
+                    View Team →
+                  </Link>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center gap-2.5 shrink-0">
+                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center border ${g.badge}`}>
+                    <CheckSquare className="w-4 h-4 opacity-80" />
+                  </div>
+                  <div>
+                    <h2 className={`text-sm font-display font-bold leading-tight ${g.heading}`}>
+                      My Deliverables
+                    </h2>
+                    <SectionLabel>Personal progress & upcoming deadlines</SectionLabel>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-4 shrink-0">
+                  <div>
+                    <span className={`text-2xl font-display font-bold tabular-nums ${g.heading}`}>
+                      {userRoleData.myMetrics?.doneTasks || 0}
+                      <span className="text-sm font-normal opacity-45 ml-1">
+                        / {userRoleData.myMetrics?.totalTasks || 0}
+                      </span>
+                    </span>
+                    <span className={`block text-[10px] ${g.muted}`}>Tasks completed</span>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-2 flex-1 overflow-y-auto">
+                  {topPriorityTickets.slice(0, 4).map((t) => {
+                    const sb = STATUS_BADGE[t.status] || STATUS_BADGE.todo;
+                    return (
+                      <div
+                        key={t.id}
+                        onClick={() => setSelectedTaskKeyOrId(t.key || t.id)}
+                        className={`flex items-center gap-2.5 p-2.5 rounded-xl border cursor-pointer transition-all ${g.subtleSurface} ${g.rowHover}`}
+                      >
+                        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${PRIORITY_DOT[t.priority] || "bg-zinc-400"}`} />
+                        <span className={`text-xs font-semibold flex-1 truncate ${g.heading}`}>{t.title}</span>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${sb.cls}`}>
+                          {sb.label}
+                        </span>
+                      </div>
+                    );
+                  })}
+                  {topPriorityTickets.length === 0 && (
+                    <div className={`flex-1 flex flex-col items-center justify-center gap-2 py-8 ${g.muted}`}>
+                      <CheckSquare className="w-6 h-6 opacity-40" />
+                      <span className="text-xs">All caught up!</span>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
     </div>

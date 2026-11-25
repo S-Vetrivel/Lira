@@ -16,11 +16,13 @@ import {
   Sun,
   Moon,
 } from "lucide-react";
+import { getGlassTokens } from "../styles/glassTheme";
 import toast from "react-hot-toast";
 
 export default function Login() {
   const { user, setUser, theme, toggleTheme } = useApp();
   const isDark = theme === "dark";
+  const g = getGlassTokens(isDark);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -31,9 +33,9 @@ export default function Login() {
 
   const intendedTarget =
     location.state?.from?.pathname &&
-    !["/login", "/signup", "/landing", "/welcome"].includes(location.state.from.pathname)
+      !["/login", "/signup", "/landing", "/welcome"].includes(location.state.from.pathname)
       ? location.state.from.pathname
-      : "/board";
+      : "/";
 
   useEffect(() => {
     if (user) {
@@ -65,7 +67,7 @@ export default function Login() {
             if (isPendingOrRestricted(res.user)) {
               navigate("/join-request", { replace: true });
             } else {
-              navigate("/board", { replace: true });
+              navigate("/", { replace: true });
             }
           }
         })
@@ -98,23 +100,18 @@ export default function Login() {
     }
   };
 
-  const inputClass = `w-full border rounded-xl px-3.5 py-2.5 text-sm outline-none transition-colors ${
-    isDark
-      ? "bg-[#12131b] border-white/[0.1] text-white placeholder-slate-500 focus:border-indigo-500"
-      : "bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400 focus:border-indigo-500 focus:bg-white"
-  }`;
+  const inputClass = `w-full border rounded-xl px-3.5 py-2.5 text-sm outline-none transition-colors ${g.input}`;
 
   return (
     <div
-      className={`min-h-screen w-full grid grid-cols-1 lg:grid-cols-12 transition-colors duration-150 ${
-        isDark ? "bg-[#0c0d12] text-slate-100" : "bg-slate-50 text-slate-900"
-      }`}
+      className={`min-h-screen w-full grid grid-cols-1 lg:grid-cols-12 relative overflow-x-hidden transition-colors duration-150 ${g.canvas}`}
     >
-      {/* Left Full-Height Editorial Panel */}
+      {/* Left Full-Height Frosted Glass Panel */}
       <div
-        className={`lg:col-span-7 flex flex-col justify-between p-6 sm:p-10 lg:p-14 border-b lg:border-b-0 lg:border-r ${
-          isDark ? "bg-[#0f1017] border-white/[0.08]" : "bg-slate-100/70 border-slate-200"
-        }`}
+        className={`lg:col-span-7 flex flex-col justify-between p-6 sm:p-10 lg:p-14 border-b lg:border-b-0 lg:border-r backdrop-blur-2xl ${isDark
+          ? "bg-white/[0.02] border-white/[0.08]"
+          : "bg-white/45 border-slate-900/[0.08]"
+          }`}
       >
         <div className="flex items-center justify-between gap-4">
           <Link to="/" className="inline-flex items-center">
@@ -124,11 +121,7 @@ export default function Login() {
           <div className="flex items-center gap-2">
             <Link
               to="/"
-              className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors ${
-                isDark
-                  ? "border-white/[0.08] text-slate-300 hover:bg-white/[0.05]"
-                  : "border-slate-200 bg-white text-slate-700 hover:bg-slate-100"
-              }`}
+              className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${g.btnSecondary}`}
             >
               <ArrowLeft className="w-3.5 h-3.5" />
               <span>Overview</span>
@@ -137,30 +130,24 @@ export default function Login() {
               type="button"
               onClick={toggleTheme}
               aria-label="Toggle theme"
-              className={`p-2 rounded-lg border transition-colors cursor-pointer ${
-                isDark
-                  ? "border-white/[0.08] text-slate-300 hover:bg-white/[0.05]"
-                  : "border-slate-200 bg-white text-slate-700 hover:bg-slate-100"
-              }`}
+              className={`p-2 rounded-lg transition-colors cursor-pointer ${g.iconBtn}`}
             >
-              {isDark ? <Sun className="w-3.5 h-3.5 text-amber-400" /> : <Moon className="w-3.5 h-3.5" />}
+              {isDark ? <Sun className="w-3.5 h-3.5 text-amber-400" /> : <Moon className="w-3.5 h-3.5 text-slate-700" />}
             </button>
           </div>
         </div>
 
         <div className="py-10 lg:py-0 space-y-8 max-w-2xl">
           <div className="space-y-3">
-            <p className="text-[11px] font-bold uppercase tracking-widest text-indigo-400">
+            <p className={`text-[11px] font-bold uppercase tracking-widest ${g.muted}`}>
               Enterprise Team Operations
             </p>
             <h1
-              className={`text-3xl sm:text-4xl xl:text-5xl font-extrabold tracking-tight leading-[1.1] ${
-                isDark ? "text-white" : "text-slate-950"
-              }`}
+              className={`text-3xl sm:text-4xl xl:text-5xl font-extrabold tracking-tight leading-[1.1] ${g.heading}`}
             >
               Clear execution across boards, teams, and approvals.
             </h1>
-            <p className={`text-sm sm:text-base leading-relaxed ${isDark ? "text-slate-400" : "text-slate-600"}`}>
+            <p className={`text-sm sm:text-base leading-relaxed ${isDark ? "text-zinc-300/80" : "text-slate-600"}`}>
               Keep sprints aligned, manage department staffing, review approvals in INR,
               and collaborate in dedicated project workspaces.
             </p>
@@ -193,17 +180,13 @@ export default function Login() {
               return (
                 <div
                   key={item.title}
-                  className={`p-4 rounded-2xl border space-y-1.5 ${
-                    isDark
-                      ? "bg-[#14151f] border-white/[0.07]"
-                      : "bg-white border-slate-200"
-                  }`}
+                  className="p-4 rounded-2xl lira-glass space-y-1.5"
                 >
-                  <div className="flex items-center gap-2 text-indigo-400 text-xs font-bold">
+                  <div className={`flex items-center gap-2 text-xs font-bold ${g.accentIcon}`}>
                     <Icon className="w-4 h-4" />
-                    <span className={isDark ? "text-white" : "text-slate-900"}>{item.title}</span>
+                    <span className={g.heading}>{item.title}</span>
                   </div>
-                  <p className={`text-xs leading-relaxed ${isDark ? "text-slate-400" : "text-slate-600"}`}>
+                  <p className={`text-xs leading-relaxed ${g.muted}`}>
                     {item.desc}
                   </p>
                 </div>
@@ -212,9 +195,9 @@ export default function Login() {
           </div>
         </div>
 
-        <div className={`text-xs flex items-center justify-between ${isDark ? "text-slate-500" : "text-slate-500"}`}>
+        <div className={`text-xs flex items-center justify-between ${g.muted}`}>
           <span>Role-protected workspace authentication</span>
-          <Link to="/signup" className="text-indigo-400 hover:underline font-semibold">
+          <Link to="/signup" className={`${g.heading} hover:underline font-semibold`}>
             Request Team Access →
           </Link>
         </div>
@@ -222,16 +205,15 @@ export default function Login() {
 
       {/* Right Full-Height Sign-In Panel */}
       <div
-        className={`lg:col-span-5 flex flex-col justify-center p-6 sm:p-10 lg:p-14 ${
-          isDark ? "bg-[#0c0d12]" : "bg-white"
-        }`}
+        className={`lg:col-span-5 flex flex-col justify-center p-6 sm:p-10 lg:p-14 backdrop-blur-2xl ${isDark ? "bg-black/35" : "bg-white/60"
+          }`}
       >
-        <div className="w-full max-w-md mx-auto space-y-6">
+        <div className="w-full max-w-md mx-auto p-7 sm:p-8 rounded-3xl lira-glass-glow space-y-6">
           <div className="space-y-1.5">
-            <h2 className={`text-2xl font-bold tracking-tight ${isDark ? "text-white" : "text-slate-950"}`}>
+            <h2 className={`text-2xl font-bold tracking-tight ${g.heading}`}>
               Sign in to Lira
             </h2>
-            <p className={`text-xs sm:text-sm ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+            <p className={`text-xs sm:text-sm ${g.muted}`}>
               Continue with your Google account or work email
             </p>
           </div>
@@ -239,11 +221,10 @@ export default function Login() {
           <button
             type="button"
             onClick={handleGoogleRedirectLogin}
-            className={`w-full py-2.5 px-4 text-xs sm:text-sm font-semibold rounded-xl border transition-all flex items-center justify-center gap-3 cursor-pointer ${
-              isDark
-                ? "bg-white hover:bg-slate-200 text-slate-900 border-transparent"
-                : "bg-slate-50 hover:bg-slate-100 text-slate-900 border-slate-200"
-            }`}
+            className={`w-full py-2.5 px-4 text-xs sm:text-sm font-semibold rounded-xl border transition-all flex items-center justify-center gap-3 cursor-pointer ${isDark
+              ? "bg-white hover:bg-zinc-100 text-zinc-900 border-transparent shadow-md"
+              : "bg-white hover:bg-slate-50 text-slate-900 border-slate-200 shadow-xs"
+              }`}
           >
             <svg className="w-4 h-4" viewBox="0 0 24 24">
               <path
@@ -267,11 +248,10 @@ export default function Login() {
           </button>
 
           <div className="relative flex items-center justify-center">
-            <div className={`border-t w-full ${isDark ? "border-white/[0.08]" : "border-slate-200"}`} />
+            <div className={`border-t w-full ${g.border}`} />
             <span
-              className={`px-3 text-[10px] font-bold uppercase tracking-widest absolute ${
-                isDark ? "bg-[#0c0d12] text-slate-500" : "bg-white text-slate-400"
-              }`}
+              className={`px-3 text-[10px] font-bold uppercase tracking-widest absolute rounded-full ${isDark ? "bg-[#191b22] text-zinc-400" : "bg-white text-slate-500"
+                }`}
             >
               Or with work email
             </span>
@@ -279,7 +259,7 @@ export default function Login() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className={`text-xs font-semibold block mb-1.5 ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+              <label className={`text-xs font-semibold block mb-1.5 ${isDark ? "text-zinc-200" : "text-slate-700"}`}>
                 Work Email
               </label>
               <input
@@ -293,7 +273,7 @@ export default function Login() {
             </div>
 
             <div>
-              <label className={`text-xs font-semibold block mb-1.5 ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+              <label className={`text-xs font-semibold block mb-1.5 ${isDark ? "text-zinc-200" : "text-slate-700"}`}>
                 Password
               </label>
               <div className="relative">
@@ -308,7 +288,7 @@ export default function Login() {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 cursor-pointer"
+                  className={`absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer ${g.muted} hover:text-current`}
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -318,20 +298,16 @@ export default function Login() {
             <button
               type="submit"
               disabled={loading}
-              className={`w-full py-2.5 text-xs sm:text-sm font-semibold rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 ${
-                isDark
-                  ? "bg-white text-slate-950 hover:bg-slate-200"
-                  : "bg-slate-900 text-white hover:bg-slate-800"
-              }`}
+              className="w-full py-2.5 text-xs sm:text-sm font-semibold rounded-xl lira-btn-primary flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
             >
               <span>{loading ? "Signing In..." : "Sign In"}</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </form>
 
-          <p className={`text-center text-xs ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+          <p className={`text-center text-xs ${g.muted}`}>
             New to the organization?{" "}
-            <Link to="/signup" className="text-indigo-400 hover:underline font-semibold">
+            <Link to="/signup" className={`${g.heading} hover:underline font-semibold`}>
               Request to Join
             </Link>
           </p>

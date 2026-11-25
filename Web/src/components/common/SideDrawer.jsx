@@ -1,6 +1,7 @@
 import React, { useEffect } from "react";
 import { X } from "lucide-react";
 import { useApp } from "../../context/Appcontext";
+import { getGlassTokens } from "../../styles/glassTheme";
 
 export default function SideDrawer({
   isOpen,
@@ -16,6 +17,7 @@ export default function SideDrawer({
 }) {
   const { theme } = useApp();
   const isDark = theme === "dark";
+  const g = getGlassTokens(isDark);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -32,30 +34,20 @@ export default function SideDrawer({
     <div className="fixed inset-0 z-50 overflow-hidden flex justify-end">
       <div
         onClick={onClose}
-        className="fixed inset-0 bg-black/45 backdrop-blur-[2px] transition-opacity animate-in fade-in duration-150"
+        className="fixed inset-0 bg-black/55 backdrop-blur-xs transition-opacity animate-in fade-in duration-150"
       />
 
       <div
-        className={`relative w-full ${widthClass} h-full flex flex-col z-10 border-l shadow-2xl animate-in slide-in-from-right duration-200 ${
-          isDark
-            ? "bg-[#0f1016] border-white/[0.08] text-slate-100"
-            : "bg-white border-slate-200 text-slate-900"
-        }`}
+        className={`relative w-full ${widthClass} h-full flex flex-col z-10 border-l animate-in slide-in-from-right duration-200 ${g.drawer}`}
       >
         {/* Header */}
         <div
-          className={`px-6 py-4 border-b flex items-center justify-between gap-3 shrink-0 ${
-            isDark ? "border-white/[0.08] bg-[#12131c]" : "border-slate-200 bg-slate-50/70"
-          }`}
+          className={`px-6 py-4 border-b flex items-center justify-between gap-3 shrink-0 ${g.subHeader}`}
         >
           <div className="flex items-center gap-3 min-w-0">
             {Icon && (
               <div
-                className={`w-9 h-9 rounded-xl border flex items-center justify-center shrink-0 ${
-                  isDark
-                    ? "bg-white/[0.04] border-white/[0.08] text-indigo-400"
-                    : "bg-indigo-50 border-indigo-200 text-indigo-600"
-                }`}
+                className={`w-9 h-9 rounded-xl border flex items-center justify-center shrink-0 ${g.badge}`}
               >
                 <Icon className="w-4 h-4" />
               </div>
@@ -98,9 +90,7 @@ export default function SideDrawer({
         {/* Optional Footer */}
         {footer && (
           <div
-            className={`px-6 py-3.5 border-t shrink-0 ${
-              isDark ? "border-white/[0.08] bg-[#12131c]" : "border-slate-200 bg-slate-50/70"
-            }`}
+            className={`px-6 py-3.5 border-t shrink-0 ${g.subHeader}`}
           >
             {footer}
           </div>

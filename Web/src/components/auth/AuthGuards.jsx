@@ -25,8 +25,8 @@ export function AuthLoadingScreen() {
 
   return (
     <div
-      className={`h-screen w-screen flex items-center justify-center ${
-        isDark ? "bg-[#0c0d12] text-white" : "bg-slate-50 text-slate-900"
+      className={`h-screen w-screen flex items-center justify-center lira-canvas-bg ${
+        isDark ? "text-white" : "text-slate-900"
       }`}
     >
       <div className="flex flex-col items-center gap-4">
@@ -87,7 +87,7 @@ export function PublicOnlyRoute() {
     const safeTarget =
       returnTo && !["/login", "/signup", "/landing", "/welcome"].includes(returnTo)
         ? returnTo
-        : "/board";
+        : "/";
     return <Navigate to={safeTarget} replace />;
   }
 
@@ -97,7 +97,7 @@ export function PublicOnlyRoute() {
 /**
  * Join Request Guard (/join-request):
  * - Accessible to authenticated users waiting for admin review or declined.
- * - Redirects approved users (regardless of Active / Away / On Leave) to /board.
+ * - Redirects approved users (regardless of Active / Away / On Leave) to /.
  */
 export function JoinRequestGuard() {
   const { user, isValidating } = useApp();
@@ -111,7 +111,7 @@ export function JoinRequestGuard() {
   }
 
   if (!isPendingOrRestricted(user)) {
-    return <Navigate to="/board" replace />;
+    return <Navigate to="/" replace />;
   }
 
   return <Outlet />;
@@ -137,7 +137,7 @@ export function RoleRoute({ allowedRoles = [] }) {
   }
 
   if (allowedRoles.length > 0 && !allowedRoles.includes(user.role)) {
-    return <Navigate to="/board" replace />;
+    return <Navigate to="/" replace />;
   }
 
   return <Outlet />;

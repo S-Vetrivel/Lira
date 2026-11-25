@@ -12,12 +12,14 @@ import {
 import { getChunkStatus, uploadSingleChunk } from "../../services/api";
 import { useApp } from "../../context/Appcontext";
 import { formatFileSize } from "../../utils/formatters";
+import { getGlassTokens } from "../../styles/glassTheme";
 
 const CHUNK_SIZE = 1 * 1024 * 1024;
 
 export default function ChunkUploader({ onUploadComplete, onClose, accept = "*/*" }) {
   const { theme } = useApp();
   const isDark = theme === "dark";
+  const g = getGlassTokens(isDark);
 
   const [file, setFile] = useState(null);
   const [uploadId, setUploadId] = useState("");
@@ -130,23 +132,19 @@ export default function ChunkUploader({ onUploadComplete, onClose, accept = "*/*
 
   return (
     <div
-      className={`border rounded-2xl p-5 shadow-xl w-full max-w-lg mx-auto ${
-        isDark
-          ? "bg-[#14151c] border-white/10 text-slate-200"
-          : "bg-white border-slate-200 text-slate-800"
-      }`}
+      className={`border rounded-2xl p-5 shadow-xl w-full max-w-lg mx-auto ${g.card}`}
     >
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-xl bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
+          <div className={`w-9 h-9 rounded-xl border flex items-center justify-center ${g.badge}`}>
             <UploadCloud className="w-5 h-5" />
           </div>
           <div>
-            <h3 className={`text-sm font-bold ${isDark ? "text-white" : "text-slate-900"}`}>
+            <h3 className={`text-sm font-bold ${g.heading}`}>
               Upload & Share File
             </h3>
-            <p className={`text-[11px] ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+            <p className={`text-[11px] ${g.muted}`}>
               Send documents, screenshots, and deliverables to your team
             </p>
           </div>
@@ -154,7 +152,7 @@ export default function ChunkUploader({ onUploadComplete, onClose, accept = "*/*
         {onClose && (
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+            className={`p-1.5 rounded-lg transition-colors cursor-pointer ${g.iconBtn}`}
           >
             <X className="w-4 h-4" />
           </button>
@@ -165,17 +163,13 @@ export default function ChunkUploader({ onUploadComplete, onClose, accept = "*/*
       {!file ? (
         <div
           onClick={() => fileInputRef.current?.click()}
-          className={`border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center cursor-pointer transition-colors group ${
-            isDark
-              ? "border-white/15 hover:border-indigo-500/60 bg-[#0e0f16] hover:bg-indigo-500/5"
-              : "border-slate-300 hover:border-indigo-500/60 bg-slate-50 hover:bg-indigo-50/40"
-          }`}
+          className={`border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center cursor-pointer transition-colors group ${g.subtleSurface} ${g.rowHover}`}
         >
-          <UploadCloud className="w-10 h-10 text-slate-400 group-hover:text-indigo-400 transition-colors mb-2" />
-          <p className={`text-xs font-semibold ${isDark ? "text-slate-200" : "text-slate-800"}`}>
+          <UploadCloud className={`w-10 h-10 transition-colors mb-2 ${g.muted}`} />
+          <p className={`text-xs font-semibold ${g.heading}`}>
             Click to select a file to share
           </p>
-          <span className="text-[10px] text-slate-400 mt-1">
+          <span className={`text-[10px] mt-1 ${g.muted}`}>
             Supports documents, images, PDFs, and archives
           </span>
           <input
@@ -189,24 +183,20 @@ export default function ChunkUploader({ onUploadComplete, onClose, accept = "*/*
       ) : (
         <div className="space-y-4">
           {/* File Card */}
-          <div
-            className={`p-3 rounded-xl border flex items-center justify-between ${
-              isDark ? "bg-[#0e0f16] border-white/10" : "bg-slate-50 border-slate-200"
-            }`}
-          >
+          <div className={`p-3 rounded-xl border flex items-center justify-between ${g.subtleSurface}`}>
             <div className="flex items-center gap-3 min-w-0">
-              <FileText className="w-5 h-5 text-indigo-400 shrink-0" />
+              <FileText className={`w-5 h-5 shrink-0 ${g.accentIcon}`} />
               <div className="min-w-0">
-                <p className={`text-xs font-bold truncate ${isDark ? "text-white" : "text-slate-900"}`}>
+                <p className={`text-xs font-bold truncate ${g.heading}`}>
                   {file.name}
                 </p>
-                <p className="text-[10px] text-slate-400">{formatFileSize(file.size)}</p>
+                <p className={`text-[10px] ${g.muted}`}>{formatFileSize(file.size)}</p>
               </div>
             </div>
             {status === "idle" && (
               <button
                 onClick={() => setFile(null)}
-                className="text-xs text-slate-400 hover:text-rose-400 px-2 py-1 cursor-pointer"
+                className="text-xs text-zinc-400 hover:text-rose-400 px-2 py-1 cursor-pointer"
               >
                 Change
               </button>
@@ -227,33 +217,29 @@ export default function ChunkUploader({ onUploadComplete, onClose, accept = "*/*
                       <Pause className="w-3.5 h-3.5" /> Paused
                     </span>
                   ) : (
-                    <span className="text-indigo-400 flex items-center gap-1">
+                    <span className={`flex items-center gap-1 ${g.heading}`}>
                       <Wifi className="w-3.5 h-3.5 animate-pulse" /> Uploading...
                     </span>
                   )}
                 </span>
-                <span className="font-mono text-slate-400 font-bold">{progress}%</span>
+                <span className={`font-mono font-bold ${g.muted}`}>{progress}%</span>
               </div>
 
-              <div
-                className={`h-2 w-full rounded-full overflow-hidden border ${
-                  isDark ? "bg-[#0c0d12] border-white/10" : "bg-slate-100 border-slate-200"
-                }`}
-              >
+              <div className={`h-2 w-full rounded-full overflow-hidden border ${g.progressTrack} ${g.border}`}>
                 <div
                   className={`h-full transition-all duration-300 rounded-full ${
                     status === "completed"
                       ? "bg-emerald-500"
                       : status === "paused"
                       ? "bg-amber-500"
-                      : "bg-indigo-600"
+                      : g.progressFill
                   }`}
                   style={{ width: `${progress}%` }}
                 />
               </div>
 
               {status === "uploading" && (
-                <div className="flex justify-between text-[11px] text-slate-400 font-mono">
+                <div className={`flex justify-between text-[11px] font-mono ${g.muted}`}>
                   <span>Transfer rate: {uploadSpeed} KB/s</span>
                   <span>{formatFileSize(file.size * (progress / 100))} sent</span>
                 </div>
@@ -273,7 +259,7 @@ export default function ChunkUploader({ onUploadComplete, onClose, accept = "*/*
             {status === "idle" && (
               <button
                 onClick={startUpload}
-                className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs transition-colors flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 cursor-pointer"
+                className={`w-full py-2.5 px-4 rounded-xl text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer ${g.btnPrimary}`}
               >
                 <UploadCloud className="w-4 h-4" /> Upload & Share File
               </button>

@@ -17,6 +17,7 @@ import {
 } from "../../services/api";
 import { getSocket } from "../../services/socket";
 import UserAvatar from "../common/UserAvatar";
+import { getGlassTokens } from "../../styles/glassTheme";
 import { formatDateIN, formatTimeIN, formatFileSize, getDisplayName } from "../../utils/formatters";
 import {
   X,
@@ -284,15 +285,12 @@ export default function TaskDrawer({ taskKeyOrId, onClose, onTaskUpdated }) {
   const subtaskProgress =
     totalSubtasks > 0 ? Math.round((completedSubtasks / totalSubtasks) * 100) : 0;
 
-  const surfaceBg = isDark ? "bg-[#0f1016]" : "bg-white";
-  const subtleBg = isDark ? "bg-[#151720]" : "bg-slate-50";
-  const borderCol = isDark ? "border-white/[0.08]" : "border-slate-200";
-  const mutedText = isDark ? "text-slate-400" : "text-slate-500";
-  const inputBase = `w-full text-xs font-medium rounded-lg px-2.5 py-1.5 border focus:outline-none focus:border-indigo-500 transition-colors ${
-    isDark
-      ? "bg-[#151720] border-white/[0.08] text-slate-100 placeholder-slate-500"
-      : "bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400"
-  }`;
+  const g = getGlassTokens(isDark);
+  const surfaceBg = g.drawer;
+  const subtleBg = g.subtleSurface;
+  const borderCol = g.border;
+  const mutedText = g.muted;
+  const inputBase = `w-full text-xs font-medium rounded-lg px-2.5 py-1.5 border focus:outline-none transition-colors ${g.input}`;
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden flex justify-end">
@@ -528,9 +526,9 @@ export default function TaskDrawer({ taskKeyOrId, onClose, onTaskUpdated }) {
                   </div>
 
                   {totalSubtasks > 0 && (
-                    <div className={`w-full rounded-full h-1 overflow-hidden ${isDark ? "bg-white/10" : "bg-slate-200"}`}>
+                    <div className={`w-full rounded-full h-1 overflow-hidden ${g.progressTrack}`}>
                       <div
-                        className="bg-indigo-500 h-full transition-all duration-300"
+                        className={`h-full transition-all duration-300 ${g.progressFill}`}
                         style={{ width: `${subtaskProgress}%` }}
                       />
                     </div>
@@ -650,29 +648,29 @@ export default function TaskDrawer({ taskKeyOrId, onClose, onTaskUpdated }) {
                 {/* Comments & Activity */}
                 <div className={`pt-4 border-t ${borderCol}`}>
                   <div className={`flex items-center gap-5 border-b mb-4 ${borderCol}`}>
-                    <button
-                      onClick={() => setActiveTab("comments")}
-                      className={`text-xs font-semibold pb-2.5 -mb-px flex items-center gap-1.5 border-b-2 transition-colors cursor-pointer ${
-                        activeTab === "comments"
-                          ? "border-indigo-500 text-indigo-400"
-                          : `border-transparent ${mutedText}`
-                      }`}
-                    >
-                      <MessageSquare className="w-3.5 h-3.5" />
-                      <span>Comments ({comments.length})</span>
-                    </button>
+                      <button
+                        onClick={() => setActiveTab("comments")}
+                        className={`text-xs font-semibold pb-2.5 -mb-px flex items-center gap-1.5 border-b-2 transition-colors cursor-pointer ${
+                          activeTab === "comments"
+                            ? `border-current ${g.heading}`
+                            : `border-transparent ${mutedText}`
+                        }`}
+                      >
+                        <MessageSquare className="w-3.5 h-3.5" />
+                        <span>Comments ({comments.length})</span>
+                      </button>
 
-                    <button
-                      onClick={() => setActiveTab("history")}
-                      className={`text-xs font-semibold pb-2.5 -mb-px flex items-center gap-1.5 border-b-2 transition-colors cursor-pointer ${
-                        activeTab === "history"
-                          ? "border-indigo-500 text-indigo-400"
-                          : `border-transparent ${mutedText}`
-                      }`}
-                    >
-                      <History className="w-3.5 h-3.5" />
-                      <span>Activity ({history.length})</span>
-                    </button>
+                      <button
+                        onClick={() => setActiveTab("history")}
+                        className={`text-xs font-semibold pb-2.5 -mb-px flex items-center gap-1.5 border-b-2 transition-colors cursor-pointer ${
+                          activeTab === "history"
+                            ? `border-current ${g.heading}`
+                            : `border-transparent ${mutedText}`
+                        }`}
+                      >
+                        <History className="w-3.5 h-3.5" />
+                        <span>Activity ({history.length})</span>
+                      </button>
                   </div>
 
                   {activeTab === "comments" ? (
@@ -755,7 +753,7 @@ export default function TaskDrawer({ taskKeyOrId, onClose, onTaskUpdated }) {
               </div>
 
               {/* Right Minimal Properties Inspector */}
-              <div className={`md:col-span-4 p-5 space-y-4 ${isDark ? "bg-[#0c0d12]" : "bg-slate-50/70"}`}>
+              <div className={`md:col-span-4 p-5 space-y-4 ${g.subtleSurface}`}>
                 <div className="space-y-1">
                   <label className={`text-[10px] font-semibold uppercase tracking-wider block ${mutedText}`}>
                     Assignee

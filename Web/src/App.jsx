@@ -29,7 +29,7 @@ import JoinRequestStatus from "./pages/JoinRequestStatus";
  * Root `/` entry guard:
  * - Shows public Lira Landing page to unauthenticated visitors
  * - Routes pending/declined applicants to `/join-request`
- * - Renders the main Workspace Board for approved authenticated members
+ * - Renders the main Workspace Dashboard (Overview) for approved authenticated members
  */
 function HomeEntry() {
   const { user, isValidating } = useApp();
@@ -48,7 +48,7 @@ function HomeEntry() {
 
   return (
     <MainLayout>
-      <Board />
+      <Analytics />
     </MainLayout>
   );
 }
@@ -60,23 +60,24 @@ function App() {
         position="bottom-right"
         toastOptions={{
           style: {
-            background: "#0f172a",
-            color: "#f8fafc",
-            borderRadius: "0.75rem",
+            background: "#18181b",
+            color: "#fafafa",
+            borderRadius: "0.875rem",
+            border: "1px solid rgba(255,255,255,0.12)",
             fontSize: "0.875rem",
           },
           success: {
             duration: 3500,
             iconTheme: {
-              primary: "#6366f1",
-              secondary: "#ffffff",
+              primary: "#e4e4e7",
+              secondary: "#18181b",
             },
           },
         }}
       />
 
       <Routes>
-        {/* Adaptive Root Entry (Landing when logged out, Board when active) */}
+        {/* Adaptive Root Entry (Landing when logged out, Dashboard when active) */}
         <Route path="/" element={<HomeEntry />} />
 
         {/* Dedicated Public Overview / Marketing Routes */}
@@ -97,12 +98,13 @@ function App() {
         {/* Authenticated Workspace Routes (Must be active approved member) */}
         <Route element={<ProtectedRoute />}>
           <Route element={<MainLayout />}>
+            <Route path="/dashboard" element={<Analytics />} />
+            <Route path="/analytics" element={<Analytics />} />
             <Route path="/board" element={<Board />} />
             <Route path="/table" element={<TableView />} />
             <Route path="/calendar" element={<CalendarView />} />
             <Route path="/requests" element={<Requests />} />
             <Route path="/my-work" element={<MyWork />} />
-            <Route path="/analytics" element={<Analytics />} />
             <Route path="/team" element={<Team />} />
             <Route path="/projects" element={<Projects />} />
             <Route path="/profile" element={<Profile />} />

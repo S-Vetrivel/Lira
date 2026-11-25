@@ -22,8 +22,8 @@ export default function LiraLogo({
       <span
         className={`${cfg.box} flex items-center justify-center shrink-0 border transition-colors ${
           isDark
-            ? "bg-white text-slate-950 border-white/20 shadow-sm"
-            : "bg-slate-900 text-white border-slate-900/10 shadow-sm"
+            ? "bg-gradient-to-b from-zinc-100 to-zinc-300 text-zinc-950 border-white/30 shadow-sm shadow-black/40"
+            : "bg-gradient-to-b from-zinc-800 to-zinc-950 text-white border-zinc-900/20 shadow-sm shadow-zinc-900/20"
         }`}
       >
         <svg
@@ -44,13 +44,13 @@ export default function LiraLogo({
           {/* Parallel rhythm bar */}
           <path
             d="M11.5 6.5V13.5H17.5"
-            stroke="#6366f1"
+            stroke={isDark ? "#52525b" : "#a1a1aa"}
             strokeWidth="2.2"
             strokeLinecap="round"
             strokeLinejoin="round"
           />
           {/* Anchor node */}
-          <circle cx="17.5" cy="7.5" r="2" fill="#6366f1" />
+          <circle cx="17.5" cy="7.5" r="2" fill={isDark ? "#18181b" : "#e4e4e7"} />
         </svg>
       </span>
 
@@ -58,17 +58,17 @@ export default function LiraLogo({
         <span className="inline-flex items-center gap-2">
           <span
             className={`${cfg.text} font-extrabold tracking-tight leading-none ${
-              isDark ? "text-white" : "text-slate-950"
+              isDark ? "text-zinc-50" : "text-slate-950"
             }`}
           >
             lira
           </span>
           {showBadge && (
             <span
-              className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+              className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border backdrop-blur-md ${
                 isDark
-                  ? "bg-white/[0.04] border-white/[0.1] text-slate-300"
-                  : "bg-slate-100 border-slate-200 text-slate-600"
+                  ? "bg-white/[0.06] border-white/[0.12] text-zinc-300"
+                  : "bg-slate-900/[0.05] border-slate-900/[0.10] text-slate-600"
               }`}
             >
               Workspace

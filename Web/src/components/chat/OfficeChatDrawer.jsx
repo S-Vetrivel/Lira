@@ -44,6 +44,7 @@ import {
   getDownloadUrl,
 } from "../../utils/formatters";
 import toast from "react-hot-toast";
+import { getGlassTokens } from "../../styles/glassTheme";
 
 const CHANNELS = [
   { id: "dept_general", name: "operations", label: "Operations & General", type: "department" },
@@ -57,6 +58,7 @@ const CHUNK_SIZE = 1024 * 1024; // 1MB
 export default function OfficeChatDrawer({ isOpen, onClose }) {
   const { user, theme, projects, chatTargetUser, setChatTargetUser, chatTargetRoom, setChatTargetRoom } = useApp();
   const isDark = theme === "dark";
+  const g = getGlassTokens(isDark);
 
   const [colleagues, setColleagues] = useState([]);
   const [channelUnread, setChannelUnread] = useState({});
@@ -530,32 +532,24 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
 
       {/* Split-Pane Chat Drawer */}
       <div
-        className={`relative z-10 w-full sm:w-[700px] lg:w-[820px] h-full border-l shadow-2xl flex overflow-hidden animate-in slide-in-from-right duration-200 ${
-          isDark
-            ? "bg-[#0c0d12] border-white/10 text-slate-100"
-            : "bg-white border-slate-200 text-slate-900"
+        className={`relative z-10 w-full sm:w-[700px] lg:w-[820px] h-full border-l lira-glass-drawer flex overflow-hidden animate-in slide-in-from-right duration-200 ${
+          isDark ? "text-slate-100" : "text-slate-900"
         }`}
       >
         {/* LEFT SIDEBAR: CHANNELS & DIRECT MESSAGES */}
         <aside
           className={`${
             showMobileSidebar ? "flex absolute inset-y-0 left-0 z-30 w-64" : "hidden sm:flex sm:w-64"
-          } flex-col border-r shrink-0 ${
-            isDark ? "bg-[#11121a] border-white/10" : "bg-slate-50 border-slate-200"
-          }`}
+          } flex-col border-r shrink-0 ${g.subHeader}`}
         >
           {/* Sidebar Header */}
-          <div
-            className={`px-4 py-3.5 border-b flex items-center justify-between ${
-              isDark ? "border-white/10" : "border-slate-200"
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white">
-                <MessageSquare className="w-3.5 h-3.5" />
+          <div className={`px-4 py-3.5 border-b flex items-center justify-between ${g.border}`}>
+            <div className="flex items-center gap-2.5">
+              <div className={`w-8 h-8 rounded-xl border flex items-center justify-center ${g.badge}`}>
+                <MessageSquare className="w-4 h-4" />
               </div>
               <div>
-                <h2 className={`text-xs font-extrabold tracking-tight ${isDark ? "text-white" : "text-slate-900"}`}>
+                <h2 className={`text-xs font-extrabold tracking-tight ${g.heading}`}>
                   Lira Office Chat
                 </h2>
                 <span className="text-[10px] text-emerald-500 font-semibold flex items-center gap-1">
@@ -567,7 +561,7 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
 
             <button
               onClick={() => setShowMobileSidebar(false)}
-              className="sm:hidden p-1 rounded-lg text-slate-400 hover:text-white"
+              className={`sm:hidden p-1 rounded-lg ${g.muted}`}
             >
               <X className="w-4 h-4" />
             </button>
@@ -576,17 +570,13 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
           {/* Search Input */}
           <div className="p-3">
             <div className="relative">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <Search className={`w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 ${g.muted}`} />
               <input
                 type="text"
                 value={searchFilter}
                 onChange={(e) => setSearchFilter(e.target.value)}
                 placeholder="Search people or ID..."
-                className={`w-full rounded-xl pl-8 pr-3 py-1.5 text-xs border focus:outline-none focus:border-indigo-500 ${
-                  isDark
-                    ? "bg-[#181a24] border-white/10 text-white placeholder-slate-500"
-                    : "bg-white border-slate-200 text-slate-900 placeholder-slate-400"
-                }`}
+                className={`w-full rounded-xl pl-8 pr-3 py-1.5 text-xs border focus:outline-none ${g.input}`}
               />
             </div>
           </div>
@@ -595,7 +585,7 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
           <div className="flex-1 overflow-y-auto px-2.5 pb-4 space-y-5">
             {/* Department Channels */}
             <div className="space-y-1">
-              <span className="px-2 text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+              <span className={`px-2 text-[10px] font-bold uppercase tracking-wider block ${g.muted}`}>
                 Department Channels
               </span>
               {CHANNELS.map((chan) => {
@@ -605,12 +595,10 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
                   <button
                     key={chan.id}
                     onClick={() => selectChannel(chan)}
-                    className={`w-full px-2.5 py-2 rounded-xl text-xs font-semibold flex items-center justify-between transition-all cursor-pointer ${
+                    className={`w-full px-2.5 py-2 rounded-xl text-xs font-semibold flex items-center justify-between transition-all cursor-pointer border ${
                       isSelected
-                        ? "bg-indigo-600 text-white shadow-sm"
-                        : isDark
-                        ? "text-slate-300 hover:bg-white/5 hover:text-white"
-                        : "text-slate-700 hover:bg-slate-200/70 hover:text-slate-900"
+                        ? g.selectedRow
+                        : `border-transparent ${g.rowHover} ${isDark ? "text-zinc-300" : "text-slate-700"}`
                     }`}
                   >
                     <span className="flex items-center gap-2 truncate">
@@ -630,7 +618,7 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
             {/* Project Channels */}
             {projects?.length > 0 && (
               <div className="space-y-1">
-                <span className="px-2 text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                <span className={`px-2 text-[10px] font-bold uppercase tracking-wider block ${g.muted}`}>
                   Project Rooms ({projects.length})
                 </span>
                 {projects.map((proj) => {
@@ -647,12 +635,10 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
                           type: "department",
                         })
                       }
-                      className={`w-full px-2.5 py-2 rounded-xl text-xs font-semibold flex items-center justify-between transition-all cursor-pointer ${
+                      className={`w-full px-2.5 py-2 rounded-xl text-xs font-semibold flex items-center justify-between transition-all cursor-pointer border ${
                         isSelected
-                          ? "bg-indigo-600 text-white shadow-sm"
-                          : isDark
-                          ? "text-slate-300 hover:bg-white/5 hover:text-white"
-                          : "text-slate-700 hover:bg-slate-200/70 hover:text-slate-900"
+                          ? g.selectedRow
+                          : `border-transparent ${g.rowHover} ${isDark ? "text-zinc-300" : "text-slate-700"}`
                       }`}
                     >
                       <span className="flex items-center gap-2 truncate">
@@ -670,7 +656,7 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
             {/* Direct Messages */}
             <div className="space-y-1">
               <div className="px-2 flex items-center justify-between">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                <span className={`text-[10px] font-bold uppercase tracking-wider ${g.muted}`}>
                   Direct Messages ({filteredColleagues.length})
                 </span>
               </div>
@@ -686,14 +672,10 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
                   <button
                     key={colleague._id}
                     onClick={() => selectDirectColleague(colleague)}
-                    className={`w-full p-2 rounded-xl flex items-center justify-between gap-2 text-left transition-all cursor-pointer ${
+                    className={`w-full p-2 rounded-xl flex items-center justify-between gap-2 text-left transition-all cursor-pointer border ${
                       isSelected
-                        ? isDark
-                          ? "bg-indigo-600/25 border border-indigo-500/40 text-white"
-                          : "bg-indigo-50 border border-indigo-200 text-indigo-950"
-                        : isDark
-                        ? "hover:bg-white/5 text-slate-200 border border-transparent"
-                        : "hover:bg-slate-200/60 text-slate-800 border border-transparent"
+                        ? g.selectedRow
+                        : `border-transparent ${g.rowHover} ${isDark ? "text-zinc-200" : "text-slate-800"}`
                     }`}
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
@@ -705,21 +687,21 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
                         />
                         <span
                           className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 ${
-                            isDark ? "border-[#11121a]" : "border-slate-50"
-                          } ${isOnline ? "bg-emerald-500" : "bg-slate-500"}`}
+                            isDark ? "border-[#14161d]" : "border-white"
+                          } ${isOnline ? "bg-emerald-500" : "bg-zinc-500"}`}
                         />
                       </div>
 
                       <div className="min-w-0">
                         <p className="text-xs font-bold truncate">{displayName}</p>
-                        <p className={`text-[10px] truncate ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+                        <p className={`text-[10px] truncate ${g.muted}`}>
                           {colleague.jobTitle || colleague.departmentName || "Staff"}
                         </p>
                       </div>
                     </div>
 
                     {colleague.unreadCount > 0 && !isSelected && (
-                      <span className="px-1.5 py-0.5 rounded-full bg-indigo-600 text-white text-[10px] font-bold shrink-0">
+                      <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${g.pillActive}`}>
                         {colleague.unreadCount}
                       </span>
                     )}
@@ -753,24 +735,18 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
         >
           {/* Drag-and-drop overlay */}
           {isDraggingFile && (
-            <div className="absolute inset-0 z-40 bg-indigo-600/20 backdrop-blur-xs border-2 border-dashed border-indigo-500 flex flex-col items-center justify-center pointer-events-none">
-              <UploadCloud className="w-12 h-12 text-indigo-400 mb-2 animate-bounce" />
+            <div className="absolute inset-0 z-40 bg-zinc-900/60 backdrop-blur-xs border-2 border-dashed border-white/40 flex flex-col items-center justify-center pointer-events-none">
+              <UploadCloud className="w-12 h-12 text-zinc-200 mb-2 animate-bounce" />
               <p className="text-sm font-bold text-white">Drop file to encrypt & share in chat</p>
             </div>
           )}
 
           {/* Chat Header */}
-          <div
-            className={`px-4 py-3 border-b flex items-center justify-between gap-3 shrink-0 ${
-              isDark ? "bg-[#12131c] border-white/10" : "bg-white border-slate-200"
-            }`}
-          >
+          <div className={`px-4 py-3 border-b flex items-center justify-between gap-3 shrink-0 ${g.subHeader}`}>
             <div className="flex items-center gap-2.5 min-w-0">
               <button
                 onClick={() => setShowMobileSidebar(true)}
-                className={`sm:hidden p-1.5 rounded-lg border ${
-                  isDark ? "border-white/10 text-slate-300" : "border-slate-200 text-slate-700"
-                }`}
+                className={`sm:hidden p-1.5 rounded-lg border ${g.iconBtn}`}
                 title="Channels & DMs"
               >
                 <Users className="w-4 h-4" />
@@ -786,25 +762,19 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
                   />
                   <span
                     className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 ${
-                      isDark ? "border-[#12131c]" : "border-white"
-                    } ${isRecipientOnline ? "bg-emerald-500" : "bg-slate-500"}`}
+                      isDark ? "border-[#14161d]" : "border-white"
+                    } ${isRecipientOnline ? "bg-emerald-500" : "bg-zinc-500"}`}
                   />
                 </div>
               ) : (
-                <div
-                  className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border ${
-                    isDark
-                      ? "bg-indigo-500/15 border-indigo-500/25 text-indigo-400"
-                      : "bg-indigo-50 border-indigo-200 text-indigo-600"
-                  }`}
-                >
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border ${g.badge}`}>
                   <Hash className="w-4 h-4" />
                 </div>
               )}
 
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <h3 className={`text-sm font-bold truncate ${isDark ? "text-white" : "text-slate-900"}`}>
+                  <h3 className={`text-sm font-bold truncate ${g.heading}`}>
                     {isDirect ? selectedRoom?.name : `#${selectedRoom?.name}`}
                   </h3>
                   <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 shrink-0">
@@ -812,7 +782,7 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
                     Private
                   </span>
                 </div>
-                <p className={`text-[11px] truncate ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+                <p className={`text-[11px] truncate ${g.muted}`}>
                   {isDirect
                     ? `${selectedRoom?.colleague?.departmentName || "Team"} • ${
                         selectedRoom?.colleague?.publicId || "Verified Staff"
@@ -827,11 +797,7 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
               <button
                 onClick={() => setRightTab(rightTab === "files" ? "messages" : "files")}
                 className={`px-2.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
-                  rightTab === "files"
-                    ? "bg-indigo-600 text-white"
-                    : isDark
-                    ? "text-slate-300 hover:bg-white/5 border border-white/10"
-                    : "text-slate-700 hover:bg-slate-100 border border-slate-200"
+                  rightTab === "files" ? g.pillActive : g.btnSecondary
                 }`}
                 title="Shared files in this conversation"
               >
@@ -842,11 +808,7 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
               <button
                 onClick={() => setRightTab(rightTab === "uploader" ? "messages" : "uploader")}
                 className={`px-2.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
-                  rightTab === "uploader"
-                    ? "bg-indigo-600 text-white"
-                    : isDark
-                    ? "text-slate-300 hover:bg-white/5 border border-white/10"
-                    : "text-slate-700 hover:bg-slate-100 border border-slate-200"
+                  rightTab === "uploader" ? g.pillActive : g.btnSecondary
                 }`}
                 title="Resumable Large File Transfer"
               >
@@ -856,9 +818,7 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
 
               <button
                 onClick={onClose}
-                className={`p-1.5 rounded-xl transition-colors cursor-pointer ${
-                  isDark ? "text-slate-400 hover:text-white hover:bg-white/10" : "text-slate-500 hover:text-slate-900 hover:bg-slate-100"
-                }`}
+                className={`p-1.5 rounded-xl transition-colors cursor-pointer ${g.iconBtn}`}
                 title="Close chat"
               >
                 <X className="w-4 h-4" />
@@ -871,28 +831,22 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
             <>
               <div className="flex-1 p-4 overflow-y-auto space-y-3.5">
                 {loading && (
-                  <div className="flex items-center justify-center py-12 gap-2 text-xs text-slate-400">
-                    <Loader2 className="w-4 h-4 animate-spin text-indigo-500" />
+                  <div className={`flex items-center justify-center py-12 gap-2 text-xs ${g.muted}`}>
+                    <Loader2 className="w-4 h-4 animate-spin" />
                     <span>Loading messages...</span>
                   </div>
                 )}
 
                 {!loading && messages.length === 0 && (
                   <div className="py-16 text-center space-y-3">
-                    <div
-                      className={`w-14 h-14 mx-auto rounded-2xl border flex items-center justify-center ${
-                        isDark
-                          ? "bg-indigo-500/10 border-indigo-500/20 text-indigo-400"
-                          : "bg-indigo-50 border-indigo-200 text-indigo-600"
-                      }`}
-                    >
+                    <div className={`w-14 h-14 mx-auto rounded-2xl border flex items-center justify-center ${g.badge}`}>
                       {isDirect ? <Users className="w-6 h-6" /> : <Hash className="w-6 h-6" />}
                     </div>
                     <div>
-                      <h4 className={`text-sm font-bold ${isDark ? "text-white" : "text-slate-900"}`}>
+                      <h4 className={`text-sm font-bold ${g.heading}`}>
                         {isDirect ? `Direct Chat with ${selectedRoom?.name}` : `Welcome to #${selectedRoom?.name}`}
                       </h4>
-                      <p className={`text-xs max-w-xs mx-auto mt-1 ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+                      <p className={`text-xs max-w-xs mx-auto mt-1 ${g.muted}`}>
                         Send a message or drag & drop files here to share with your team.
                       </p>
                     </div>
@@ -954,29 +908,23 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
                               {isMe ? "You" : senderName}
                             </span>
                             {msg.sender?.publicId && !isMe && (
-                              <span
-                                className={`text-[9px] font-mono px-1.5 py-0.2 rounded ${
-                                  isDark ? "bg-white/5 text-indigo-300" : "bg-indigo-50 text-indigo-700"
-                                }`}
-                              >
+                              <span className={`text-[9px] font-mono px-1.5 py-0.2 rounded border ${g.badge}`}>
                                 {msg.sender.publicId}
                               </span>
                             )}
-                            <span className="text-[9px] text-slate-400 font-mono">
+                            <span className={`text-[9px] font-mono ${g.muted}`}>
                               {formatTimeIN(msg.createdAt || Date.now())}
                             </span>
-                            {isMe && <CheckCheck className="w-3 h-3 text-indigo-400" />}
+                            {isMe && <CheckCheck className={`w-3 h-3 ${g.accentIcon}`} />}
                           </div>
 
                           <div
                             className={`rounded-2xl px-3.5 py-2 text-xs leading-relaxed ${
                               isMe
                                 ? isDark
-                                  ? "bg-indigo-600 text-white rounded-br-xs"
-                                  : "bg-slate-900 text-white rounded-br-xs"
-                                : isDark
-                                ? "bg-[#181924] text-slate-100 border border-white/10 rounded-bl-xs"
-                                : "bg-slate-100 text-slate-900 border border-slate-200 rounded-bl-xs"
+                                  ? "bg-zinc-200 text-zinc-950 font-medium rounded-br-xs"
+                                  : "bg-zinc-900 text-white rounded-br-xs"
+                                : `${g.subtleSurface} ${g.heading} border rounded-bl-xs`
                             }`}
                           >
                             {(!hasAttachments || !msg.decryptedText?.startsWith("Shared file:")) &&
@@ -996,7 +944,7 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
                 })}
 
                 {typingNames.length > 0 && (
-                  <div className="text-[11px] text-indigo-400 italic px-2 animate-pulse">
+                  <div className={`text-[11px] italic px-2 animate-pulse ${g.muted}`}>
                     {typingNames.join(", ")} {typingNames.length === 1 ? "is" : "are"} typing...
                   </div>
                 )}
@@ -1007,21 +955,17 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
               {/* Quick Upload Progress Banner */}
               {quickUploadProgress && (
                 <div
-                  className={`mx-4 mb-2 px-3 py-2 rounded-xl border text-xs flex items-center justify-between gap-3 ${
-                    isDark ? "bg-[#181924] border-indigo-500/30 text-slate-200" : "bg-indigo-50 border-indigo-200 text-indigo-900"
-                  }`}
+                  className={`mx-4 mb-2 px-3 py-2 rounded-xl border text-xs flex items-center justify-between gap-3 ${g.subtleSurface} ${g.heading}`}
                 >
                   <span className="truncate font-medium">Uploading {quickUploadProgress.name}...</span>
-                  <span className="font-mono font-bold text-indigo-400">{quickUploadProgress.percent}%</span>
+                  <span className="font-mono font-bold">{quickUploadProgress.percent}%</span>
                 </div>
               )}
 
               {/* Message Composer Bar */}
               <form
                 onSubmit={handleSendMessage}
-                className={`p-3 border-t flex items-center gap-2 shrink-0 ${
-                  isDark ? "bg-[#12131c] border-white/10" : "bg-slate-50 border-slate-200"
-                }`}
+                className={`p-3 border-t flex items-center gap-2 shrink-0 ${g.subHeader}`}
               >
                 <input
                   ref={quickFileInputRef}
@@ -1037,11 +981,7 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
                 <button
                   type="button"
                   onClick={() => quickFileInputRef.current?.click()}
-                  className={`p-2 rounded-xl transition-colors cursor-pointer ${
-                    isDark
-                      ? "text-slate-400 hover:text-white hover:bg-white/10"
-                      : "text-slate-500 hover:text-slate-900 hover:bg-slate-200"
-                  }`}
+                  className={`p-2 rounded-xl transition-colors cursor-pointer ${g.iconBtn}`}
                   title="Attach & share file immediately"
                 >
                   <Paperclip className="w-4 h-4" />
@@ -1052,21 +992,13 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
                   value={inputText}
                   onChange={handleInputChange}
                   placeholder={`Message ${isDirect ? selectedRoom?.name : `#${selectedRoom?.name}`}...`}
-                  className={`flex-1 rounded-xl px-3.5 py-2 text-xs border focus:outline-none focus:border-indigo-500 transition-colors font-medium ${
-                    isDark
-                      ? "bg-[#191b26] border-white/10 text-white placeholder-slate-500"
-                      : "bg-white border-slate-200 text-slate-900 placeholder-slate-400"
-                  }`}
+                  className={`flex-1 rounded-xl px-3.5 py-2 text-xs border focus:outline-none transition-colors font-medium ${g.input}`}
                 />
 
                 <button
                   type="submit"
                   disabled={!inputText.trim() || sending}
-                  className={`px-3.5 py-2 rounded-xl disabled:opacity-30 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                    isDark
-                      ? "bg-white text-slate-950 hover:bg-slate-200"
-                      : "bg-slate-900 text-white hover:bg-slate-800"
-                  }`}
+                  className={`px-3.5 py-2 rounded-xl disabled:opacity-30 text-xs transition-all flex items-center gap-1.5 cursor-pointer ${g.btnPrimary}`}
                 >
                   <Send className="w-3.5 h-3.5" />
                   <span className="hidden sm:inline">Send</span>
@@ -1080,16 +1012,16 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
             <div className="flex-1 p-5 overflow-y-auto space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <h4 className={`text-sm font-bold ${isDark ? "text-white" : "text-slate-900"}`}>
+                  <h4 className={`text-sm font-bold ${g.heading}`}>
                     Shared Files in {isDirect ? selectedRoom?.name : `#${selectedRoom?.name}`}
                   </h4>
-                  <p className="text-xs text-slate-400">
+                  <p className={`text-xs ${g.muted}`}>
                     {sharedFilesInRoom.length} files shared in this conversation
                   </p>
                 </div>
                 <button
                   onClick={() => setRightTab("messages")}
-                  className="text-xs font-semibold text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
+                  className={`text-xs font-semibold hover:underline flex items-center gap-1 cursor-pointer ${g.heading}`}
                 >
                   <ArrowLeft className="w-3.5 h-3.5" /> Back to Chat
                 </button>
@@ -1097,15 +1029,13 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
 
               {sharedFilesInRoom.length === 0 ? (
                 <div
-                  className={`p-10 rounded-2xl border-2 border-dashed text-center space-y-2 ${
-                    isDark ? "border-white/10 text-slate-400" : "border-slate-200 text-slate-500"
-                  }`}
+                  className={`p-10 rounded-2xl border-2 border-dashed text-center space-y-2 ${g.border} ${g.muted}`}
                 >
                   <FolderOpen className="w-8 h-8 mx-auto opacity-60" />
                   <p className="text-xs font-semibold">No files shared here yet</p>
                   <button
                     onClick={() => setRightTab("uploader")}
-                    className="mt-2 px-3 py-1.5 rounded-xl bg-indigo-600 text-white text-xs font-bold cursor-pointer"
+                    className={`mt-2 px-3.5 py-1.5 rounded-xl text-xs cursor-pointer ${g.btnPrimary}`}
                   >
                     Upload & Share a File
                   </button>
@@ -1115,19 +1045,17 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
                   {sharedFilesInRoom.map((file, i) => (
                     <div
                       key={i}
-                      className={`p-3.5 rounded-2xl border flex items-center justify-between gap-3 ${
-                        isDark ? "bg-[#14151c] border-white/10" : "bg-slate-50 border-slate-200"
-                      }`}
+                      className={`p-3.5 rounded-2xl border flex items-center justify-between gap-3 ${g.subtleSurface}`}
                     >
                       <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="w-9 h-9 rounded-xl bg-indigo-500/15 text-indigo-400 flex items-center justify-center shrink-0">
+                        <div className={`w-9 h-9 rounded-xl border flex items-center justify-center shrink-0 ${g.badge}`}>
                           <FileText className="w-4 h-4" />
                         </div>
                         <div className="min-w-0">
-                          <p className={`text-xs font-bold truncate ${isDark ? "text-white" : "text-slate-900"}`}>
+                          <p className={`text-xs font-bold truncate ${g.heading}`}>
                             {file.originalName}
                           </p>
-                          <p className="text-[10px] text-slate-400 truncate">
+                          <p className={`text-[10px] truncate ${g.muted}`}>
                             {file.senderName} • {formatDateIN(file.createdAt)}
                             {file.size > 0 ? ` • ${formatFileSize(file.size)}` : ""}
                           </p>
@@ -1138,7 +1066,7 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
                         download={file.originalName}
                         target="_blank"
                         rel="noreferrer"
-                        className="p-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white shrink-0 transition-colors"
+                        className={`p-2 rounded-xl shrink-0 transition-colors ${g.btnPrimary}`}
                         title="Download"
                       >
                         <Download className="w-3.5 h-3.5" />
@@ -1155,17 +1083,17 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
             <div className="flex-1 p-5 overflow-y-auto space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <h4 className={`text-sm font-bold flex items-center gap-1.5 ${isDark ? "text-white" : "text-slate-900"}`}>
-                    <UploadCloud className="w-4 h-4 text-indigo-400" />
+                  <h4 className={`text-sm font-bold flex items-center gap-1.5 ${g.heading}`}>
+                    <UploadCloud className="w-4 h-4" />
                     <span>File Sharing Hub</span>
                   </h4>
-                  <p className="text-xs text-slate-400">
+                  <p className={`text-xs ${g.muted}`}>
                     Upload and share files directly in {isDirect ? selectedRoom?.name : `#${selectedRoom?.name}`}
                   </p>
                 </div>
                 <button
                   onClick={() => setRightTab("messages")}
-                  className="text-xs text-indigo-400 hover:underline font-semibold flex items-center gap-1 cursor-pointer"
+                  className={`text-xs hover:underline font-semibold flex items-center gap-1 cursor-pointer ${g.heading}`}
                 >
                   <ArrowLeft className="w-3.5 h-3.5" /> Back to chat
                 </button>

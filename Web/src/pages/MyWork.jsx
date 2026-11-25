@@ -15,10 +15,12 @@ import {
   CheckCheck,
 } from "lucide-react";
 import { formatDateIN } from "../utils/formatters";
+import { getGlassTokens } from "../styles/glassTheme";
 
 export default function MyWork() {
   const { user, setSelectedTaskKeyOrId, theme } = useApp();
   const isDark = theme === "dark";
+  const g = getGlassTokens(isDark);
 
   const [stats, setStats] = useState({});
   const [grouped, setGrouped] = useState({});
@@ -47,45 +49,33 @@ export default function MyWork() {
 
   const renderTaskRow = (task, alertType = null) => {
     const typeIcon = {
-      task: <CheckSquare className={`w-3.5 h-3.5 ${isDark ? "text-blue-400" : "text-blue-600"}`} />,
+      task: <CheckSquare className={`w-3.5 h-3.5 ${g.accentIcon}`} />,
       bug: <Bug className={`w-3.5 h-3.5 ${isDark ? "text-rose-400" : "text-rose-600"}`} />,
       client_request: <HelpCircle className={`w-3.5 h-3.5 ${isDark ? "text-teal-400" : "text-teal-600"}`} />,
-      approval: <FileCheck2 className={`w-3.5 h-3.5 ${isDark ? "text-indigo-400" : "text-indigo-600"}`} />,
+      approval: <FileCheck2 className={`w-3.5 h-3.5 ${isDark ? "text-amber-400" : "text-amber-600"}`} />,
     }[task.type || "task"];
 
     const priorityBadge = {
       urgent: isDark ? "bg-rose-500/15 text-rose-300 border-rose-500/30" : "bg-rose-50 text-rose-700 border-rose-200",
       high: isDark ? "bg-amber-500/15 text-amber-300 border-amber-500/30" : "bg-amber-50 text-amber-700 border-amber-200",
-      medium: isDark ? "bg-indigo-500/15 text-indigo-300 border-indigo-500/30" : "bg-indigo-50 text-indigo-700 border-indigo-200",
-      low: isDark ? "bg-slate-500/15 text-slate-300 border-slate-500/30" : "bg-slate-100 text-slate-700 border-slate-200",
+      medium: g.badge,
+      low: isDark ? "bg-white/[0.04] text-zinc-400 border-white/[0.08]" : "bg-slate-100 text-slate-600 border-slate-200",
     }[task.priority || "medium"];
 
     return (
       <div
         key={task._id}
         onClick={() => setSelectedTaskKeyOrId(task.key || task._id)}
-        className={`flex items-center justify-between p-4 rounded-2xl border transition-all cursor-pointer group ${
-          isDark
-            ? "bg-[#15161f] border-white/10 hover:border-indigo-500/40 hover:shadow-lg text-white"
-            : "bg-white border-slate-200 hover:border-indigo-400 hover:shadow-md text-slate-900 shadow-xs"
-        }`}
+        className={`flex items-center justify-between p-4 rounded-2xl border transition-all cursor-pointer group ${g.card} ${g.rowHover}`}
       >
         <div className="flex items-center gap-3.5 min-w-0">
-          <div
-            className={`shrink-0 p-2 rounded-xl transition-colors ${
-              isDark ? "bg-white/5 group-hover:bg-indigo-500/15" : "bg-slate-100 group-hover:bg-indigo-50"
-            }`}
-          >
+          <div className={`shrink-0 p-2 rounded-xl border ${g.badge}`}>
             {typeIcon}
           </div>
-          <span
-            className={`font-mono text-xs font-bold transition-colors shrink-0 ${
-              isDark ? "text-slate-300 group-hover:text-indigo-400" : "text-slate-700 group-hover:text-indigo-600"
-            }`}
-          >
+          <span className={`font-mono text-xs font-bold shrink-0 ${g.heading}`}>
             {task.key}
           </span>
-          <span className={`text-xs sm:text-sm font-semibold truncate ${isDark ? "text-white" : "text-slate-900"}`}>
+          <span className={`text-xs sm:text-sm font-semibold truncate ${g.heading}`}>
             {task.title}
           </span>
         </div>
@@ -98,15 +88,15 @@ export default function MyWork() {
           </span>
 
           <span
-            className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full ${
+            className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${
               {
-                todo: isDark ? "bg-slate-500/15 text-slate-300" : "bg-slate-100 text-slate-700",
-                in_progress: isDark ? "bg-blue-500/15 text-blue-300" : "bg-blue-50 text-blue-700",
-                redo_requested: isDark ? "bg-rose-500/15 text-rose-300" : "bg-rose-50 text-rose-700",
-                review: isDark ? "bg-purple-500/15 text-purple-300" : "bg-purple-50 text-purple-700",
-                submitted_for_review: isDark ? "bg-amber-500/15 text-amber-300" : "bg-amber-50 text-amber-700",
-                done: isDark ? "bg-emerald-500/15 text-emerald-300" : "bg-emerald-50 text-emerald-700",
-              }[task.status]
+                todo: g.badge,
+                in_progress: isDark ? "bg-zinc-200/15 text-zinc-100 border-zinc-400/25" : "bg-zinc-900/10 text-zinc-800 border-zinc-300",
+                redo_requested: isDark ? "bg-rose-500/15 text-rose-300 border-rose-500/25" : "bg-rose-50 text-rose-700 border-rose-200",
+                review: isDark ? "bg-amber-500/15 text-amber-300 border-amber-500/25" : "bg-amber-50 text-amber-700 border-amber-200",
+                submitted_for_review: isDark ? "bg-amber-500/15 text-amber-300 border-amber-500/25" : "bg-amber-50 text-amber-700 border-amber-200",
+                done: isDark ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/25" : "bg-emerald-50 text-emerald-700 border-emerald-200",
+              }[task.status] || g.badge
             }`}
           >
             {task.status?.replace("_", " ")}
@@ -114,7 +104,7 @@ export default function MyWork() {
 
           {task.dueDate && (
             <span
-              className={`text-xs font-medium flex items-center gap-1.5 px-2.5 py-0.5 rounded-md border text-[11px] ${
+              className={`font-medium flex items-center gap-1.5 px-2.5 py-0.5 rounded-md border text-[11px] ${
                 alertType === "overdue"
                   ? isDark
                     ? "bg-rose-500/15 text-rose-300 border-rose-500/30 font-bold"
@@ -123,9 +113,7 @@ export default function MyWork() {
                   ? isDark
                     ? "bg-amber-500/15 text-amber-300 border-amber-500/30 font-bold"
                     : "bg-amber-50 text-amber-700 border-amber-200 font-bold"
-                  : isDark
-                  ? "bg-white/5 text-slate-400 border-white/5"
-                  : "bg-slate-100 text-slate-500 border-slate-200"
+                  : g.badge
               }`}
             >
               <Calendar className="w-3.5 h-3.5" />
@@ -138,11 +126,7 @@ export default function MyWork() {
             </span>
           )}
 
-          <ArrowRight
-            className={`w-4 h-4 group-hover:translate-x-1 transition-all ${
-              isDark ? "text-slate-500 group-hover:text-indigo-400" : "text-slate-400 group-hover:text-indigo-600"
-            }`}
-          />
+          <ArrowRight className={`w-4 h-4 group-hover:translate-x-1 transition-all ${g.muted}`} />
         </div>
       </div>
     );
@@ -150,118 +134,80 @@ export default function MyWork() {
 
   return (
     <div
-      className={`flex-1 w-full h-full min-h-0 overflow-y-auto p-5 sm:p-7 space-y-6 transition-colors duration-150 ${
-        isDark ? "bg-[#0c0d12]" : "bg-slate-50"
-      }`}
+      className={`flex-1 w-full h-full min-h-0 overflow-y-auto p-5 sm:p-7 space-y-6 transition-colors duration-150 ${g.heading}`}
     >
       {/* Header Banner */}
-      <div
-        className={`flex flex-wrap items-center justify-between gap-4 pb-4 border-b ${
-          isDark ? "border-white/10" : "border-slate-200"
-        }`}
-      >
+      <div className={`flex flex-wrap items-center justify-between gap-4 pb-4 border-b ${g.border}`}>
         <div>
-          <h1
-            className={`text-2xl sm:text-3xl font-extrabold tracking-tight ${
-              isDark ? "text-white" : "text-slate-900"
-            }`}
-          >
+          <h1 className={`text-2xl sm:text-3xl font-extrabold tracking-tight ${g.heading}`}>
             {getGreeting()}, {user?.fullname}
           </h1>
-          <p className={`text-xs sm:text-sm mt-1 ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+          <p className={`text-xs sm:text-sm mt-1 ${g.muted}`}>
             Your assigned tasks, upcoming deadlines, and deliverables.
           </p>
         </div>
 
         <button
           onClick={fetchWork}
-          className={`flex items-center gap-2 px-3.5 py-2 rounded-full border text-xs font-semibold transition-all cursor-pointer ${
-            isDark
-              ? "bg-white/5 hover:bg-white/10 border-white/10 text-slate-300 hover:text-white"
-              : "bg-white hover:bg-slate-100 border-slate-200 text-slate-700 shadow-xs"
-          }`}
+          className={`flex items-center gap-2 px-3.5 py-2 rounded-full border text-xs font-semibold transition-all cursor-pointer ${g.btnSecondary}`}
         >
-          <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin text-indigo-400" : ""}`} />
+          <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
           <span>Refresh</span>
         </button>
       </div>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
-        <div
-          className={`p-4 rounded-2xl border ${
-            isDark ? "bg-[#15161f] border-white/10 shadow-sm" : "bg-white border-slate-200 shadow-xs"
-          }`}
-        >
-          <span className={`text-[11px] font-bold uppercase tracking-wider block mb-1 ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+        <div className="p-4 rounded-2xl lira-glass">
+          <span className={`text-[11px] font-bold uppercase tracking-wider block mb-1 ${g.muted}`}>
             Assigned
           </span>
-          <span className={`text-2xl font-black ${isDark ? "text-white" : "text-slate-900"}`}>
+          <span className={`text-2xl font-display font-bold tabular-nums ${g.heading}`}>
             {stats.total || 0}
           </span>
         </div>
 
-        <div
-          className={`p-4 rounded-2xl border ${
-            isDark ? "bg-[#15161f] border-blue-500/20 shadow-sm" : "bg-white border-blue-200 shadow-xs"
-          }`}
-        >
-          <span className="text-[11px] font-bold text-blue-500 uppercase tracking-wider block mb-1">
+        <div className="p-4 rounded-2xl lira-glass-glow">
+          <span className={`text-[11px] font-bold uppercase tracking-wider block mb-1 ${g.muted}`}>
             In Progress
           </span>
-          <span className="text-2xl font-black text-blue-500">
+          <span className={`text-2xl font-display font-bold tabular-nums ${g.heading}`}>
             {stats.inProgress || 0}
           </span>
         </div>
 
-        <div
-          className={`p-4 rounded-2xl border ${
-            isDark ? "bg-[#15161f] border-indigo-500/20 shadow-sm" : "bg-white border-indigo-200 shadow-xs"
-          }`}
-        >
-          <span className="text-[11px] font-bold text-indigo-500 uppercase tracking-wider block mb-1">
+        <div className="p-4 rounded-2xl lira-glass">
+          <span className={`text-[11px] font-bold uppercase tracking-wider block mb-1 ${g.muted}`}>
             In Review
           </span>
-          <span className="text-2xl font-black text-indigo-500">
+          <span className={`text-2xl font-display font-bold tabular-nums ${g.heading}`}>
             {stats.review || 0}
           </span>
         </div>
 
-        <div
-          className={`p-4 rounded-2xl border ${
-            isDark ? "bg-[#15161f] border-emerald-500/20 shadow-sm" : "bg-white border-emerald-200 shadow-xs"
-          }`}
-        >
+        <div className="p-4 rounded-2xl lira-glass">
           <span className="text-[11px] font-bold text-emerald-500 uppercase tracking-wider block mb-1">
             Completed
           </span>
-          <span className="text-2xl font-black text-emerald-500">
+          <span className="text-2xl font-display font-bold tabular-nums text-emerald-500">
             {stats.done || 0}
           </span>
         </div>
 
-        <div
-          className={`p-4 rounded-2xl border ${
-            isDark ? "bg-[#15161f] border-rose-500/30 shadow-sm" : "bg-white border-rose-200 shadow-xs"
-          }`}
-        >
+        <div className="p-4 rounded-2xl lira-glass">
           <span className="text-[11px] font-bold text-rose-500 uppercase tracking-wider block mb-1">
             Overdue
           </span>
-          <span className="text-2xl font-black text-rose-500">
+          <span className="text-2xl font-display font-bold tabular-nums text-rose-500">
             {stats.overdueCount || 0}
           </span>
         </div>
 
-        <div
-          className={`p-4 rounded-2xl border ${
-            isDark ? "bg-[#15161f] border-amber-500/30 shadow-sm" : "bg-white border-amber-200 shadow-xs"
-          }`}
-        >
+        <div className="p-4 rounded-2xl lira-glass">
           <span className="text-[11px] font-bold text-amber-500 uppercase tracking-wider block mb-1">
             Due Today
           </span>
-          <span className="text-2xl font-black text-amber-500">
+          <span className="text-2xl font-display font-bold tabular-nums text-amber-500">
             {stats.dueTodayCount || 0}
           </span>
         </div>
@@ -270,8 +216,8 @@ export default function MyWork() {
       {/* Task Queues */}
       {loading ? (
         <div className="h-64 flex flex-col items-center justify-center gap-3">
-          <div className="w-8 h-8 border-3 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-          <p className="text-xs text-slate-500 font-medium">Loading your tasks...</p>
+          <div className={`w-8 h-8 border-2 border-t-transparent rounded-full animate-spin ${isDark ? "border-zinc-300" : "border-zinc-700"}`} />
+          <p className={`text-xs font-medium ${g.muted}`}>Loading your tasks...</p>
         </div>
       ) : (
         <div className="space-y-6">
@@ -303,8 +249,8 @@ export default function MyWork() {
 
           {/* Upcoming & In Progress */}
           <div className="space-y-3">
-            <div className={`flex items-center gap-2 font-bold text-sm ${isDark ? "text-white" : "text-slate-900"}`}>
-              <Clock className="w-4 h-4 text-indigo-500" />
+            <div className={`flex items-center gap-2 font-bold text-sm ${g.heading}`}>
+              <Clock className={`w-4 h-4 ${g.accentIcon}`} />
               <span>Upcoming & In Progress ({grouped.upcoming?.length || 0})</span>
             </div>
             {grouped.upcoming?.length > 0 ? (
@@ -312,16 +258,12 @@ export default function MyWork() {
                 {grouped.upcoming.map((t) => renderTaskRow(t))}
               </div>
             ) : (
-              <div
-                className={`p-8 rounded-2xl border text-center ${
-                  isDark ? "bg-[#15161f] border-white/10" : "bg-white border-slate-200 shadow-xs"
-                }`}
-              >
+              <div className="p-8 rounded-2xl lira-glass text-center">
                 <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto mb-2" />
-                <p className={`text-sm font-bold ${isDark ? "text-white" : "text-slate-900"}`}>
+                <p className={`text-sm font-bold ${g.heading}`}>
                   You're all caught up!
                 </p>
-                <p className={`text-xs mt-1 ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+                <p className={`text-xs mt-1 ${g.muted}`}>
                   No pending tasks assigned to you right now.
                 </p>
               </div>
