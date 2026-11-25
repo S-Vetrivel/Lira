@@ -30,6 +30,7 @@ import {
   MessageSquare,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import UserAvatar from "../components/common/UserAvatar";
 
 export default function Team() {
   const { user, departments, refreshDepartments, theme, openDirectChat } = useApp();
@@ -233,7 +234,9 @@ export default function Team() {
           {user?.role === "admin" && (
             <button
               onClick={() => setShowAddUserModal(true)}
-              className="flex items-center gap-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold px-4 py-2 rounded-full shadow-md shadow-blue-500/20 transition-all cursor-pointer"
+              className={`flex items-center gap-1.5 text-xs font-semibold px-4 py-2 rounded-full transition-all cursor-pointer ${
+                isDark ? "bg-white text-slate-950 hover:bg-slate-200" : "bg-slate-900 text-white hover:bg-slate-800"
+              }`}
             >
               <UserPlus className="w-3.5 h-3.5" />
               <span>Add Member</span>
@@ -316,10 +319,10 @@ export default function Team() {
                     {/* Top Row: Avatar & Public ID */}
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-center gap-3">
-                        <img
-                          src={candidate.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${candidate.fullname}`}
-                          alt={candidate.fullname}
-                          className="w-11 h-11 rounded-2xl object-cover border border-purple-500/30"
+                        <UserAvatar
+                          user={candidate}
+                          className="w-11 h-11 rounded-2xl border border-purple-500/30"
+                          textClass="text-sm"
                         />
                         <div>
                           <h4 className="text-sm font-bold text-white">{candidate.fullname}</h4>
@@ -462,10 +465,10 @@ export default function Team() {
                     {/* Header */}
                     <div className="flex items-start justify-between gap-3 mb-3.5">
                       <div className="flex items-center gap-3">
-                        <img
-                          src={member.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${member.fullname}`}
-                          alt={member.fullname}
-                          className="w-11 h-11 rounded-2xl object-cover border border-purple-500/20"
+                        <UserAvatar
+                          user={member}
+                          className="w-11 h-11 rounded-2xl border border-purple-500/20"
+                          textClass="text-sm"
                         />
                         <div>
                           <h3 className={`text-sm font-bold truncate ${isDark ? "text-white" : "text-slate-900"}`}>

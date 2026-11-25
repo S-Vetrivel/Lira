@@ -15,8 +15,10 @@ import {
   MessageSquare,
   Lock,
   ShieldCheck,
+  User as UserIcon,
 } from "lucide-react";
 import { markNotificationRead, markAllNotificationsRead } from "../../services/api";
+import UserAvatar from "../common/UserAvatar";
 
 export default function Header() {
   const location = useLocation();
@@ -185,7 +187,7 @@ export default function Header() {
               ? "bg-[#191a24] border-white/10 text-slate-300 hover:text-white hover:border-white/20 hover:bg-[#20222f]"
               : "bg-slate-100 border-slate-200 text-slate-600 hover:text-slate-900 hover:border-slate-300 hover:bg-slate-200/80"
           }`}
-          title="Search anything (⌘K or Ctrl+K)"
+          title="Quick Search (⌘K or Ctrl+K)"
         >
           <Search className={`w-3.5 h-3.5 transition-transform group-hover:scale-110 ${
             isDark ? "text-slate-400 group-hover:text-blue-400" : "text-slate-500 group-hover:text-blue-600"
@@ -221,7 +223,7 @@ export default function Header() {
           )}
         </button>
 
-        {/* Office E2EE Chat & File Sharing */}
+        {/* Office Chat & File Sharing */}
         <button
           onClick={() => setIsChatOpen(true)}
           className={`h-9 px-3 rounded-full border flex items-center gap-1.5 text-xs font-semibold transition-all cursor-pointer ${
@@ -229,7 +231,7 @@ export default function Header() {
               ? "bg-blue-600/15 border-blue-500/30 text-blue-300 hover:bg-blue-600/25 hover:text-white"
               : "bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100"
           }`}
-          title="Encrypted Office Chat & Local Peer Sharing"
+          title="Team Chat & File Sharing"
         >
           <MessageSquare className="w-3.5 h-3.5 text-blue-400" />
           <span className="hidden lg:inline">Office Chat</span>
@@ -313,7 +315,11 @@ export default function Header() {
         {/* Create Task Button */}
         <button
           onClick={() => setIsCreateTaskModalOpen(true)}
-          className="flex items-center gap-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold px-3.5 py-1.5 rounded-full shadow-md shadow-blue-500/20 transition-all active:scale-95 cursor-pointer"
+          className={`flex items-center gap-1.5 text-xs font-semibold px-3.5 py-1.5 rounded-full transition-all active:scale-95 cursor-pointer ${
+            isDark
+              ? "bg-white text-slate-950 hover:bg-slate-200"
+              : "bg-slate-900 text-white hover:bg-slate-800"
+          }`}
         >
           <Plus className="w-3.5 h-3.5" />
           <span>New Task</span>
@@ -329,10 +335,10 @@ export default function Header() {
                 : "bg-slate-100 border-slate-200 hover:border-slate-300 text-slate-900"
             }`}
           >
-            <img
-              src={user?.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${user?.fullname || "U"}`}
-              alt={user?.fullname}
-              className="w-7 h-7 rounded-full object-cover border border-white/20 shrink-0"
+            <UserAvatar
+              user={user}
+              className="w-7 h-7 rounded-full border border-white/20"
+              textClass="text-[11px]"
             />
             <div className="hidden xl:block text-left leading-tight">
               <span className={`text-xs font-bold block truncate max-w-[90px] ${isDark ? "text-white" : "text-slate-900"}`}>
@@ -358,10 +364,10 @@ export default function Header() {
                   isDark ? "border-white/10" : "border-slate-100"
                 }`}
               >
-                <img
-                  src={user?.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${user?.fullname || "U"}`}
-                  alt={user?.fullname}
-                  className="w-8 h-8 rounded-full object-cover border border-white/20"
+                <UserAvatar
+                  user={user}
+                  className="w-8 h-8 rounded-full border border-white/20"
+                  textClass="text-xs"
                 />
                 <div className="min-w-0 flex-1">
                   <p className={`text-xs font-bold truncate ${isDark ? "text-white" : "text-slate-900"}`}>
@@ -375,6 +381,20 @@ export default function Header() {
                   )}
                 </div>
               </div>
+
+              {/* Profile & Account Link */}
+              <Link
+                to="/profile"
+                onClick={() => setShowProfileMenu(false)}
+                className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-colors ${
+                  isDark
+                    ? "bg-white/5 hover:bg-white/10 text-slate-200"
+                    : "bg-slate-100 hover:bg-slate-200 text-slate-800"
+                }`}
+              >
+                <UserIcon className="w-3.5 h-3.5 text-indigo-400" />
+                <span>Profile & Photo Settings</span>
+              </Link>
 
               {/* Mobile Navigation Links */}
               <div className={`md:hidden pt-2 border-t space-y-1 ${isDark ? "border-white/10" : "border-slate-100"}`}>

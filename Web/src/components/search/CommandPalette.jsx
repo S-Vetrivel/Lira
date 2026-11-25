@@ -78,7 +78,7 @@ export default function CommandPalette({ isOpen, onClose }) {
         id: "action-new-task",
         category: "actions",
         title: "Create New Task",
-        subtitle: "Open ticket creation modal with AI assistant",
+        subtitle: "Open task creation dialog",
         icon: Plus,
         shortcut: "N",
         badge: "Action",
@@ -104,7 +104,7 @@ export default function CommandPalette({ isOpen, onClose }) {
         id: "nav-board",
         category: "actions",
         title: "Go to Sprint Board",
-        subtitle: "Full-height Kanban board with drag-and-drop",
+        subtitle: "Task board with drag-and-drop columns",
         icon: Kanban,
         shortcut: "G B",
         badge: "Navigate",
@@ -384,6 +384,7 @@ export default function CommandPalette({ isOpen, onClose }) {
                     <img
                       src={item.avatar}
                       alt=""
+                      referrerPolicy="no-referrer"
                       className="w-8 h-8 rounded-full object-cover shrink-0 border border-white/10"
                     />
                   ) : (
@@ -497,7 +498,7 @@ export default function CommandPalette({ isOpen, onClose }) {
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="hidden sm:inline">Lira Quick Spotlight</span>
+            <span className="hidden sm:inline">Quick Search</span>
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
           </div>
         </div>

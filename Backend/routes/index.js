@@ -8,6 +8,7 @@ router.use("/tasks", require("./taskRoutes"));
 router.use("/comments", require("./commentRoutes"));
 router.use("/notifications", require("./notificationRoutes"));
 router.use("/users", require("./userRoutes"));
+router.use("/profile", require("./profileRoutes"));
 router.use("/analytics", require("./analyticsRoutes"));
 router.use("/requests", require("./requestRoutes"));
 router.use("/files", require("./fileRoutes"));

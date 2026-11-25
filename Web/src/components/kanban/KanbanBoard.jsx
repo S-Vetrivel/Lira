@@ -342,10 +342,10 @@ export default function KanbanBoard({ onSelectTask }) {
             <option value="" className={isDark ? "bg-[#191a24] text-white" : "bg-white text-slate-900"}>
               All Priorities
             </option>
-            <option value="urgent" className={isDark ? "bg-[#191a24] text-white" : "bg-white text-slate-900"}>🔴 Urgent</option>
-            <option value="high" className={isDark ? "bg-[#191a24] text-white" : "bg-white text-slate-900"}>🟠 High</option>
-            <option value="medium" className={isDark ? "bg-[#191a24] text-white" : "bg-white text-slate-900"}>🟣 Medium</option>
-            <option value="low" className={isDark ? "bg-[#191a24] text-white" : "bg-white text-slate-900"}>⚪ Low</option>
+            <option value="urgent" className={isDark ? "bg-[#191a24] text-white" : "bg-white text-slate-900"}>Urgent</option>
+            <option value="high" className={isDark ? "bg-[#191a24] text-white" : "bg-white text-slate-900"}>High</option>
+            <option value="medium" className={isDark ? "bg-[#191a24] text-white" : "bg-white text-slate-900"}>Medium</option>
+            <option value="low" className={isDark ? "bg-[#191a24] text-white" : "bg-white text-slate-900"}>Low</option>
           </select>
 
           {/* Clear Filters */}

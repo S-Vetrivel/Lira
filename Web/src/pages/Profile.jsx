@@ -1,248 +1,374 @@
-// src/pages/Profile.jsx
-import React, { useContext, useEffect, useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
-import { ThemeContext } from "@/context/ThemeContext";
+import React, { useState, useRef } from "react";
 import { useApp } from "../context/Appcontext";
-import { logout, uploadProfileImage, checkAuth } from "../services/api";
-import { motion, AnimatePresence } from "framer-motion";
-import Modal from "../components/layout/Modal";
+import { updateProfileInfo, uploadProfileImage } from "../services/api";
+import UserAvatar from "../components/common/UserAvatar";
+import {
+  Camera,
+  User,
+  Phone,
+  Briefcase,
+  Mail,
+  Building2,
+  Lock,
+  Save,
+  CheckCircle2,
+  Eye,
+  EyeOff,
+  Loader2,
+  FileText,
+} from "lucide-react";
 import toast from "react-hot-toast";
 
-// Import Components
-import ProfileHeader from "../components/profile/ProfileHeader";
-import ProfileSidebar from "../components/profile/ProfileSidebar";
-
-// Import Tabs (Your specific tabs)
-import PersonalInfoTab from "../components/profile/tabs/PersonalInfoTab";
-import OrdersTab from "../components/profile/tabs/OrdersTab";
-import AddressesTab from "../components/profile/tabs/AddressesTab";
-import GalleryTab from "../components/profile/tabs/GalleryTab";
-import ProductsTab from "../components/profile/tabs/ProductsTab";
-
-import { PROFILE_TABS } from "../components/profile/constants";
-import UsersTab from "../components/profile/tabs/UsersTab";
-import ProcessingTab from "../components/profile/tabs/ProcessingTab";
-import BannerTab from "../components/profile/tabs/BannerTab";
-
-// Map IDs to Component Objects
-const TAB_COMPONENTS = {
-  personal: PersonalInfoTab,
-  orders: OrdersTab,
-  addresses: AddressesTab,
-  gallery: GalleryTab,
-  products: ProductsTab,
-  users: UsersTab,
-  processing: ProcessingTab,
-  banner: BannerTab,
-};
-
 export default function Profile() {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const { theme } = useContext(ThemeContext);
+  const { user, setUser, theme } = useApp();
+  const isDark = theme === "dark";
 
-  // get setters from App context
-  const { setUser, user } = useApp();
+  const [fullname, setFullname] = useState(user?.fullname || "");
+  const [phone, setPhone] = useState(user?.phone || "");
+  const [jobTitle, setJobTitle] = useState(user?.jobTitle || "");
+  const [bio, setBio] = useState(user?.bio || "");
 
-  const [activeTabId, setActiveTabId] = useState("personal");
-  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
-  // local syncing state for the Profile page's initial validation
-  const [isSyncingAuth, setIsSyncingAuth] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
-  const isStrictProfilePage =
-    location.pathname === "/profile" || location.pathname === "/profile/";
+  const fileInputRef = useRef(null);
 
-  // --- INITIAL MOUNT: call checkAuth and update all states ---
-  useEffect(() => {
-    let mounted = true;
-    const verifyAndSync = async () => {
-      try {
-        setIsSyncingAuth(true);
-        const res = await checkAuth();
-        if (!mounted) return;
-
-        if (res?.isAuthenticated) {
-          if (res.user) setUser(res.user);
-        } else {
-          // Not authenticated -> clear state and redirect to login
-          setUser(null);
-          navigate("/login", { replace: true });
-        }
-      } catch (err) {
-        console.error("Profile initial auth check failed:", err);
-        toast.error("Failed to sync profile. Try refreshing.");
-      } finally {
-        if (mounted) setIsSyncingAuth(false);
-      }
-    };
-
-    verifyAndSync();
-
-    return () => {
-      mounted = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // --- profile image update handler ---
-  const handleProfileImageUpdate = async (file) => {
+  const handlePhotoUpload = async (e) => {
+    const file = e.target.files?.[0];
     if (!file) return;
-    const localImageUrl = URL.createObjectURL(file);
 
-    // Optimistic update
-    setUser((prev) =>
-      prev ? { ...prev, profilePicture: localImageUrl } : prev
-    );
-
-    try {
-      setIsUploading(true);
-      const res = await uploadProfileImage(file);
-      if (res.success) {
-        // Wait briefly then sync to get the processed URL from server
-        setTimeout(async () => {
-          try {
-            const authRes = await checkAuth();
-            if (authRes?.isAuthenticated) {
-              setUser(authRes.user);
-            }
-          } catch (err) {
-            console.error("Failed to sync after upload", err);
-          } finally {
-            setIsUploading(false);
-          }
-        }, 2000);
-      } else {
-        setIsUploading(false);
-        toast.error("Failed to upload profile image");
-      }
-    } catch (error) {
-      console.error("Upload failed", error);
-      toast.error("Failed to upload image");
-      setIsUploading(false);
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select an image file (PNG, JPG, WEBP)");
+      return;
     }
+
+    setUploadingPhoto(true);
+    const res = await uploadProfileImage(file);
+    setUploadingPhoto(false);
+
+    if (res.success && res.user) {
+      setUser(res.user);
+    } else if (!res.success) {
+      toast.error(res.message || "Failed to upload photo");
+    }
+    e.target.value = "";
   };
 
-  // --- logout confirm ---
-  const handleLogoutConfirm = async () => {
-    const res = await logout();
-    if (res.success) {
-      setIsLogoutModalOpen(false);
-      setUser(null);
-      navigate("/login", { replace: true });
-    } else {
-      toast.error("Failed to sign out");
+  const handleSaveDetails = async (e) => {
+    e.preventDefault();
+    if (!fullname.trim()) {
+      toast.error("Full name is required");
+      return;
+    }
+
+    if (newPassword && newPassword !== confirmPassword) {
+      toast.error("Passwords do not match");
+      return;
+    }
+
+    setSavingProfile(true);
+    const payload = {
+      fullname: fullname.trim(),
+      phone: phone.trim(),
+      jobTitle: jobTitle.trim(),
+      bio: bio.trim(),
+    };
+    if (newPassword.trim()) {
+      payload.password = newPassword.trim();
+    }
+
+    const res = await updateProfileInfo(payload);
+    setSavingProfile(false);
+
+    if (res.success && res.user) {
+      setUser(res.user);
+      setNewPassword("");
+      setConfirmPassword("");
+    } else if (!res.success) {
+      toast.error(res.message || "Failed to update profile");
     }
   };
-
-  // --- handler passed to ProfileHeader so manual refresh updates central state ---
-  const handleHeaderRefresh = (data) => {
-    if (data?.isAuthenticated) {
-      if (data.user) setUser(data.user);
-    } else {
-      setUser(null);
-      navigate("/login", { replace: true });
-    }
-  };
-
-  const ActiveComponent = TAB_COMPONENTS[activeTabId];
-
-  // Loading Skeleton (shown while syncing auth on mount)
-  if (!user && isSyncingAuth) {
-    return (
-      <div
-        className="w-full h-screen flex items-center justify-center p-6"
-        style={{ backgroundColor: theme.bg, color: theme.text }}
-      >
-        <div className="space-y-3 w-full max-w-lg">
-          <div className="h-8 w-2/3 rounded-md animate-pulse bg-gray-300/30" />
-          <div className="h-64 rounded-md animate-pulse bg-gray-300/30" />
-          <div className="h-10 w-1/2 rounded-md animate-pulse bg-gray-300/30" />
-        </div>
-      </div>
-    );
-  }
-
-  // If no user after sync, redirect
-  if (!user && !isSyncingAuth) {
-    navigate("/login", { replace: true });
-    return null;
-  }
-
-  // Dynamic Padding based on route (from Example)
-  const outerPadding = isStrictProfilePage ? "px-6 md:px-10 lg:px-16" : "px-0";
-  const mainPadding = isStrictProfilePage ? "p-6 md:p-12" : "p-4 md:p-10";
 
   return (
     <div
-      className={`w-full flex flex-col overflow-auto md:overflow-hidden transition-colors duration-500 ${outerPadding} ${"h-full"}`}
-      style={{ backgroundColor: theme.bg, color: theme.text }}
+      className={`flex-1 w-full h-full min-h-0 overflow-y-auto p-5 sm:p-7 transition-colors duration-150 ${
+        isDark ? "bg-[#0c0d12] text-slate-100" : "bg-slate-50 text-slate-900"
+      }`}
     >
-      <ProfileHeader
-        user={user}
-        theme={theme}
-        onLogoutClick={() => setIsLogoutModalOpen(true)}
-        onUpdateProfileImage={handleProfileImageUpdate}
-        onRefresh={handleHeaderRefresh}
-        isLoading={isUploading}
-      />
-
-      <div className="flex flex-col lg:flex-row flex-1 overflow-visible md:overflow-hidden w-full mx-auto max-w-[1600px]">
-        {/* Sidebar */}
-        <ProfileSidebar
-          tabs={PROFILE_TABS}
-          activeTabId={activeTabId}
-          onTabChange={setActiveTabId}
-          theme={theme}
-          isAdmin={user?.role === "admin"}
-          isStaff={user?.role === "staff"}
-        />
-
-        {/* Main Content Area */}
-        <main className={`flex-1 overflow-y-auto ${mainPadding} scroll-smooth`}>
-          <AnimatePresence mode="wait">
-            {ActiveComponent && (
-              <motion.div
-                key={activeTabId}
-                initial={{ opacity: 0, x: 10 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -10 }}
-                transition={{ duration: 0.3 }}
-              >
-                <ActiveComponent theme={theme} user={user} setUser={setUser} />
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </main>
-      </div>
-
-      <Modal
-        isOpen={isLogoutModalOpen}
-        onClose={() => setIsLogoutModalOpen(false)}
-        theme={theme}
-        title="Sign Out"
-        description="Are you sure you want to sign out?"
-      >
-        <div className="flex flex-col sm:flex-row gap-3 mt-4">
-          <button
-            onClick={handleLogoutConfirm}
-            className="flex-1 py-3 px-6 rounded-xl font-bold text-sm uppercase tracking-wider bg-red-600 text-white hover:bg-red-700 transition-colors"
-          >
-            Yes, Sign Out
-          </button>
-          <button
-            onClick={() => setIsLogoutModalOpen(false)}
-            className="flex-1 py-3 px-6 rounded-xl font-bold text-sm uppercase tracking-wider border hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
-            style={{
-              borderColor: theme.navbar?.border,
-              color: theme.navbar?.textIdle || theme.text,
-            }}
-          >
-            Cancel
-          </button>
+      <div className="max-w-4xl mx-auto space-y-6">
+        {/* Header */}
+        <div
+          className={`flex flex-wrap items-center justify-between gap-4 pb-4 border-b ${
+            isDark ? "border-white/10" : "border-slate-200"
+          }`}
+        >
+          <div>
+            <h1 className={`text-2xl sm:text-3xl font-extrabold tracking-tight ${isDark ? "text-white" : "text-slate-900"}`}>
+              Profile & Account Settings
+            </h1>
+            <p className={`text-xs sm:text-sm mt-1 ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+              Manage your profile photo, personal information, and password.
+            </p>
+          </div>
+          {user?.publicId && (
+            <span
+              className={`font-mono text-xs font-bold px-3 py-1.5 rounded-full border ${
+                isDark
+                  ? "bg-indigo-500/10 border-indigo-500/30 text-indigo-300"
+                  : "bg-indigo-50 border-indigo-200 text-indigo-700"
+              }`}
+            >
+              {user.publicId}
+            </span>
+          )}
         </div>
-      </Modal>
+
+        {/* Profile Photo & Identity Card */}
+        <div
+          className={`p-6 rounded-3xl border flex flex-col sm:flex-row items-center gap-6 ${
+            isDark ? "bg-[#14151c] border-white/10" : "bg-white border-slate-200 shadow-xs"
+          }`}
+        >
+          <div className="relative group shrink-0">
+            <UserAvatar
+              user={user}
+              className="w-24 h-24 rounded-3xl border-2 border-indigo-500/40 shadow-lg"
+              textClass="text-2xl"
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploadingPhoto}
+              className="absolute -bottom-2 -right-2 w-9 h-9 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center shadow-lg border-2 border-[#14151c] transition-transform hover:scale-105 cursor-pointer"
+              title="Upload custom profile photo"
+            >
+              {uploadingPhoto ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Camera className="w-4 h-4" />
+              )}
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif"
+              onChange={handlePhotoUpload}
+              className="hidden"
+            />
+          </div>
+
+          <div className="flex-1 text-center sm:text-left space-y-2 min-w-0">
+            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+              <h2 className={`text-xl font-bold truncate ${isDark ? "text-white" : "text-slate-900"}`}>
+                {user?.fullname}
+              </h2>
+              <span className="text-[10px] font-bold uppercase px-2.5 py-0.5 rounded-full bg-indigo-500/15 text-indigo-400 border border-indigo-500/25">
+                {user?.role}
+              </span>
+            </div>
+
+            <div className={`flex flex-wrap items-center justify-center sm:justify-start gap-4 text-xs ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+              <span className="flex items-center gap-1.5">
+                <Mail className="w-3.5 h-3.5 text-indigo-400" />
+                {user?.email}
+              </span>
+              <span className="flex items-center gap-1.5">
+                <Building2 className="w-3.5 h-3.5 text-emerald-400" />
+                {user?.departmentName || "General"}
+              </span>
+              <span className="flex items-center gap-1.5">
+                <Briefcase className="w-3.5 h-3.5 text-amber-400" />
+                {user?.jobTitle || "Staff"}
+              </span>
+            </div>
+
+            <div className="pt-2 flex flex-wrap items-center justify-center sm:justify-start gap-2">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadingPhoto}
+                className={`px-4 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center gap-2 ${
+                  isDark
+                    ? "bg-white/5 hover:bg-white/10 border-white/10 text-white"
+                    : "bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-900"
+                }`}
+              >
+                <Camera className="w-3.5 h-3.5 text-indigo-400" />
+                <span>{uploadingPhoto ? "Uploading..." : "Upload Custom Photo"}</span>
+              </button>
+              <span className="text-[11px] text-slate-400">JPG, PNG or WEBP up to 5 MB</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Editable Personal & Security Form */}
+        <form
+          onSubmit={handleSaveDetails}
+          className={`p-6 rounded-3xl border space-y-6 ${
+            isDark ? "bg-[#14151c] border-white/10" : "bg-white border-slate-200 shadow-xs"
+          }`}
+        >
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className={`text-xs font-bold flex items-center gap-1.5 mb-1.5 ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+                <User className="w-3.5 h-3.5 text-indigo-400" />
+                <span>Full Name *</span>
+              </label>
+              <input
+                type="text"
+                required
+                value={fullname}
+                onChange={(e) => setFullname(e.target.value)}
+                placeholder="Your full name"
+                className={`w-full rounded-xl px-3.5 py-2.5 text-xs sm:text-sm border focus:outline-none focus:border-indigo-500 ${
+                  isDark
+                    ? "bg-[#191a24] border-white/10 text-white placeholder-slate-500"
+                    : "bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400"
+                }`}
+              />
+            </div>
+
+            <div>
+              <label className={`text-xs font-bold flex items-center gap-1.5 mb-1.5 ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+                <Briefcase className="w-3.5 h-3.5 text-indigo-400" />
+                <span>Job Title</span>
+              </label>
+              <input
+                type="text"
+                value={jobTitle}
+                onChange={(e) => setJobTitle(e.target.value)}
+                placeholder="e.g. Senior Product Engineer"
+                className={`w-full rounded-xl px-3.5 py-2.5 text-xs sm:text-sm border focus:outline-none focus:border-indigo-500 ${
+                  isDark
+                    ? "bg-[#191a24] border-white/10 text-white placeholder-slate-500"
+                    : "bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400"
+                }`}
+              />
+            </div>
+
+            <div>
+              <label className={`text-xs font-bold flex items-center gap-1.5 mb-1.5 ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+                <Phone className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Mobile Number (+91 India)</span>
+              </label>
+              <div className="relative">
+                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-mono font-bold text-slate-400">
+                  +91
+                </span>
+                <input
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="9876543210"
+                  maxLength={13}
+                  className={`w-full rounded-xl pl-12 pr-3.5 py-2.5 text-xs sm:text-sm border focus:outline-none focus:border-indigo-500 font-mono ${
+                    isDark
+                      ? "bg-[#191a24] border-white/10 text-white placeholder-slate-500"
+                      : "bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400"
+                  }`}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className={`text-xs font-bold flex items-center gap-1.5 mb-1.5 ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+                <Mail className="w-3.5 h-3.5 text-slate-400" />
+                <span>Work Email</span>
+              </label>
+              <input
+                type="email"
+                value={user?.email || ""}
+                disabled
+                className={`w-full rounded-xl px-3.5 py-2.5 text-xs sm:text-sm border opacity-60 cursor-not-allowed ${
+                  isDark
+                    ? "bg-[#12131b] border-white/10 text-slate-400"
+                    : "bg-slate-100 border-slate-200 text-slate-500"
+                }`}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className={`text-xs font-bold flex items-center gap-1.5 mb-1.5 ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+              <FileText className="w-3.5 h-3.5 text-indigo-400" />
+              <span>About / Bio</span>
+            </label>
+            <textarea
+              rows={3}
+              value={bio}
+              onChange={(e) => setBio(e.target.value)}
+              placeholder="Short description of your role or focus areas..."
+              className={`w-full rounded-xl p-3.5 text-xs sm:text-sm border focus:outline-none focus:border-indigo-500 resize-none ${
+                isDark
+                  ? "bg-[#191a24] border-white/10 text-white placeholder-slate-500"
+                  : "bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400"
+              }`}
+            />
+          </div>
+
+          {/* Optional Password Update */}
+          <div className={`pt-5 border-t space-y-4 ${isDark ? "border-white/10" : "border-slate-200"}`}>
+            <h3 className={`text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+              <Lock className="w-3.5 h-3.5 text-amber-400" />
+              <span>Change Password (Optional)</span>
+            </h3>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="New password (min 6 chars)"
+                  className={`w-full rounded-xl px-3.5 pr-10 py-2.5 text-xs sm:text-sm border focus:outline-none focus:border-indigo-500 ${
+                    isDark
+                      ? "bg-[#191a24] border-white/10 text-white placeholder-slate-500"
+                      : "bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400"
+                  }`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-400 cursor-pointer"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+
+              <div>
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Confirm new password"
+                  className={`w-full rounded-xl px-3.5 py-2.5 text-xs sm:text-sm border focus:outline-none focus:border-indigo-500 ${
+                    isDark
+                      ? "bg-[#191a24] border-white/10 text-white placeholder-slate-500"
+                      : "bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400"
+                  }`}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className={`pt-4 border-t flex items-center justify-end gap-3 ${isDark ? "border-white/10" : "border-slate-200"}`}>
+            <button
+              type="submit"
+              disabled={savingProfile}
+              className={`px-6 py-2.5 rounded-xl text-xs sm:text-sm font-semibold flex items-center gap-2 cursor-pointer transition-all ${
+                isDark ? "bg-white text-slate-950 hover:bg-slate-200" : "bg-slate-900 text-white hover:bg-slate-800"
+              }`}
+            >
+              {savingProfile ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              <span>{savingProfile ? "Saving..." : "Save Profile Changes"}</span>
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }

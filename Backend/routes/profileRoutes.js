@@ -2,48 +2,49 @@ const express = require("express");
 const router = express.Router();
 const multer = require("multer");
 const path = require("path");
+const fs = require("fs");
 const { protect } = require("../middleware/authMiddleware");
 const {
   PersonalInfo,
   uploadProfilePicture,
 } = require("../controllers/profileControllers");
 
-// --- MULTER CONFIGURATION ---
+const avatarDir = path.join(__dirname, "../uploads/avatars");
+if (!fs.existsSync(avatarDir)) {
+  fs.mkdirSync(avatarDir, { recursive: true });
+}
+
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, "public/uploads/");
+    cb(null, avatarDir);
   },
   filename: (req, file, cb) => {
-    // Unique suffix to prevent filename collisions
     const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    cb(null, `profile-${uniqueSuffix}${path.extname(file.originalname)}`);
+    const ext = path.extname(file.originalname || ".jpg") || ".jpg";
+    cb(null, `profile-${uniqueSuffix}${ext}`);
   },
 });
 
 const fileFilter = (req, file, cb) => {
-  if (file.mimetype.startsWith("image/")) {
+  if (file.mimetype && file.mimetype.startsWith("image/")) {
     cb(null, true);
   } else {
-    cb(new Error("Not an image! Please upload an image."), false);
+    cb(new Error("Please upload a valid image file (PNG, JPG, WEBP)."), false);
   }
 };
 
 const upload = multer({
-  storage: storage,
-  fileFilter: fileFilter,
-  limits: { fileSize: 1024 * 1024 * 5 }, // 5MB limit
+  storage,
+  fileFilter,
+  limits: { fileSize: 5 * 1024 * 1024 },
 });
 
-// --- ROUTES ---
-
-// 1. Text Info Update
 router.put("/info", protect(), PersonalInfo);
 
-// 2. Profile Picture Update (with Multer middleware)
 router.post(
   "/profile-image",
   protect(),
-  upload.single("image"), // Looks for form-data field named 'image'
+  upload.single("image"),
   uploadProfilePicture
 );
 

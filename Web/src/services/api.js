@@ -479,6 +479,33 @@ export async function deleteUser(id) {
 }
 
 // ==========================================
+// PROFILE & AVATAR UPLOAD APIs
+// ==========================================
+export async function updateProfileInfo(data) {
+  try {
+    const res = await api.put("/profile/info", data);
+    toast.success(res.data.message || "Profile updated!");
+    return { success: true, user: res.data.user };
+  } catch (error) {
+    return { success: false, message: error.response?.data?.message || "Failed to update profile" };
+  }
+}
+
+export async function uploadProfileImage(file) {
+  try {
+    const formData = new FormData();
+    formData.append("image", file);
+    const res = await api.post("/profile/profile-image", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    toast.success(res.data.message || "Profile photo updated!");
+    return { success: true, avatar: res.data.avatar, user: res.data.user };
+  } catch (error) {
+    return { success: false, message: error.response?.data?.message || "Failed to upload photo" };
+  }
+}
+
+// ==========================================
 // ANALYTICS & REPORTS APIs
 // ==========================================
 export async function getManagerOverview(projectId) {

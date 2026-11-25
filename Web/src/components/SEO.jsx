@@ -2,9 +2,9 @@ import React from "react";
 import { Helmet } from "react-helmet-async";
 
 export default function SEO({
-  title = "Lira Workspace — Enterprise Agile & Office Task Management",
-  description = "Next-Gen Jira-Style In-House Task Management & Agile OS with real-time Redis WebSockets, visual Kanban, and Gemini AI task breakdown.",
-  name = "Incuman Lira",
+  title = "Lira Workspace — Team & Office Task Management",
+  description = "Manage team projects, track deadlines, approve requests, and collaborate in one workspace.",
+  name = "Lira Workspace",
   type = "website",
   url = "https://incuman.com",
 }) {

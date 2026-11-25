@@ -11,6 +11,7 @@ import {
   ListTodo,
 } from "lucide-react";
 import { formatDateIN, getDisplayName } from "../../utils/formatters";
+import UserAvatar from "../common/UserAvatar";
 
 export default function TaskCard({ task, onClick, onDragStart }) {
   const { theme } = useApp();
@@ -184,16 +185,12 @@ export default function TaskCard({ task, onClick, onDragStart }) {
         {/* Assignee Avatar */}
         <div className="flex items-center">
           {task.assignee ? (
-            <img
-              src={
-                task.assignee.avatar ||
-                `https://api.dicebear.com/7.x/initials/svg?seed=${task.assignee.fullname}`
-              }
-              alt={task.assignee.fullname}
-              title={`Assigned to ${task.assignee.fullname}`}
-              className={`w-5 h-5 rounded-full object-cover border ${
+            <UserAvatar
+              user={task.assignee}
+              className={`w-5 h-5 rounded-full border ${
                 isDark ? "border-white/20" : "border-slate-300"
               }`}
+              textClass="text-[9px]"
             />
           ) : (
             <span

@@ -26,7 +26,7 @@ const seedDatabase = async () => {
         role: "admin",
         departmentName: "Executive / IT",
         jobTitle: "Head of Operations & IT",
-        avatar: "https://api.dicebear.com/7.x/bottts/svg?seed=AlexAdmin",
+        avatar: "/avatars/alex.jpg",
         status: "active",
         publicId: "EMP-ADMIN-01",
       });
@@ -52,7 +52,7 @@ const seedDatabase = async () => {
       role: "manager",
       departmentName: "Engineering",
       jobTitle: "Engineering Lead",
-      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=SarahManager",
+      avatar: "/avatars/sarah.jpg",
       status: "active",
     });
 
@@ -63,7 +63,7 @@ const seedDatabase = async () => {
       role: "manager",
       departmentName: "Operations",
       jobTitle: "Operations Lead",
-      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=DavidManager",
+      avatar: "/avatars/david.jpg",
       status: "active",
     });
 
@@ -74,7 +74,7 @@ const seedDatabase = async () => {
       role: "employee",
       departmentName: "Engineering",
       jobTitle: "Frontend Engineer",
-      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=RahulEngineer",
+      avatar: "/avatars/rahul.jpg",
       status: "active",
     });
 
@@ -85,7 +85,7 @@ const seedDatabase = async () => {
       role: "employee",
       departmentName: "Engineering",
       jobTitle: "Backend & Systems Engineer",
-      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=VetrivelDev",
+      avatar: "/avatars/vetri.jpg",
       status: "active",
     });
 
@@ -96,7 +96,7 @@ const seedDatabase = async () => {
       role: "employee",
       departmentName: "Engineering",
       jobTitle: "QA & Cloud Specialist",
-      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=ArunQA",
+      avatar: "/avatars/arun.jpg",
       status: "active",
     });
 
@@ -107,7 +107,7 @@ const seedDatabase = async () => {
       role: "employee",
       departmentName: "Operations",
       jobTitle: "Product Designer",
-      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=PriyaDesigner",
+      avatar: "/avatars/priya.jpg",
       status: "active",
     });
 

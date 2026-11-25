@@ -95,7 +95,7 @@ export default function CalendarView() {
               Operational Schedule & Deadlines
             </h1>
             <p className={`text-xs ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-              {activeProject ? `[${activeProject.prefix}] ${activeProject.name}` : "All Workspaces"} • Compliance dates & strict deadlines
+              {activeProject ? `[${activeProject.prefix}] ${activeProject.name}` : "All Workspaces"} • Scheduled tasks & upcoming deadlines
             </p>
           </div>
         </div>
@@ -155,7 +155,9 @@ export default function CalendarView() {
 
           <button
             onClick={() => setIsCreateTaskModalOpen(true)}
-            className="px-3.5 py-2 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold text-xs flex items-center gap-1.5 shadow-md shadow-blue-500/20 cursor-pointer"
+            className={`px-3.5 py-2 rounded-full font-semibold text-xs flex items-center gap-1.5 cursor-pointer transition-colors ${
+              isDark ? "bg-white text-slate-950 hover:bg-slate-200" : "bg-slate-900 text-white hover:bg-slate-800"
+            }`}
           >
             <Plus className="w-3.5 h-3.5" /> Add Task
           </button>

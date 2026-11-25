@@ -100,7 +100,7 @@ exports.createUser = async (req, res) => {
       departmentName: deptName || "General",
       jobTitle: jobTitle || "Team Member",
       phone: phone || "",
-      avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(fullname)}`,
+      avatar: "",
     });
 
     const populated = await User.findById(newUser._id)

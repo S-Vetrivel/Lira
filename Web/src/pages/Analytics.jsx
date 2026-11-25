@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { useApp } from "../context/Appcontext";
 import { getManagerOverview } from "../services/api";
 import { formatINR, formatNumberIN, formatDateIN } from "../utils/formatters";
+import UserAvatar from "../components/common/UserAvatar";
 import {
   ChevronDown,
   Calendar as CalendarIcon,
@@ -14,6 +15,10 @@ import {
   User,
   CheckSquare,
   Activity,
+  Bug,
+  Zap,
+  ClipboardCheck,
+  FileText,
 } from "lucide-react";
 
 export default function Analytics() {
@@ -755,14 +760,14 @@ export default function Analytics() {
                   ? "bg-blue-500/20 text-blue-300 border-blue-500/30"
                   : "bg-blue-50 text-blue-700 border-blue-200";
 
-                const iconEmoji =
+                const TypeIcon =
                   item.type === "bug"
-                    ? "🐛"
-                    : item.type === "request"
-                    ? "⚡"
+                    ? Bug
+                    : item.type === "request" || item.type === "client_request"
+                    ? Zap
                     : item.type === "approval"
-                    ? "📋"
-                    : "🚀";
+                    ? ClipboardCheck
+                    : FileText;
 
                 return (
                   <div
@@ -776,11 +781,11 @@ export default function Analytics() {
                   >
                     <div className="flex items-center gap-2 min-w-0">
                       <div
-                        className={`w-7 h-7 rounded-lg border flex items-center justify-center text-sm shrink-0 ${
-                          isDark ? "bg-white/5 border-white/10" : "bg-white border-slate-200"
+                        className={`w-7 h-7 rounded-lg border flex items-center justify-center shrink-0 ${
+                          isDark ? "bg-white/5 border-white/10 text-slate-300" : "bg-white border-slate-200 text-slate-600"
                         }`}
                       >
-                        {iconEmoji}
+                        <TypeIcon className="w-3.5 h-3.5" />
                       </div>
                       <div className="min-w-0">
                         <h4
@@ -983,10 +988,11 @@ export default function Analytics() {
                     }`}
                   >
                     <div className="flex items-center gap-2 min-w-0">
-                      <img
-                        src={m.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${m.name}`}
-                        alt={m.name}
-                        className="w-6 h-6 rounded-full object-cover shrink-0 border border-white/10"
+                      <UserAvatar
+                        user={m}
+                        name={m.name}
+                        className="w-6 h-6 rounded-full border border-white/10"
+                        textClass="text-[10px]"
                       />
                       <div className="min-w-0">
                         <span className="font-bold block truncate text-[11px]">{m.name}</span>

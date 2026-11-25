@@ -44,15 +44,15 @@ export default function CreateTaskModal({ isOpen, onClose, onCreated }) {
 
   if (!isOpen) return null;
 
-  // AI Breakdown with Google Gemini
+  // Smart Task Breakdown
   const handleAIBreakdown = async () => {
     if (!title.trim()) {
-      toast.error("Please enter a task title first so Gemini AI can analyze it!");
+      toast.error("Please enter a task title first to generate a breakdown.");
       return;
     }
 
     setLoadingAI(true);
-    const toastId = toast.loading("Analyzing task with Gemini...");
+    const toastId = toast.loading("Generating task breakdown...");
     try {
       const res = await getAITaskBreakdown(title, description);
       if (res.success && res.aiSuggestion) {
@@ -169,7 +169,7 @@ export default function CreateTaskModal({ isOpen, onClose, onCreated }) {
                 Create New Task
               </h2>
               <p className={`text-xs mt-0.5 ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-                Auto-numbered in project sequence (e.g. ENG-105, OPS-16)
+                Create and assign a new task to your workspace
               </p>
             </div>
           </div>
@@ -243,10 +243,10 @@ export default function CreateTaskModal({ isOpen, onClose, onCreated }) {
                 onClick={handleAIBreakdown}
                 disabled={loadingAI}
                 className="flex items-center gap-1.5 text-xs text-white font-semibold bg-gradient-to-r from-indigo-500 to-purple-600 hover:opacity-95 px-3 py-1 rounded-xl shadow-md shadow-indigo-500/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
-                title="Use Gemini AI to analyze title, draft description and generate subtask checklist"
+                title="Auto-generate description and subtask checklist"
               >
                 <Sparkles className="w-3.5 h-3.5 animate-pulse" />
-                <span>{loadingAI ? "Analyzing..." : "AI Breakdown"}</span>
+                <span>{loadingAI ? "Generating..." : "Smart Breakdown"}</span>
               </button>
             </div>
             <input
@@ -318,10 +318,10 @@ export default function CreateTaskModal({ isOpen, onClose, onCreated }) {
                     : "bg-slate-50 border-slate-200 text-slate-800"
                 }`}
               >
-                <option value="low">⚪ Low</option>
-                <option value="medium">🟡 Medium</option>
-                <option value="high">🟠 High</option>
-                <option value="urgent">🔴 Urgent</option>
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+                <option value="urgent">Urgent</option>
               </select>
             </div>
           </div>

@@ -128,9 +128,9 @@ export default function Login() {
             <div className="p-3.5 rounded-2xl bg-[#14151f] border border-white/5 space-y-1">
               <div className="flex items-center gap-2 text-blue-300 text-xs font-bold">
                 <Sparkles className="w-4 h-4" />
-                <span>AI Task Assistant</span>
+                <span>Smart Task Breakdown</span>
               </div>
-              <p className="text-[11px] text-slate-400">One-click task breakdown & checklist generation</p>
+              <p className="text-[11px] text-slate-400">One-click task checklist & time estimate generation</p>
             </div>
 
             <div className="p-3.5 rounded-2xl bg-[#14151f] border border-white/5 space-y-1">

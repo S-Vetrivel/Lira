@@ -25,6 +25,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import UserAvatar from "../components/common/UserAvatar";
 
 export default function JoinRequestStatus() {
   const { user, setUser, theme } = useApp();
@@ -266,10 +267,10 @@ export default function JoinRequestStatus() {
 
           {/* Candidate Profile Details */}
           <div className="flex items-center gap-4 p-4 rounded-2xl bg-[#191a26] border border-white/10">
-            <img
-              src={user?.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${user?.fullname}`}
-              alt={user?.fullname}
-              className="w-12 h-12 rounded-2xl object-cover border border-purple-500/30"
+            <UserAvatar
+              user={user}
+              className="w-12 h-12 rounded-2xl border border-purple-500/30"
+              textClass="text-base"
             />
             <div className="flex-1 min-w-0">
               <h2 className="text-sm font-bold text-white truncate">{user?.fullname}</h2>
@@ -369,8 +370,8 @@ export default function JoinRequestStatus() {
                   <Check className="w-3.5 h-3.5" />
                 </div>
                 <div>
-                  <h4 className="text-xs font-bold text-white">Google Identity Verified</h4>
-                  <p className="text-[11px] text-slate-400">Authenticated via OAuth ({user?.email})</p>
+                  <h4 className="text-xs font-bold text-white">Account Verified</h4>
+                  <p className="text-[11px] text-slate-400">Signed in as {user?.email}</p>
                 </div>
               </div>
 
@@ -405,7 +406,7 @@ export default function JoinRequestStatus() {
                   <p className="text-[11px] text-slate-400">
                     {isRejected
                       ? user?.joinRequest?.rejectionReason || "Application was rejected by workspace administrator."
-                      : "Admins have been notified via WebSockets & Push notifications. The screen will automatically unlock once approved."}
+                      : "Workspace administrators have been notified. This screen will unlock automatically once approved."}
                   </p>
                 </div>
               </div>

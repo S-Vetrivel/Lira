@@ -155,7 +155,7 @@ export default function Requests() {
               Cross-Department Requests & Sign-Offs
             </h1>
             <p className={`text-xs ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-              Inter-department handoffs, INR budget approvals, and auto-spawning tasks
+              Inter-department approvals, INR budget requests, and sign-offs
             </p>
           </div>
         </div>
@@ -175,10 +175,12 @@ export default function Requests() {
 
           <button
             onClick={() => setShowCreateModal(true)}
-            className="px-4 py-2 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs transition-all flex items-center gap-1.5 shadow-md shadow-blue-500/20 cursor-pointer"
+            className={`px-4 py-2 rounded-full font-semibold text-xs transition-all flex items-center gap-1.5 cursor-pointer ${
+              isDark ? "bg-white text-slate-950 hover:bg-slate-200" : "bg-slate-900 text-white hover:bg-slate-800"
+            }`}
           >
             <Plus className="w-3.5 h-3.5" />
-            <span>New Formal Request</span>
+            <span>New Request</span>
           </button>
         </div>
       </div>

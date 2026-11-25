@@ -19,6 +19,7 @@ import {
   bulkUpdateTasks,
 } from "../services/api";
 import TaskDrawer from "../components/task/TaskDrawer";
+import UserAvatar from "../components/common/UserAvatar";
 import { getDisplayName, getInitials, formatDateIN } from "../utils/formatters";
 import toast from "react-hot-toast";
 
@@ -191,7 +192,7 @@ export default function TableView() {
               </span>
             </h1>
             <p className={`text-xs ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-              {activeProject ? `[${activeProject.prefix}] ${activeProject.name}` : "All Workspaces"} • Inline register & CSV export
+              {activeProject ? `[${activeProject.prefix}] ${activeProject.name}` : "All Workspaces"} • Task register & CSV export
             </p>
           </div>
         </div>
@@ -222,7 +223,9 @@ export default function TableView() {
 
           <button
             onClick={() => setIsCreateTaskModalOpen(true)}
-            className="px-3.5 py-2 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold text-xs flex items-center gap-1.5 shadow-md shadow-blue-500/20 cursor-pointer"
+            className={`px-3.5 py-2 rounded-full font-semibold text-xs flex items-center gap-1.5 cursor-pointer transition-colors ${
+              isDark ? "bg-white text-slate-950 hover:bg-slate-200" : "bg-slate-900 text-white hover:bg-slate-800"
+            }`}
           >
             <Plus className="w-3.5 h-3.5" /> Add Task
           </button>
@@ -350,7 +353,7 @@ export default function TableView() {
                 }}
               >
                 <div className="flex items-center gap-1">
-                  <span>Task Summary & SOPs</span>
+                  <span>Task Summary</span>
                   <ArrowUpDown className="w-3 h-3" />
                 </div>
               </th>
@@ -416,7 +419,7 @@ export default function TableView() {
                     </div>
                     {t.subtasks?.length > 0 && (
                       <span className="text-[10px] text-slate-400 block font-normal mt-0.5">
-                        SOP Checklist: {t.subtasks.filter((s) => s.completed).length}/{t.subtasks.length} items complete
+                        Checklist: {t.subtasks.filter((s) => s.completed).length}/{t.subtasks.length} items complete
                       </span>
                     )}
                   </td>
@@ -462,11 +465,11 @@ export default function TableView() {
                   </td>
                   <td className="p-3.5">
                     <div className="flex items-center gap-2">
-                      {t.assignee?.avatar ? (
-                        <img
-                          src={t.assignee.avatar}
-                          alt={ownerName}
-                          className="w-6 h-6 rounded-full object-cover border border-white/10 shrink-0"
+                      {t.assignee ? (
+                        <UserAvatar
+                          user={t.assignee}
+                          className="w-6 h-6 rounded-full border border-white/10"
+                          textClass="text-[10px]"
                         />
                       ) : (
                         <div
@@ -474,7 +477,7 @@ export default function TableView() {
                             isDark ? "bg-white/10 text-slate-300" : "bg-slate-200 text-slate-700"
                           }`}
                         >
-                          {t.assignee ? getInitials(t.assignee) : "?"}
+                          ?
                         </div>
                       )}
                       <span className={`truncate max-w-[130px] ${isDark ? "text-slate-200" : "text-slate-800"}`}>

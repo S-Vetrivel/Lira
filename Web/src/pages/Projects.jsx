@@ -117,7 +117,9 @@ export default function Projects() {
           <div className="flex items-center gap-2.5">
             <button
               onClick={() => setShowAddProjectModal(true)}
-              className="flex items-center gap-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold px-4 py-2 rounded-full shadow-md shadow-blue-500/20 transition-all cursor-pointer"
+              className={`flex items-center gap-1.5 text-xs font-semibold px-4 py-2 rounded-full transition-all cursor-pointer ${
+                isDark ? "bg-white text-slate-950 hover:bg-slate-200" : "bg-slate-900 text-white hover:bg-slate-800"
+              }`}
             >
               <Plus className="w-4 h-4" />
               <span>New Project</span>

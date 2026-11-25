@@ -1,6 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
+const { Transform } = require("stream");
 const { enqueueFileJob } = require("../services/queue");
 const minioService = require("../services/minioService");
 
@@ -10,14 +11,66 @@ const FILES_DIR = path.join(__dirname, "../uploads/files");
 if (!fs.existsSync(CHUNKS_DIR)) fs.mkdirSync(CHUNKS_DIR, { recursive: true });
 if (!fs.existsSync(FILES_DIR)) fs.mkdirSync(FILES_DIR, { recursive: true });
 
-// 1. Upload a single chunk with bandwidth throttling support
-exports.uploadChunk = async (req, res) => {
-  try {
-    const { uploadId, chunkIndex, totalChunks, fileName, fileSize, speedLimitKbps } = req.body;
-    const file = req.file;
+// Server-wide total transfer bandwidth pool (KB/s), shared evenly across active transfers
+const MAX_SERVER_BANDWIDTH_KBPS = Math.max(
+  256,
+  parseInt(process.env.MAX_TRANSFER_BANDWIDTH_KBPS || "10240", 10)
+);
+const activeTransfers = new Map(); // transferKey -> lastSeenTimestamp
 
+function pruneStaleTransfers() {
+  const cutoff = Date.now() - 15000;
+  for (const [key, ts] of activeTransfers.entries()) {
+    if (ts < cutoff) activeTransfers.delete(key);
+  }
+}
+
+function getFairShareKbps(transferKey) {
+  pruneStaleTransfers();
+  activeTransfers.set(transferKey, Date.now());
+  const concurrentCount = Math.max(1, activeTransfers.size);
+  return {
+    allocatedKbps: Math.max(64, Math.floor(MAX_SERVER_BANDWIDTH_KBPS / concurrentCount)),
+    concurrentCount,
+    serverPoolKbps: MAX_SERVER_BANDWIDTH_KBPS,
+  };
+}
+
+function releaseTransfer(transferKey) {
+  activeTransfers.delete(transferKey);
+}
+
+// Create a throttle transform stream to pace downloads fairly
+function createThrottleStream(kbps) {
+  const bytesPerSecond = Math.max(64 * 1024, kbps * 1024);
+  let startTime = Date.now();
+  let bytesSent = 0;
+
+  return new Transform({
+    transform(chunk, encoding, callback) {
+      bytesSent += chunk.length;
+      const elapsedSec = (Date.now() - startTime) / 1000;
+      const expectedSec = bytesSent / bytesPerSecond;
+      const delayMs = Math.max(0, Math.round((expectedSec - elapsedSec) * 1000));
+
+      if (delayMs > 5) {
+        setTimeout(() => callback(null, chunk), Math.min(delayMs, 1000));
+      } else {
+        callback(null, chunk);
+      }
+    },
+  });
+}
+
+// 1. Upload a single chunk with server-enforced fair-share bandwidth allocation
+exports.uploadChunk = async (req, res) => {
+  const { uploadId, chunkIndex, totalChunks, fileName, mimeType } = req.body;
+  const transferKey = `up_${uploadId || req.user?._id || req.ip}`;
+
+  try {
+    const file = req.file;
     if (!uploadId || chunkIndex === undefined || !totalChunks || !file) {
-      return res.status(400).json({ success: false, message: "Missing required chunk parameters" });
+      return res.status(400).json({ success: false, message: "Missing required file parameters" });
     }
 
     const cIndex = parseInt(chunkIndex, 10);
@@ -31,22 +84,17 @@ exports.uploadChunk = async (req, res) => {
     const chunkFilePath = path.join(uploadPath, `part_${cIndex}`);
     fs.renameSync(file.path, chunkFilePath);
 
-    // Bandwidth throttling simulation / rate-limiting delay
-    // If speedLimitKbps > 0, throttle response time based on chunk size
-    const limitKbps = parseInt(speedLimitKbps, 10) || 0;
-    if (limitKbps > 0) {
-      const chunkSizeKb = file.size / 1024;
-      const expectedDelayMs = Math.min(2000, Math.round((chunkSizeKb / limitKbps) * 1000));
-      if (expectedDelayMs > 10) {
-        await new Promise((resolve) => setTimeout(resolve, expectedDelayMs));
-      }
+    // Enforce server-side shared bandwidth evenly across all active transfers
+    const { allocatedKbps, concurrentCount } = getFairShareKbps(transferKey);
+    const chunkSizeKb = file.size / 1024;
+    const targetDelayMs = Math.round((chunkSizeKb / allocatedKbps) * 1000);
+    if (targetDelayMs > 10) {
+      await new Promise((resolve) => setTimeout(resolve, Math.min(targetDelayMs, 2000)));
     }
 
-    // Check if all chunks have arrived
     const uploadedParts = fs.readdirSync(uploadPath).filter((f) => f.startsWith("part_"));
 
     if (uploadedParts.length === tChunks) {
-      // Assemble all chunks into final file
       const safeName = `${Date.now()}_${(fileName || "document").replace(/[^a-zA-Z0-9._-]/g, "_")}`;
       const finalFilePath = path.join(FILES_DIR, safeName);
       const writeStream = fs.createWriteStream(finalFilePath);
@@ -70,18 +118,16 @@ exports.uploadChunk = async (req, res) => {
       const checksum = hash.digest("hex");
       const stat = fs.statSync(finalFilePath);
 
-      // Clean up chunk files
       fs.rmSync(uploadPath, { recursive: true, force: true });
+      releaseTransfer(transferKey);
 
-      // Upload to MinIO object storage
       let minioResult = null;
       try {
         minioResult = await minioService.uploadFile(`files/${safeName}`, finalFilePath);
       } catch (minioErr) {
-        console.warn("MinIO upload fallback to local storage:", minioErr.message);
+        // Fallback to local storage silently
       }
 
-      // Enqueue background processing (virus scan/caching/audit)
       try {
         if (typeof enqueueFileJob === "function") {
           await enqueueFileJob({
@@ -106,9 +152,10 @@ exports.uploadChunk = async (req, res) => {
         fileName: safeName,
         originalName: fileName,
         size: stat.size,
-        mimetype: req.body.mimeType || "application/octet-stream",
+        mimetype: mimeType || "application/octet-stream",
         checksum,
-        minioStored: !!minioResult,
+        allocatedKbps,
+        concurrentCount,
       });
     }
 
@@ -118,8 +165,11 @@ exports.uploadChunk = async (req, res) => {
       chunkIndex: cIndex,
       uploadedCount: uploadedParts.length,
       totalChunks: tChunks,
+      allocatedKbps,
+      concurrentCount,
     });
   } catch (error) {
+    releaseTransfer(transferKey);
     console.error("Chunk upload error:", error);
     res.status(500).json({ success: false, message: error.message });
   }
@@ -151,12 +201,19 @@ exports.getChunkStatus = async (req, res) => {
   }
 };
 
-// 3. Resumable Byte-Range Chunk Download (RFC 7233) with MinIO Support
+// 3. Fair-Share Bandwidth Throttled File Download
 exports.downloadFile = async (req, res) => {
+  const { fileName } = req.params;
+  const safeName = path.basename(fileName);
+  const transferKey = `dl_${safeName}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+
   try {
-    const { fileName } = req.params;
-    const safeName = path.basename(fileName);
     const filePath = path.join(FILES_DIR, safeName);
+    const { allocatedKbps } = getFairShareKbps(transferKey);
+    const throttle = createThrottleStream(allocatedKbps);
+
+    res.on("close", () => releaseTransfer(transferKey));
+    res.on("finish", () => releaseTransfer(transferKey));
 
     if (fs.existsSync(filePath)) {
       const stat = fs.statSync(filePath);
@@ -169,44 +226,43 @@ exports.downloadFile = async (req, res) => {
         const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
 
         if (start >= fileSize) {
+          releaseTransfer(transferKey);
           res.status(416).send(`Requested range not satisfiable: ${start} >= ${fileSize}`);
           return;
         }
 
         const chunksize = end - start + 1;
         const file = fs.createReadStream(filePath, { start, end });
-        const head = {
+        res.writeHead(206, {
           "Content-Range": `bytes ${start}-${end}/${fileSize}`,
           "Accept-Ranges": "bytes",
           "Content-Length": chunksize,
           "Content-Type": "application/octet-stream",
-        };
-
-        res.writeHead(206, head);
-        file.pipe(res);
+        });
+        file.pipe(throttle).pipe(res);
       } else {
-        const head = {
+        res.writeHead(200, {
           "Content-Length": fileSize,
           "Content-Type": "application/octet-stream",
           "Accept-Ranges": "bytes",
           "Content-Disposition": `attachment; filename="${safeName}"`,
-        };
-        res.writeHead(200, head);
-        fs.createReadStream(filePath).pipe(res);
+        });
+        fs.createReadStream(filePath).pipe(throttle).pipe(res);
       }
       return;
     }
 
-    // Fallback: Stream directly from MinIO
     const minioStream = await minioService.getFileStream(`files/${safeName}`);
     if (minioStream) {
       res.setHeader("Content-Disposition", `attachment; filename="${safeName}"`);
       res.setHeader("Content-Type", "application/octet-stream");
-      return minioStream.pipe(res);
+      return minioStream.pipe(throttle).pipe(res);
     }
 
+    releaseTransfer(transferKey);
     return res.status(404).json({ success: false, message: "File not found" });
   } catch (error) {
+    releaseTransfer(transferKey);
     res.status(500).json({ success: false, message: error.message });
   }
 };

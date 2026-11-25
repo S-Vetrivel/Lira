@@ -68,7 +68,7 @@ exports.Signup = async (req, res) => {
       departmentName: departmentName || "Engineering",
       jobTitle: jobTitle || (isAdmin ? "Workspace Admin" : "Team Member"),
       phone,
-      avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(fullname || cleanEmail)}`,
+      avatar: "",
       joinRequest: {
         requestedDepartment: departmentId,
         requestedDepartmentName: departmentName || "Engineering",

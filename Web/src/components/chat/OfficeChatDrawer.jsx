@@ -33,6 +33,7 @@ import {
 } from "../../services/socket";
 import { encryptText, decryptText } from "../../services/crypto";
 import ChunkUploader from "../files/ChunkUploader";
+import UserAvatar from "../common/UserAvatar";
 import {
   getDisplayName,
   getInitials,
@@ -647,17 +648,11 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
                       <div className="relative shrink-0">
-                        {colleague.avatar || colleague.profilePicture ? (
-                          <img
-                            src={colleague.avatar || colleague.profilePicture}
-                            alt={displayName}
-                            className="w-8 h-8 rounded-xl object-cover border border-white/10"
-                          />
-                        ) : (
-                          <div className="w-8 h-8 rounded-xl bg-indigo-500/15 border border-indigo-500/25 flex items-center justify-center text-indigo-400 font-bold text-xs">
-                            {getInitials(colleague)}
-                          </div>
-                        )}
+                        <UserAvatar
+                          user={colleague}
+                          className="w-8 h-8 rounded-xl border border-white/10"
+                          textClass="text-xs"
+                        />
                         <span
                           className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 ${
                             isDark ? "border-[#11121a]" : "border-slate-50"
@@ -733,17 +728,12 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
 
               {isDirect ? (
                 <div className="relative shrink-0">
-                  {selectedRoom?.colleague?.avatar || selectedRoom?.colleague?.profilePicture ? (
-                    <img
-                      src={selectedRoom.colleague.avatar || selectedRoom.colleague.profilePicture}
-                      alt={selectedRoom.name}
-                      className="w-9 h-9 rounded-xl object-cover border border-white/10"
-                    />
-                  ) : (
-                    <div className="w-9 h-9 rounded-xl bg-indigo-500/15 border border-indigo-500/25 flex items-center justify-center text-indigo-400 font-bold text-xs">
-                      {getInitials(selectedRoom?.name)}
-                    </div>
-                  )}
+                  <UserAvatar
+                    user={selectedRoom?.colleague}
+                    name={selectedRoom?.name}
+                    className="w-9 h-9 rounded-xl border border-white/10"
+                    textClass="text-xs"
+                  />
                   <span
                     className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 ${
                       isDark ? "border-[#12131c]" : "border-white"
@@ -769,7 +759,7 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
                   </h3>
                   <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 shrink-0">
                     <ShieldCheck className="w-2.5 h-2.5" />
-                    E2EE
+                    Private
                   </span>
                 </div>
                 <p className={`text-[11px] truncate ${isDark ? "text-slate-400" : "text-slate-500"}`}>
@@ -833,7 +823,7 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
                 {loading && (
                   <div className="flex items-center justify-center py-12 gap-2 text-xs text-slate-400">
                     <Loader2 className="w-4 h-4 animate-spin text-indigo-500" />
-                    <span>Decrypting messages...</span>
+                    <span>Loading messages...</span>
                   </div>
                 )}
 
@@ -853,7 +843,7 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
                         {isDirect ? `Direct Chat with ${selectedRoom?.name}` : `Welcome to #${selectedRoom?.name}`}
                       </h4>
                       <p className={`text-xs max-w-xs mx-auto mt-1 ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-                        Send encrypted messages or drag & drop files here to share securely with your team.
+                        Send a message or drag & drop files here to share with your team.
                       </p>
                     </div>
                   </div>
@@ -899,17 +889,12 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
                       <div className={`flex items-end gap-2 ${isMe ? "justify-end" : "justify-start"}`}>
                         {!isMe && (
                           <div className="shrink-0 mb-1">
-                            {msg.sender?.avatar || msg.sender?.profilePicture ? (
-                              <img
-                                src={msg.sender.avatar || msg.sender.profilePicture}
-                                alt={senderName}
-                                className="w-7 h-7 rounded-xl object-cover border border-white/10"
-                              />
-                            ) : (
-                              <div className="w-7 h-7 rounded-xl bg-indigo-500/15 border border-indigo-500/25 flex items-center justify-center text-indigo-400 font-bold text-[10px]">
-                                {getInitials(msg.sender)}
-                              </div>
-                            )}
+                            <UserAvatar
+                              user={msg.sender}
+                              name={senderName}
+                              className="w-7 h-7 rounded-xl border border-white/10"
+                              textClass="text-[10px]"
+                            />
                           </div>
                         )}
 
@@ -934,9 +919,11 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
                           </div>
 
                           <div
-                            className={`rounded-2xl px-3.5 py-2 text-xs leading-relaxed shadow-sm ${
+                            className={`rounded-2xl px-3.5 py-2 text-xs leading-relaxed ${
                               isMe
-                                ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-br-xs"
+                                ? isDark
+                                  ? "bg-indigo-600 text-white rounded-br-xs"
+                                  : "bg-slate-900 text-white rounded-br-xs"
                                 : isDark
                                 ? "bg-[#181924] text-slate-100 border border-white/10 rounded-bl-xs"
                                 : "bg-slate-100 text-slate-900 border border-slate-200 rounded-bl-xs"
@@ -1025,7 +1012,11 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
                 <button
                   type="submit"
                   disabled={!inputText.trim() || sending}
-                  className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-30 text-white text-xs font-bold transition-all shadow-md shadow-blue-500/20 flex items-center gap-1.5 cursor-pointer"
+                  className={`px-3.5 py-2 rounded-xl disabled:opacity-30 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                    isDark
+                      ? "bg-white text-slate-950 hover:bg-slate-200"
+                      : "bg-slate-900 text-white hover:bg-slate-800"
+                  }`}
                 >
                   <Send className="w-3.5 h-3.5" />
                   <span className="hidden sm:inline">Send</span>
@@ -1116,10 +1107,10 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
                 <div>
                   <h4 className={`text-sm font-bold flex items-center gap-1.5 ${isDark ? "text-white" : "text-slate-900"}`}>
                     <UploadCloud className="w-4 h-4 text-indigo-400" />
-                    <span>Resumable File Transfer Hub</span>
+                    <span>File Sharing Hub</span>
                   </h4>
                   <p className="text-xs text-slate-400">
-                    Files upload in 1MB chunks and post automatically to {isDirect ? selectedRoom?.name : `#${selectedRoom?.name}`}
+                    Upload and share files directly in {isDirect ? selectedRoom?.name : `#${selectedRoom?.name}`}
                   </p>
                 </div>
                 <button

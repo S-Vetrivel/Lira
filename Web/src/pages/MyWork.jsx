@@ -166,7 +166,7 @@ export default function MyWork() {
               isDark ? "text-white" : "text-slate-900"
             }`}
           >
-            {getGreeting()}, {user?.fullname} 👋
+            {getGreeting()}, {user?.fullname}
           </h1>
           <p className={`text-xs sm:text-sm mt-1 ${isDark ? "text-slate-400" : "text-slate-500"}`}>
             Your assigned tasks, upcoming deadlines, and deliverables.
