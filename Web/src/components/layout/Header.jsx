@@ -17,7 +17,6 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { markNotificationRead, markAllNotificationsRead } from "../../services/api";
-import OfficeChatDrawer from "../chat/OfficeChatDrawer";
 
 export default function Header() {
   const location = useLocation();
@@ -34,12 +33,13 @@ export default function Header() {
     setIsCreateTaskModalOpen,
     setIsCommandPaletteOpen,
     setSelectedTaskKeyOrId,
+    isChatOpen,
+    setIsChatOpen,
     handleLogout,
   } = useApp();
 
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
-  const [isChatOpen, setIsChatOpen] = useState(false);
 
   const navItems = [
     { label: "Board", path: "/" },
@@ -48,6 +48,8 @@ export default function Header() {
     { label: "Requests", path: "/requests" },
     { label: "Overview", path: "/analytics" },
     { label: "My Day", path: "/my-work" },
+    { label: "Team", path: "/team" },
+    { label: "Workspaces", path: "/projects" },
   ];
 
   const handleMarkAllRead = async () => {
@@ -70,14 +72,14 @@ export default function Header() {
 
   return (
     <header
-      className={`w-full h-14 sm:h-15 border-b px-4 sm:px-6 flex items-center justify-between z-30 shrink-0 select-none transition-colors duration-150 ${
+      className={`w-full h-14 sm:h-15 border-b px-3 sm:px-5 flex items-center justify-between gap-2 z-40 shrink-0 select-none transition-colors duration-150 ${
         isDark
           ? "bg-[#0e0f16] border-white/10 text-white"
           : "bg-white border-slate-200 text-slate-900"
       }`}
     >
       {/* 1. Left: Brand & Active Project Selector */}
-      <div className="flex items-center gap-3 shrink-0">
+      <div className="flex items-center gap-2.5 shrink-0">
         <Link to="/" className="flex items-center gap-2 group">
           <span
             className={`text-xl font-black tracking-tight flex items-center ${
@@ -91,14 +93,14 @@ export default function Header() {
 
         {/* Project Selector Pill */}
         {projects.length > 0 && (
-          <div className="relative group ml-1">
+          <div className="relative group ml-0.5">
             <select
               value={activeProject?._id || ""}
               onChange={(e) => {
                 const selected = projects.find((p) => p._id === e.target.value);
                 if (selected) setActiveProject(selected);
               }}
-              className={`appearance-none text-xs font-semibold rounded-full pl-3.5 pr-8 py-1.5 cursor-pointer focus:outline-none transition-all border ${
+              className={`appearance-none text-xs font-semibold rounded-full pl-3 pr-7 py-1.5 max-w-[165px] xl:max-w-[210px] truncate cursor-pointer focus:outline-none transition-all border ${
                 isDark
                   ? "bg-[#191a24] border-white/10 text-slate-200 hover:border-white/20"
                   : "bg-slate-100 border-slate-200 text-slate-800 hover:border-slate-300"
@@ -140,7 +142,7 @@ export default function Header() {
             <Link
               key={item.path}
               to={item.path}
-              className={`relative px-5 py-1.5 rounded-full text-xs font-semibold tracking-tight transition-colors duration-150 select-none ${
+              className={`relative px-2.5 lg:px-3 xl:px-3.5 py-1.5 rounded-full text-[11px] xl:text-xs font-semibold tracking-tight transition-colors duration-150 select-none whitespace-nowrap ${
                 isActive
                   ? isDark
                     ? "text-slate-950 font-bold"
@@ -293,7 +295,7 @@ export default function Header() {
                   >
                     <p className="line-clamp-2">{n.message}</p>
                     <span className="text-[10px] text-slate-400 block mt-1">
-                      {new Date(n.createdAt).toLocaleTimeString([], {
+                      {new Date(n.createdAt).toLocaleTimeString("en-IN", {
                         hour: "2-digit",
                         minute: "2-digit",
                       })}
@@ -321,7 +323,7 @@ export default function Header() {
         <div className="relative">
           <button
             onClick={() => setShowProfileMenu(!showProfileMenu)}
-            className={`flex items-center gap-2 pl-1.5 pr-2.5 py-1 rounded-full border transition-all cursor-pointer ${
+            className={`flex items-center gap-2 pl-1.5 pr-2 py-1 rounded-full border transition-all cursor-pointer ${
               isDark
                 ? "bg-[#191a24] border-white/10 hover:border-white/25 text-white"
                 : "bg-slate-100 border-slate-200 hover:border-slate-300 text-slate-900"
@@ -330,17 +332,17 @@ export default function Header() {
             <img
               src={user?.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${user?.fullname || "U"}`}
               alt={user?.fullname}
-              className="w-7 h-7 rounded-full object-cover border border-white/20"
+              className="w-7 h-7 rounded-full object-cover border border-white/20 shrink-0"
             />
-            <div className="hidden lg:block text-left leading-tight">
-              <span className={`text-xs font-bold block truncate max-w-[100px] ${isDark ? "text-white" : "text-slate-900"}`}>
+            <div className="hidden xl:block text-left leading-tight">
+              <span className={`text-xs font-bold block truncate max-w-[90px] ${isDark ? "text-white" : "text-slate-900"}`}>
                 {user?.fullname || "Guest"}
               </span>
               <span className="text-[10px] text-slate-400 capitalize block">
                 {user?.role || "employee"}
               </span>
             </div>
-            <ChevronDown className="w-3 h-3 text-slate-400" />
+            <ChevronDown className="w-3 h-3 text-slate-400 shrink-0" />
           </button>
 
           {showProfileMenu && (
@@ -403,9 +405,6 @@ export default function Header() {
           )}
         </div>
       </div>
-
-      {/* Slide-over E2EE Office Chat & Local Peer Sharing Drawer */}
-      <OfficeChatDrawer isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
     </header>
   );
 }

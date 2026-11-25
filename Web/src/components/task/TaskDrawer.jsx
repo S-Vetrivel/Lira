@@ -499,18 +499,28 @@ export default function TaskDrawer({ taskKeyOrId, onClose, onTaskUpdated }) {
               <div className="md:col-span-2 p-6 space-y-6">
                 {/* Office Verification / Redo Loop Banners */}
                 {task.status === "redo_requested" && (
-                  <div className="p-3.5 bg-rose-500/10 border border-rose-500/30 rounded-xl text-xs space-y-1">
-                    <div className="flex items-center gap-1.5 font-bold text-rose-400">
+                  <div
+                    className={`p-3.5 border rounded-xl text-xs space-y-1 ${
+                      isDark ? "bg-rose-500/10 border-rose-500/30" : "bg-rose-50 border-rose-200"
+                    }`}
+                  >
+                    <div className={`flex items-center gap-1.5 font-bold ${isDark ? "text-rose-400" : "text-rose-700"}`}>
                       <AlertCircle className="w-4 h-4 shrink-0" />
                       <span>Revision Requested by Manager</span>
                     </div>
-                    <p className="text-rose-200/90 pl-5 whitespace-pre-wrap">{task.reviewFeedback || "Please review deliverables and resubmit."}</p>
+                    <p className={`pl-5 whitespace-pre-wrap ${isDark ? "text-rose-200/90" : "text-rose-800"}`}>
+                      {task.reviewFeedback || "Please review deliverables and resubmit."}
+                    </p>
                   </div>
                 )}
 
                 {task.status === "submitted_for_review" && (
-                  <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs flex flex-wrap items-center justify-between gap-3">
-                    <div className="flex items-center gap-2 text-amber-300 font-bold">
+                  <div
+                    className={`p-3.5 border rounded-xl text-xs flex flex-wrap items-center justify-between gap-3 ${
+                      isDark ? "bg-amber-500/10 border-amber-500/30" : "bg-amber-50 border-amber-200"
+                    }`}
+                  >
+                    <div className={`flex items-center gap-2 font-bold ${isDark ? "text-amber-300" : "text-amber-800"}`}>
                       <RotateCcw className="w-4 h-4 shrink-0" />
                       <span>Submitted for Manager Verification & Sign-Off</span>
                     </div>
@@ -518,13 +528,13 @@ export default function TaskDrawer({ taskKeyOrId, onClose, onTaskUpdated }) {
                       <div className="flex items-center gap-2">
                         <button
                           onClick={handleApprove}
-                          className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-semibold flex items-center gap-1.5 shadow-sm transition-colors"
+                          className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-semibold flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
                         >
                           <CheckCircle2 className="w-3.5 h-3.5" /> Approve & Complete
                         </button>
                         <button
                           onClick={() => setShowRedoModal(true)}
-                          className="px-3 py-1.5 bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white rounded-xl font-semibold border border-rose-500/30 flex items-center gap-1.5 transition-colors"
+                          className="px-3 py-1.5 bg-rose-500/15 hover:bg-rose-600 text-rose-500 hover:text-white rounded-xl font-semibold border border-rose-500/30 flex items-center gap-1.5 transition-colors cursor-pointer"
                         >
                           <RotateCcw className="w-3.5 h-3.5" /> Request Redo
                         </button>
@@ -536,7 +546,11 @@ export default function TaskDrawer({ taskKeyOrId, onClose, onTaskUpdated }) {
                 {(task.status === "in_progress" || task.status === "todo" || task.status === "redo_requested") && (
                   <button
                     onClick={handleSubmitForReview}
-                    className="px-3.5 py-2 bg-blue-600/15 hover:bg-blue-600 text-blue-300 hover:text-white border border-blue-500/30 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm"
+                    className={`px-3.5 py-2 border rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer ${
+                      isDark
+                        ? "bg-blue-600/15 hover:bg-blue-600 text-blue-300 hover:text-white border-blue-500/30"
+                        : "bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white border-blue-200"
+                    }`}
                   >
                     <RotateCcw className="w-3.5 h-3.5" /> Submit for Manager Verification
                   </button>
@@ -783,7 +797,7 @@ export default function TaskDrawer({ taskKeyOrId, onClose, onTaskUpdated }) {
                                   {c.author?.fullname}
                                 </span>
                                 <span className={`text-[10px] ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-                                  {new Date(c.createdAt).toLocaleTimeString([], {
+                                  {new Date(c.createdAt).toLocaleTimeString("en-IN", {
                                     hour: "2-digit",
                                     minute: "2-digit",
                                   })}
@@ -869,7 +883,7 @@ export default function TaskDrawer({ taskKeyOrId, onClose, onTaskUpdated }) {
                               {h.details?.message}
                             </span>
                             <span className={`text-[10px] block mt-0.5 ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-                              {new Date(h.createdAt).toLocaleString([], {
+                              {new Date(h.createdAt).toLocaleString("en-IN", {
                                 month: "short",
                                 day: "numeric",
                                 hour: "2-digit",

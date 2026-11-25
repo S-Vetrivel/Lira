@@ -71,6 +71,13 @@ export const AppProvider = ({ children }) => {
   const [selectedTaskKeyOrId, setSelectedTaskKeyOrId] = useState(null);
   const [isCreateTaskModalOpen, setIsCreateTaskModalOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatTargetUser, setChatTargetUser] = useState(null);
+
+  const openDirectChat = useCallback((colleague) => {
+    setChatTargetUser(colleague || null);
+    setIsChatOpen(true);
+  }, []);
 
   // Global hotkey for Command Palette (Cmd+K / Ctrl+K)
   useEffect(() => {
@@ -241,6 +248,11 @@ export const AppProvider = ({ children }) => {
       setIsCreateTaskModalOpen,
       isCommandPaletteOpen,
       setIsCommandPaletteOpen,
+      isChatOpen,
+      setIsChatOpen,
+      chatTargetUser,
+      setChatTargetUser,
+      openDirectChat,
       refreshProjects,
       refreshDepartments,
       refreshTeam,
@@ -261,6 +273,9 @@ export const AppProvider = ({ children }) => {
       selectedTaskKeyOrId,
       isCreateTaskModalOpen,
       isCommandPaletteOpen,
+      isChatOpen,
+      chatTargetUser,
+      openDirectChat,
       refreshProjects,
       refreshDepartments,
       refreshTeam,

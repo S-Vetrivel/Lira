@@ -46,10 +46,20 @@ exports.getTeamMembers = async (req, res) => {
 // Create new user account (Admin only)
 exports.createUser = async (req, res) => {
   try {
-    const { fullname, email, password, role, department, departmentName, jobTitle, phone } = req.body;
+    const {
+      fullname,
+      email,
+      password,
+      role,
+      department,
+      departmentId,
+      departmentName,
+      jobTitle,
+      phone,
+    } = req.body;
 
-    if (!fullname || !email || !password) {
-      return res.status(400).json({ success: false, message: "Fullname, email, and password are required" });
+    if (!fullname || !email) {
+      return res.status(400).json({ success: false, message: "Fullname and email are required" });
     }
 
     const cleanEmail = email.toLowerCase().trim();
@@ -64,9 +74,10 @@ exports.createUser = async (req, res) => {
     }
 
     const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
+    const rawPassword = password && password.trim() ? password.trim() : "Lira@2026";
+    const hashedPassword = await bcrypt.hash(rawPassword, salt);
 
-    let deptId = department;
+    let deptId = department || departmentId;
     let deptName = departmentName;
 
     if (deptId) {

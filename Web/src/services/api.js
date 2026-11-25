@@ -581,9 +581,9 @@ export async function createRequest(data) {
   }
 }
 
-export async function approveRequestStage(id, notes) {
+export async function approveRequestStage(id, comment) {
   try {
-    const res = await api.post(`/requests/${id}/approve-stage`, { notes });
+    const res = await api.post(`/requests/${id}/approve`, { comment });
     toast.success("Stage approved!");
     return { success: true, request: res.data.request, task: res.data.task };
   } catch (error) {
@@ -591,9 +591,9 @@ export async function approveRequestStage(id, notes) {
   }
 }
 
-export async function rejectRequest(id, notes) {
+export async function rejectRequest(id, reason) {
   try {
-    const res = await api.post(`/requests/${id}/reject`, { notes });
+    const res = await api.post(`/requests/${id}/reject`, { reason });
     toast.success("Request rejected");
     return { success: true, request: res.data.request };
   } catch (error) {
@@ -655,9 +655,13 @@ export async function markChatRoomRead(roomId) {
 export async function getChatConversations() {
   try {
     const res = await api.get("/chat/conversations");
-    return { success: true, colleagues: res.data.colleagues || [] };
+    return {
+      success: true,
+      colleagues: res.data.colleagues || [],
+      channelUnread: res.data.channelUnread || {},
+    };
   } catch (error) {
-    return { success: false, colleagues: [] };
+    return { success: false, colleagues: [], channelUnread: {} };
   }
 }
 

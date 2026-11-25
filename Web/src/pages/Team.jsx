@@ -27,11 +27,12 @@ import {
   ShieldCheck,
   Copy,
   Sparkles,
+  MessageSquare,
 } from "lucide-react";
 import toast from "react-hot-toast";
 
 export default function Team() {
-  const { user, departments, refreshDepartments, theme } = useApp();
+  const { user, departments, refreshDepartments, theme, openDirectChat } = useApp();
   const isDark = theme === "dark";
 
   const [activeTab, setActiveTab] = useState("directory"); // 'directory' | 'join-requests'
@@ -45,6 +46,7 @@ export default function Team() {
   const [showAddUserModal, setShowAddUserModal] = useState(false);
   const [fullname, setFullname] = useState("");
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [role, setRole] = useState("employee");
   const [departmentId, setDepartmentId] = useState("");
   const [jobTitle, setJobTitle] = useState("");
@@ -144,17 +146,18 @@ export default function Team() {
     const res = await createUser({
       fullname: fullname.trim(),
       email: email.trim(),
+      password: password.trim() || "Lira@2026",
       role,
-      departmentId: departmentId || null,
+      department: departmentId || null,
       jobTitle: jobTitle.trim(),
     });
     setSubmitting(false);
 
     if (res.success) {
-      toast.success(`Account for ${fullname} created!`);
       setShowAddUserModal(false);
       setFullname("");
       setEmail("");
+      setPassword("");
       setJobTitle("");
       fetchMembers();
     }
@@ -480,50 +483,69 @@ export default function Team() {
                     </div>
 
                     {/* Department & Job Title */}
-                    <div className="space-y-1.5 pt-2 border-t border-white/5 text-xs">
-                      <div className="flex items-center justify-between text-slate-400">
+                    <div className={`space-y-1.5 pt-2 border-t text-xs ${isDark ? "border-white/5" : "border-slate-100"}`}>
+                      <div className={`flex items-center justify-between ${isDark ? "text-slate-400" : "text-slate-500"}`}>
                         <span className="flex items-center gap-1.5">
                           <Building className="w-3.5 h-3.5 text-purple-400" />
                           <span>Department:</span>
                         </span>
-                        <span className="font-semibold text-slate-200">
+                        <span className={`font-semibold ${isDark ? "text-slate-200" : "text-slate-800"}`}>
                           {member.department?.name || member.departmentName || "General"}
                         </span>
                       </div>
 
-                      <div className="flex items-center justify-between text-slate-400">
+                      <div className={`flex items-center justify-between ${isDark ? "text-slate-400" : "text-slate-500"}`}>
                         <span className="flex items-center gap-1.5">
                           <Briefcase className="w-3.5 h-3.5 text-blue-400" />
                           <span>Role / Title:</span>
                         </span>
-                        <span className="font-semibold text-slate-200">{member.jobTitle || "Team Member"}</span>
+                        <span className={`font-semibold ${isDark ? "text-slate-200" : "text-slate-800"}`}>
+                          {member.jobTitle || "Team Member"}
+                        </span>
                       </div>
                     </div>
                   </div>
 
-                  {/* Footer & Admin Controls */}
-                  <div className="pt-4 mt-3 border-t border-white/5 flex items-center justify-between">
+                  {/* Footer & Controls */}
+                  <div className={`pt-4 mt-3 border-t flex items-center justify-between gap-2 ${isDark ? "border-white/5" : "border-slate-100"}`}>
                     <span
                       className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${
                         member.role === "admin"
-                          ? "bg-purple-500/10 text-purple-300 border border-purple-500/20"
+                          ? "bg-purple-500/10 text-purple-400 border border-purple-500/20"
                           : member.role === "manager"
-                          ? "bg-blue-500/10 text-blue-300 border border-blue-500/20"
-                          : "bg-emerald-500/10 text-emerald-300 border border-emerald-500/20"
+                          ? "bg-blue-500/10 text-blue-400 border border-blue-500/20"
+                          : "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"
                       }`}
                     >
-                      <span>{member.role === "admin" ? "👑 Admin" : member.role === "manager" ? "👔 Manager" : "👨‍💻 Member"}</span>
+                      <span>{member.role === "admin" ? "Admin" : member.role === "manager" ? "Manager" : "Member"}</span>
                     </span>
 
-                    {user?.role === "admin" && member._id !== user._id && (
-                      <button
-                        onClick={() => handleDeactivateUser(member._id, member.fullname)}
-                        className="text-xs text-rose-400 hover:text-rose-300 p-1.5 rounded-lg hover:bg-rose-500/10 transition-colors cursor-pointer"
-                        title="Deactivate account"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    )}
+                    <div className="flex items-center gap-1.5">
+                      {member._id !== user?._id && (
+                        <button
+                          onClick={() => openDirectChat(member)}
+                          className={`text-xs font-semibold px-2.5 py-1 rounded-lg border flex items-center gap-1 transition-colors cursor-pointer ${
+                            isDark
+                              ? "bg-indigo-500/10 border-indigo-500/30 text-indigo-300 hover:bg-indigo-600 hover:text-white"
+                              : "bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-600 hover:text-white"
+                          }`}
+                          title={`Message ${member.fullname}`}
+                        >
+                          <MessageSquare className="w-3 h-3" />
+                          <span>DM</span>
+                        </button>
+                      )}
+
+                      {user?.role === "admin" && member._id !== user._id && (
+                        <button
+                          onClick={() => handleDeactivateUser(member._id, member.fullname)}
+                          className="text-xs text-rose-400 hover:text-rose-300 p-1.5 rounded-lg hover:bg-rose-500/10 transition-colors cursor-pointer"
+                          title="Deactivate account"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -558,7 +580,9 @@ export default function Team() {
                   placeholder="Rahul Sharma"
                   value={fullname}
                   onChange={(e) => setFullname(e.target.value)}
-                  className="w-full bg-[#12131b] border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                  className={`w-full border rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:border-indigo-500 ${
+                    isDark ? "bg-[#12131b] border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
+                  }`}
                   required
                 />
               </div>
@@ -570,8 +594,23 @@ export default function Team() {
                   placeholder="rahul@company.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full bg-[#12131b] border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                  className={`w-full border rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:border-indigo-500 ${
+                    isDark ? "bg-[#12131b] border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
+                  }`}
                   required
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold block mb-1">Initial Password</label>
+                <input
+                  type="password"
+                  placeholder="Default: Lira@2026"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className={`w-full border rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:border-indigo-500 ${
+                    isDark ? "bg-[#12131b] border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
+                  }`}
                 />
               </div>
 
@@ -582,7 +621,9 @@ export default function Team() {
                   placeholder="e.g. Senior Frontend Engineer"
                   value={jobTitle}
                   onChange={(e) => setJobTitle(e.target.value)}
-                  className="w-full bg-[#12131b] border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                  className={`w-full border rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:border-indigo-500 ${
+                    isDark ? "bg-[#12131b] border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
+                  }`}
                 />
               </div>
 
@@ -592,7 +633,9 @@ export default function Team() {
                   <select
                     value={role}
                     onChange={(e) => setRole(e.target.value)}
-                    className="w-full bg-[#12131b] border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white font-semibold focus:outline-none"
+                    className={`w-full border rounded-xl px-3.5 py-2 text-xs font-semibold focus:outline-none ${
+                      isDark ? "bg-[#12131b] border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
+                    }`}
                   >
                     <option value="employee">Employee</option>
                     <option value="manager">Manager / Lead</option>
@@ -605,7 +648,9 @@ export default function Team() {
                   <select
                     value={departmentId}
                     onChange={(e) => setDepartmentId(e.target.value)}
-                    className="w-full bg-[#12131b] border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none"
+                    className={`w-full border rounded-xl px-3.5 py-2 text-xs focus:outline-none ${
+                      isDark ? "bg-[#12131b] border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
+                    }`}
                   >
                     <option value="">General</option>
                     {departments.map((d) => (
@@ -617,18 +662,18 @@ export default function Team() {
                 </div>
               </div>
 
-              <div className="pt-3 flex justify-end gap-2 border-t border-white/10">
+              <div className={`pt-3 flex justify-end gap-2 border-t ${isDark ? "border-white/10" : "border-slate-100"}`}>
                 <button
                   type="button"
                   onClick={() => setShowAddUserModal(false)}
-                  className="px-4 py-2 text-xs font-semibold rounded-xl text-slate-400 hover:text-white"
+                  className="px-4 py-2 text-xs font-semibold rounded-xl text-slate-400 hover:text-slate-200"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="px-5 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-xs font-bold rounded-xl shadow-md shadow-blue-500/20"
+                  className="px-5 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-xs font-bold rounded-xl shadow-md shadow-blue-500/20 cursor-pointer"
                 >
                   {submitting ? "Saving..." : "Create Account"}
                 </button>

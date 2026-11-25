@@ -10,6 +10,7 @@ import {
   AlertCircle,
   ListTodo,
 } from "lucide-react";
+import { formatDateIN, getDisplayName } from "../../utils/formatters";
 
 export default function TaskCard({ task, onClick, onDragStart }) {
   const { theme } = useApp();
@@ -117,6 +118,18 @@ export default function TaskCard({ task, onClick, onDragStart }) {
         {task.title}
       </h4>
 
+      {(task.status === "submitted_for_review" || task.status === "redo_requested") && (
+        <span
+          className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+            task.status === "redo_requested"
+              ? "bg-rose-500/15 text-rose-400 border-rose-500/30"
+              : "bg-amber-500/15 text-amber-400 border-amber-500/30"
+          }`}
+        >
+          {task.status === "redo_requested" ? "Revision Requested" : "Awaiting Sign-Off"}
+        </span>
+      )}
+
       {/* Subtasks Progress */}
       {totalSubtasks > 0 && (
         <div className="space-y-1 pt-1">
@@ -149,7 +162,7 @@ export default function TaskCard({ task, onClick, onDragStart }) {
             <span className={`flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10px] ${dueDateClass}`}>
               <Calendar className="w-3 h-3" />
               <span>
-                {new Date(task.dueDate).toLocaleDateString([], {
+                {formatDateIN(task.dueDate, {
                   month: "short",
                   day: "numeric",
                 })}

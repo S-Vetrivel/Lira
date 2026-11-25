@@ -5,14 +5,10 @@ import {
   Clock,
   CheckCircle2,
   XCircle,
-  Building2,
-  DollarSign,
-  ArrowRight,
-  Send,
-  AlertCircle,
-  Layers,
+  IndianRupee,
   ChevronRight,
-  Search,
+  RefreshCw,
+  X,
 } from "lucide-react";
 import { useApp } from "../context/Appcontext";
 import {
@@ -22,17 +18,23 @@ import {
   rejectRequest,
   getDepartments,
 } from "../services/api";
+import { formatINR, formatDateIN, getDisplayName } from "../utils/formatters";
 import toast from "react-hot-toast";
 
 export default function Requests() {
-  const { user, activeProject } = useApp();
+  const { user, activeProject, theme } = useApp();
+  const isDark = theme === "dark";
+
   const [requests, setRequests] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState("all");
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [approvalNotes, setApprovalNotes] = useState("");
-  const [selectedRequest, setSelectedRequest] = useState(null);
+
+  // Approval / Rejection action modal
+  const [actionModal, setActionModal] = useState(null); // { type: 'approve' | 'reject', request }
+  const [actionNotes, setActionNotes] = useState("");
+  const [processingAction, setProcessingAction] = useState(false);
 
   // New Request Form State
   const [title, setTitle] = useState("");
@@ -41,6 +43,7 @@ export default function Requests() {
   const [targetDepartment, setTargetDepartment] = useState("");
   const [amount, setAmount] = useState("");
   const [urgency, setUrgency] = useState("medium");
+  const [submitting, setSubmitting] = useState(false);
 
   const loadData = async () => {
     setLoading(true);
@@ -48,7 +51,7 @@ export default function Requests() {
     if (reqRes.success) setRequests(reqRes.requests);
     if (deptRes.success) {
       setDepartments(deptRes.departments);
-      if (deptRes.departments.length > 0) {
+      if (deptRes.departments.length > 0 && !targetDepartment) {
         setTargetDepartment(deptRes.departments[0]._id);
       }
     }
@@ -66,17 +69,19 @@ export default function Requests() {
       return;
     }
 
-    const payload = {
-      title,
-      description,
+    setSubmitting(true);
+    const res = await createRequest({
+      title: title.trim(),
+      description: description.trim(),
       requestType,
       targetDepartment,
       amount: amount ? Number(amount) : 0,
-      urgency,
+      currency: "INR",
+      priority: urgency,
       project: activeProject?._id,
-    };
+    });
+    setSubmitting(false);
 
-    const res = await createRequest(payload);
     if (res.success) {
       setShowCreateModal(false);
       setTitle("");
@@ -86,172 +91,275 @@ export default function Requests() {
     }
   };
 
-  const handleApproveStage = async (requestId) => {
-    const res = await approveRequestStage(requestId, approvalNotes);
-    if (res.success) {
-      setApprovalNotes("");
-      setSelectedRequest(null);
-      loadData();
-    }
-  };
+  const submitAction = async (e) => {
+    e.preventDefault();
+    if (!actionModal) return;
+    setProcessingAction(true);
 
-  const handleReject = async (requestId) => {
-    const res = await rejectRequest(requestId, approvalNotes || "Request rejected");
-    if (res.success) {
-      setApprovalNotes("");
-      setSelectedRequest(null);
-      loadData();
+    if (actionModal.type === "approve") {
+      const res = await approveRequestStage(
+        actionModal.request._id,
+        actionNotes.trim() || "Approved"
+      );
+      if (res.success) {
+        setActionModal(null);
+        setActionNotes("");
+        loadData();
+      }
+    } else {
+      const res = await rejectRequest(
+        actionModal.request._id,
+        actionNotes.trim() || "Request declined"
+      );
+      if (res.success) {
+        setActionModal(null);
+        setActionNotes("");
+        loadData();
+      }
     }
+    setProcessingAction(false);
   };
 
   const filteredRequests = requests.filter((r) => {
     if (filterStatus === "all") return true;
+    if (filterStatus === "pending") {
+      return r.status === "submitted" || r.status === "in_review";
+    }
     return r.status === filterStatus;
   });
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden bg-slate-950 text-slate-200">
-      {/* Top Header */}
-      <div className="p-4 border-b border-slate-800/80 bg-slate-900/60 backdrop-blur-md flex items-center justify-between gap-3">
+    <div
+      className={`flex-1 w-full h-full min-h-0 flex flex-col overflow-hidden transition-colors duration-150 ${
+        isDark ? "bg-[#0c0d12] text-slate-200" : "bg-slate-50 text-slate-800"
+      }`}
+    >
+      {/* Top Sub-Header */}
+      <div
+        className={`px-6 py-3.5 border-b flex flex-wrap items-center justify-between gap-3 shrink-0 ${
+          isDark ? "bg-[#0e0f16] border-white/10 text-white" : "bg-white border-slate-200 text-slate-900"
+        }`}
+      >
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-blue-500/10 border border-blue-500/30 flex items-center justify-center text-blue-400">
-            <FileCheck2 className="w-5 h-5" />
+          <div
+            className={`w-9 h-9 rounded-xl border flex items-center justify-center ${
+              isDark
+                ? "bg-indigo-500/15 border-indigo-500/30 text-indigo-400"
+                : "bg-indigo-50 border-indigo-200 text-indigo-600"
+            }`}
+          >
+            <FileCheck2 className="w-4 h-4" />
           </div>
           <div>
-            <h1 className="text-base font-bold text-white tracking-tight">
+            <h1 className={`text-sm sm:text-base font-bold tracking-tight ${isDark ? "text-white" : "text-slate-900"}`}>
               Cross-Department Requests & Sign-Offs
             </h1>
-            <p className="text-xs text-slate-400">
-              Inter-department handoffs, multi-stage approval sequences, and auto-spawning tasks
+            <p className={`text-xs ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+              Inter-department handoffs, INR budget approvals, and auto-spawning tasks
             </p>
           </div>
         </div>
 
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs transition-colors flex items-center gap-1.5 shadow-md shadow-blue-500/20"
-        >
-          <Plus className="w-4 h-4" /> New Formal Request
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={loadData}
+            className={`p-2 rounded-full border transition-colors cursor-pointer ${
+              isDark
+                ? "bg-white/5 hover:bg-white/10 border-white/10 text-slate-300"
+                : "bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-700"
+            }`}
+            title="Refresh Requests"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin text-indigo-400" : ""}`} />
+          </button>
+
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="px-4 py-2 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs transition-all flex items-center gap-1.5 shadow-md shadow-blue-500/20 cursor-pointer"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>New Formal Request</span>
+          </button>
+        </div>
       </div>
 
       {/* Filter Bar */}
-      <div className="p-3 bg-slate-900/40 border-b border-slate-800 flex items-center justify-between">
-        <div className="flex items-center gap-2 text-xs">
-          <span className="text-slate-400 font-medium">Status Filter:</span>
-          {["all", "pending", "approved", "rejected"].map((st) => (
+      <div
+        className={`px-6 py-2.5 border-b flex flex-wrap items-center justify-between gap-3 shrink-0 ${
+          isDark ? "bg-[#12131a] border-white/10" : "bg-white/70 border-slate-200"
+        }`}
+      >
+        <div className="flex items-center gap-1.5 text-xs overflow-x-auto">
+          {[
+            { id: "all", label: "All" },
+            { id: "pending", label: "Pending Review" },
+            { id: "approved", label: "Approved" },
+            { id: "rejected", label: "Rejected" },
+          ].map((tab) => (
             <button
-              key={st}
-              onClick={() => setFilterStatus(st)}
-              className={`px-3 py-1 rounded-lg capitalize transition-colors font-semibold ${
-                filterStatus === st
-                  ? "bg-blue-600 text-white shadow-sm"
-                  : "bg-slate-800/60 text-slate-400 hover:bg-slate-800 hover:text-white"
+              key={tab.id}
+              onClick={() => setFilterStatus(tab.id)}
+              className={`px-3.5 py-1.5 rounded-full font-semibold transition-all whitespace-nowrap cursor-pointer ${
+                filterStatus === tab.id
+                  ? isDark
+                    ? "bg-white text-slate-950 font-bold shadow-xs"
+                    : "bg-slate-900 text-white font-bold shadow-xs"
+                  : isDark
+                  ? "bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white border border-white/10"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-200"
               }`}
             >
-              {st}
+              {tab.label}
             </button>
           ))}
         </div>
-        <span className="text-xs text-slate-500 font-mono">
-          {filteredRequests.length} requests
+        <span className="text-xs text-slate-400 font-mono">
+          {filteredRequests.length} {filteredRequests.length === 1 ? "request" : "requests"}
         </span>
       </div>
 
       {/* Requests Feed */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3">
-        {filteredRequests.map((req) => (
-          <div
-            key={req._id}
-            className="p-4 bg-slate-900/80 rounded-2xl border border-slate-800/80 hover:border-slate-700 transition-all flex flex-col md:flex-row md:items-center justify-between gap-4"
-          >
-            {/* Request Summary */}
-            <div className="space-y-1.5 flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="font-mono text-xs font-bold text-blue-400">
-                  {req.requestCode}
-                </span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-slate-800 text-slate-300">
-                  {req.requestType.replace("_", " ")}
-                </span>
-                <span
-                  className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                    req.status === "approved"
-                      ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30"
-                      : req.status === "rejected"
-                      ? "bg-rose-500/10 text-rose-400 border border-rose-500/30"
-                      : "bg-amber-500/10 text-amber-400 border border-amber-500/30"
-                  }`}
-                >
-                  {req.status.toUpperCase()}
-                </span>
-              </div>
-
-              <h3 className="text-sm font-bold text-white truncate">{req.title}</h3>
-              <p className="text-xs text-slate-400 line-clamp-1">{req.description}</p>
-
-              <div className="flex items-center gap-4 text-[11px] text-slate-400 font-mono pt-1">
-                <span>Requested by: <strong className="text-slate-200">{req.requester?.name}</strong></span>
-                <span>Target: <strong className="text-slate-200">{req.targetDepartment?.name || "Operations"}</strong></span>
-                {req.amount > 0 && (
-                  <span className="text-emerald-400 font-bold">
-                    ${req.amount.toLocaleString()}
+      <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-3">
+        {filteredRequests.map((req) => {
+          const isPending = req.status === "submitted" || req.status === "in_review";
+          return (
+            <div
+              key={req._id}
+              className={`p-4 sm:p-5 rounded-2xl border transition-all flex flex-col lg:flex-row lg:items-center justify-between gap-4 ${
+                isDark
+                  ? "bg-[#14151c] border-white/10 hover:border-white/20"
+                  : "bg-white border-slate-200 hover:border-indigo-300 shadow-xs"
+              }`}
+            >
+              {/* Request Summary */}
+              <div className="space-y-1.5 flex-1 min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-mono text-xs font-bold text-indigo-400">
+                    {req.requestCode}
                   </span>
-                )}
-              </div>
-            </div>
-
-            {/* Stages Sequence */}
-            <div className="flex items-center gap-2 bg-slate-950/70 p-2.5 rounded-xl border border-slate-800 shrink-0">
-              {req.stages?.map((stage, idx) => (
-                <div key={idx} className="flex items-center gap-1.5 text-xs">
-                  <div
-                    className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold ${
-                      stage.status === "approved"
-                        ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
-                        : stage.status === "rejected"
-                        ? "bg-rose-500/20 text-rose-300 border border-rose-500/40"
-                        : "bg-amber-500/10 text-amber-300 border border-amber-500/30"
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider border ${
+                      isDark
+                        ? "bg-white/5 border-white/10 text-slate-300"
+                        : "bg-slate-100 border-slate-200 text-slate-700"
                     }`}
                   >
-                    {stage.status === "approved" ? (
-                      <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                    ) : (
-                      <Clock className="w-3 h-3 text-amber-400" />
-                    )}
-                    <span>{stage.stageName}</span>
-                  </div>
-                  {idx < req.stages.length - 1 && (
-                    <ChevronRight className="w-3.5 h-3.5 text-slate-600" />
+                    {req.requestType?.replace(/_/g, " ")}
+                  </span>
+                  <span
+                    className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                      req.status === "approved"
+                        ? "bg-emerald-500/15 text-emerald-500 border border-emerald-500/30"
+                        : req.status === "rejected"
+                        ? "bg-rose-500/15 text-rose-500 border border-rose-500/30"
+                        : "bg-amber-500/15 text-amber-500 border border-amber-500/30"
+                    }`}
+                  >
+                    {req.status?.replace(/_/g, " ")}
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-mono">
+                    {formatDateIN(req.createdAt)}
+                  </span>
+                </div>
+
+                <h3 className={`text-sm font-bold truncate ${isDark ? "text-white" : "text-slate-900"}`}>
+                  {req.title}
+                </h3>
+                {req.description && (
+                  <p className={`text-xs line-clamp-2 ${isDark ? "text-slate-400" : "text-slate-600"}`}>
+                    {req.description}
+                  </p>
+                )}
+
+                <div className={`flex flex-wrap items-center gap-4 text-[11px] pt-1 ${isDark ? "text-slate-400" : "text-slate-600"}`}>
+                  <span>
+                    Requested by:{" "}
+                    <strong className={isDark ? "text-slate-200" : "text-slate-900"}>
+                      {getDisplayName(req.requester)}
+                    </strong>
+                  </span>
+                  <span>
+                    Target:{" "}
+                    <strong className={isDark ? "text-slate-200" : "text-slate-900"}>
+                      {req.targetDepartment?.name || req.department?.name || "Operations"}
+                    </strong>
+                  </span>
+                  {req.amount > 0 && (
+                    <span className="text-emerald-500 font-bold font-mono flex items-center gap-0.5">
+                      {formatINR(req.amount)}
+                    </span>
                   )}
                 </div>
-              ))}
-            </div>
-
-            {/* Action Buttons for Managers / Approvers */}
-            {req.status === "pending" && (user?.role === "manager" || user?.role === "admin") && (
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  onClick={() => handleApproveStage(req._id)}
-                  className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition-colors flex items-center gap-1 shadow-sm"
-                >
-                  <CheckCircle2 className="w-3.5 h-3.5" /> Approve Stage
-                </button>
-                <button
-                  onClick={() => handleReject(req._id)}
-                  className="px-3 py-1.5 rounded-xl bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white font-semibold text-xs border border-rose-500/30 transition-colors flex items-center gap-1"
-                >
-                  <XCircle className="w-3.5 h-3.5" /> Reject
-                </button>
               </div>
-            )}
-          </div>
-        ))}
+
+              {/* Stages Sequence */}
+              <div
+                className={`flex flex-wrap items-center gap-2 p-2.5 rounded-xl border shrink-0 ${
+                  isDark ? "bg-[#1a1b24] border-white/10" : "bg-slate-50 border-slate-200"
+                }`}
+              >
+                {req.stages?.map((stage, idx) => (
+                  <div key={idx} className="flex items-center gap-1.5 text-xs">
+                    <div
+                      className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-semibold border ${
+                        stage.status === "approved"
+                          ? "bg-emerald-500/15 text-emerald-500 border-emerald-500/30"
+                          : stage.status === "rejected"
+                          ? "bg-rose-500/15 text-rose-500 border-rose-500/30"
+                          : "bg-amber-500/10 text-amber-500 border-amber-500/30"
+                      }`}
+                    >
+                      {stage.status === "approved" ? (
+                        <CheckCircle2 className="w-3 h-3" />
+                      ) : stage.status === "rejected" ? (
+                        <XCircle className="w-3 h-3" />
+                      ) : (
+                        <Clock className="w-3 h-3" />
+                      )}
+                      <span>{stage.stageName}</span>
+                    </div>
+                    {idx < req.stages.length - 1 && (
+                      <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Action Buttons for Managers / Admins */}
+              {isPending && (user?.role === "manager" || user?.role === "admin") && (
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={() => {
+                      setActionModal({ type: "approve", request: req });
+                      setActionNotes("");
+                    }}
+                    className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Approve Stage
+                  </button>
+                  <button
+                    onClick={() => {
+                      setActionModal({ type: "reject", request: req });
+                      setActionNotes("");
+                    }}
+                    className="px-3.5 py-2 rounded-xl bg-rose-500/15 hover:bg-rose-600 text-rose-400 hover:text-white font-semibold text-xs border border-rose-500/30 transition-colors flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <XCircle className="w-3.5 h-3.5" /> Reject
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })}
 
         {filteredRequests.length === 0 && !loading && (
-          <div className="text-center py-16 text-slate-500 space-y-2">
-            <FileCheck2 className="w-8 h-8 mx-auto text-slate-600" />
-            <p className="text-xs">No cross-department requests found</p>
+          <div
+            className={`text-center py-16 rounded-2xl border-2 border-dashed space-y-2 ${
+              isDark ? "border-white/10 text-slate-500" : "border-slate-200 text-slate-400"
+            }`}
+          >
+            <FileCheck2 className="w-8 h-8 mx-auto opacity-60" />
+            <p className="text-xs font-semibold">No cross-department requests found</p>
           </div>
         )}
       </div>
@@ -259,47 +367,74 @@ export default function Requests() {
       {/* Modal: Create Request */}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-5 space-y-4 shadow-2xl text-slate-200 animate-in fade-in zoom-in-95 duration-150">
-            <h2 className="text-sm font-bold text-white flex items-center gap-2">
-              <FileCheck2 className="w-4 h-4 text-blue-400" />
-              <span>Submit Formal Inter-Department Request</span>
-            </h2>
+          <div
+            className={`border rounded-3xl w-full max-w-lg p-6 space-y-4 shadow-2xl animate-in fade-in zoom-in-95 duration-150 ${
+              isDark ? "bg-[#15161f] border-white/10 text-slate-100" : "bg-white border-slate-200 text-slate-900"
+            }`}
+          >
+            <div className={`flex items-center justify-between pb-3 border-b ${isDark ? "border-white/10" : "border-slate-100"}`}>
+              <h2 className="text-sm font-bold flex items-center gap-2">
+                <FileCheck2 className="w-4 h-4 text-indigo-500" />
+                <span>Submit Formal Inter-Department Request</span>
+              </h2>
+              <button
+                onClick={() => setShowCreateModal(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-200 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
 
-            <form onSubmit={handleCreateRequest} className="space-y-3 text-xs">
+            <form onSubmit={handleCreateRequest} className="space-y-3.5 text-xs">
               <div>
-                <label className="block text-slate-400 font-semibold mb-1">Request Title</label>
+                <label className={`block font-semibold mb-1 ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+                  Request Title *
+                </label>
                 <input
                   type="text"
                   required
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="e.g. Q4 Marketing Video Production Budget"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                  placeholder="e.g. Q4 Cloud Infrastructure Budget Approval"
+                  className={`w-full border rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-indigo-500 ${
+                    isDark
+                      ? "bg-[#12131b] border-white/10 text-white placeholder-slate-500"
+                      : "bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400"
+                  }`}
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-400 font-semibold mb-1">Request Type</label>
+                  <label className={`block font-semibold mb-1 ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+                    Request Type
+                  </label>
                   <select
                     value={requestType}
                     onChange={(e) => setRequestType(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-2 text-white focus:outline-none focus:border-blue-500"
+                    className={`w-full border rounded-xl px-3 py-2.5 focus:outline-none focus:border-indigo-500 ${
+                      isDark ? "bg-[#12131b] border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
+                    }`}
                   >
                     <option value="budget_approval">Budget Approval</option>
                     <option value="asset_requisition">Asset Requisition</option>
                     <option value="travel_request">Travel Request</option>
-                    <option value="legal_review">Legal Review</option>
-                    <option value="general_admin">General Admin</option>
+                    <option value="vendor_payment">Vendor Payment</option>
+                    <option value="compliance_signoff">Compliance Sign-Off</option>
+                    <option value="general_request">General Request</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-slate-400 font-semibold mb-1">Target Department</label>
+                  <label className={`block font-semibold mb-1 ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+                    Target Department
+                  </label>
                   <select
                     value={targetDepartment}
                     onChange={(e) => setTargetDepartment(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-2 text-white focus:outline-none focus:border-blue-500"
+                    className={`w-full border rounded-xl px-3 py-2.5 focus:outline-none focus:border-indigo-500 ${
+                      isDark ? "bg-[#12131b] border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
+                    }`}
                   >
                     {departments.map((dept) => (
                       <option key={dept._id} value={dept._id}>
@@ -312,22 +447,36 @@ export default function Requests() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-400 font-semibold mb-1">Amount ($ USD)</label>
-                  <input
-                    type="number"
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                    placeholder="e.g. 2500"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-blue-500"
-                  />
+                  <label className={`block font-semibold mb-1 ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+                    Amount (₹ INR)
+                  </label>
+                  <div className="relative">
+                    <IndianRupee className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="number"
+                      min="0"
+                      value={amount}
+                      onChange={(e) => setAmount(e.target.value)}
+                      placeholder="e.g. 25000"
+                      className={`w-full border rounded-xl pl-8 pr-3 py-2.5 focus:outline-none focus:border-indigo-500 ${
+                        isDark
+                          ? "bg-[#12131b] border-white/10 text-white placeholder-slate-500"
+                          : "bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400"
+                      }`}
+                    />
+                  </div>
                 </div>
 
                 <div>
-                  <label className="block text-slate-400 font-semibold mb-1">Urgency</label>
+                  <label className={`block font-semibold mb-1 ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+                    Urgency
+                  </label>
                   <select
                     value={urgency}
                     onChange={(e) => setUrgency(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-2 text-white focus:outline-none focus:border-blue-500"
+                    className={`w-full border rounded-xl px-3 py-2.5 focus:outline-none focus:border-indigo-500 ${
+                      isDark ? "bg-[#12131b] border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
+                    }`}
                   >
                     <option value="urgent">Urgent (Immediate)</option>
                     <option value="high">High Priority</option>
@@ -338,29 +487,100 @@ export default function Requests() {
               </div>
 
               <div>
-                <label className="block text-slate-400 font-semibold mb-1">Details & Justification</label>
+                <label className={`block font-semibold mb-1 ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+                  Details & Justification
+                </label>
                 <textarea
                   rows={3}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="Explain why this sign-off is required and deliverables expected..."
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-blue-500 resize-none"
+                  className={`w-full border rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-indigo-500 resize-none ${
+                    isDark
+                      ? "bg-[#12131b] border-white/10 text-white placeholder-slate-500"
+                      : "bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400"
+                  }`}
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-2">
+              <div className={`flex items-center justify-end gap-2 pt-3 border-t ${isDark ? "border-white/10" : "border-slate-100"}`}>
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
-                  className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold transition-colors"
+                  className={`px-4 py-2 rounded-xl font-semibold transition-colors cursor-pointer ${
+                    isDark ? "text-slate-400 hover:bg-white/5" : "text-slate-600 hover:bg-slate-100"
+                  }`}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold transition-colors shadow-md shadow-blue-500/20"
+                  disabled={submitting}
+                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold transition-colors shadow-md shadow-blue-500/20 cursor-pointer"
                 >
-                  Submit Request
+                  {submitting ? "Submitting..." : "Submit Request"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Approve / Reject Confirmation */}
+      {actionModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div
+            className={`border rounded-3xl w-full max-w-md p-6 space-y-4 shadow-2xl ${
+              isDark ? "bg-[#15161f] border-white/10 text-slate-100" : "bg-white border-slate-200 text-slate-900"
+            }`}
+          >
+            <h3 className="text-sm font-bold">
+              {actionModal.type === "approve"
+                ? `Approve Stage: ${actionModal.request.requestCode}`
+                : `Reject Request: ${actionModal.request.requestCode}`}
+            </h3>
+            <p className={`text-xs ${isDark ? "text-slate-400" : "text-slate-600"}`}>
+              {actionModal.request.title}
+            </p>
+            <form onSubmit={submitAction} className="space-y-3">
+              <textarea
+                rows={3}
+                value={actionNotes}
+                onChange={(e) => setActionNotes(e.target.value)}
+                placeholder={
+                  actionModal.type === "approve"
+                    ? "Optional sign-off notes..."
+                    : "Reason for declining this request..."
+                }
+                required={actionModal.type === "reject"}
+                className={`w-full border rounded-xl p-3 text-xs focus:outline-none focus:border-indigo-500 ${
+                  isDark
+                    ? "bg-[#12131b] border-white/10 text-white placeholder-slate-500"
+                    : "bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400"
+                }`}
+              />
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setActionModal(null)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={processingAction}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold text-white cursor-pointer ${
+                    actionModal.type === "approve"
+                      ? "bg-emerald-600 hover:bg-emerald-500"
+                      : "bg-rose-600 hover:bg-rose-500"
+                  }`}
+                >
+                  {processingAction
+                    ? "Processing..."
+                    : actionModal.type === "approve"
+                    ? "Confirm Approval"
+                    : "Confirm Rejection"}
                 </button>
               </div>
             </form>

@@ -80,6 +80,12 @@ exports.createRequest = async (req, res) => {
 
     await newRequest.save();
 
+    const populatedRequest = await Request.findById(newRequest._id)
+      .populate("requester", "fullname email avatar jobTitle role")
+      .populate("department", "name code color")
+      .populate("targetDepartment", "name code color")
+      .lean();
+
     await createNotification({
       recipient: req.user._id,
       sender: req.user._id,
@@ -91,10 +97,10 @@ exports.createRequest = async (req, res) => {
     enqueueWebSocketEvent({
       target: "all",
       event: "request:created",
-      data: { request: newRequest },
+      data: { request: populatedRequest },
     });
 
-    res.status(201).json({ success: true, request: newRequest });
+    res.status(201).json({ success: true, request: populatedRequest });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -145,7 +151,8 @@ exports.getRequestById = async (req, res) => {
 exports.approveStage = async (req, res) => {
   try {
     const { id } = req.params;
-    const { comment } = req.body;
+    const { comment, notes } = req.body;
+    const approvalComment = comment || notes || "Approved";
     const request = await Request.findById(id);
     if (!request) return res.status(404).json({ success: false, message: "Request not found" });
 
@@ -156,7 +163,7 @@ exports.approveStage = async (req, res) => {
 
     currentStage.status = "approved";
     currentStage.approver = req.user._id;
-    currentStage.comment = comment || "Approved";
+    currentStage.comment = approvalComment;
     currentStage.actionDate = new Date();
 
     const isLastStage = request.currentStageIndex >= request.stages.length - 1;
@@ -213,7 +220,8 @@ exports.approveStage = async (req, res) => {
 exports.rejectRequest = async (req, res) => {
   try {
     const { id } = req.params;
-    const { reason } = req.body;
+    const { reason, notes } = req.body;
+    const rejectionText = reason || notes || "Declined";
     const request = await Request.findById(id);
     if (!request) return res.status(404).json({ success: false, message: "Request not found" });
 
@@ -221,12 +229,12 @@ exports.rejectRequest = async (req, res) => {
     if (currentStage) {
       currentStage.status = "rejected";
       currentStage.approver = req.user._id;
-      currentStage.comment = reason || "Rejected";
+      currentStage.comment = rejectionText;
       currentStage.actionDate = new Date();
     }
 
     request.status = "rejected";
-    request.rejectionReason = reason || "Declined";
+    request.rejectionReason = rejectionText;
     await request.save();
 
     await createNotification({
@@ -234,7 +242,7 @@ exports.rejectRequest = async (req, res) => {
       sender: req.user._id,
       type: "task_updated",
       title: "Request Declined",
-      message: `${request.requestCode} was declined: "${reason || "No comment"}"`,
+      message: `${request.requestCode} was declined: "${rejectionText}"`,
     });
 
     enqueueWebSocketEvent({

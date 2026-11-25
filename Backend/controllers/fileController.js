@@ -106,6 +106,7 @@ exports.uploadChunk = async (req, res) => {
         fileName: safeName,
         originalName: fileName,
         size: stat.size,
+        mimetype: req.body.mimeType || "application/octet-stream",
         checksum,
         minioStored: !!minioResult,
       });

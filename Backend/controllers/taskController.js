@@ -9,10 +9,11 @@ const { enqueueWebSocketEvent, enqueueTaskMetrics } = require("../services/queue
 // Get tasks with filtering
 exports.getTasks = async (req, res) => {
   try {
-    const { projectId, status, assignee, priority, type, search, overdue } = req.query;
+    const { projectId, project, status, assignee, priority, type, search, overdue } = req.query;
     const filter = {};
 
-    if (projectId) filter.project = projectId;
+    const targetProjectId = projectId || project;
+    if (targetProjectId) filter.project = targetProjectId;
     if (status) filter.status = status;
     if (assignee) {
       if (assignee === "unassigned") filter.assignee = null;
@@ -93,8 +94,8 @@ exports.getMyTasks = async (req, res) => {
       success: true,
       stats: {
         total: allMyTasks.length,
-        inProgress: allMyTasks.filter((t) => t.status === "in_progress").length,
-        review: allMyTasks.filter((t) => t.status === "review").length,
+        inProgress: allMyTasks.filter((t) => ["in_progress", "redo_requested"].includes(t.status)).length,
+        review: allMyTasks.filter((t) => ["review", "submitted_for_review"].includes(t.status)).length,
         done: completedRecently.length,
         overdueCount: overdue.length,
         dueTodayCount: dueToday.length,

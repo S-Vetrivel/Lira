@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useApp } from "../../context/Appcontext";
 import { createTask, getAITaskBreakdown } from "../../services/api";
 import {
@@ -35,6 +35,12 @@ export default function CreateTaskModal({ isOpen, onClose, onCreated }) {
 
   const [loadingAI, setLoadingAI] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (isOpen && activeProject?._id) {
+      setProjectId(activeProject._id);
+    }
+  }, [isOpen, activeProject?._id]);
 
   if (!isOpen) return null;
 

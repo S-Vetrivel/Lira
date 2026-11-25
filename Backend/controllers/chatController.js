@@ -3,6 +3,9 @@ const User = require("../models/userModel");
 const { enqueueWebSocketEvent } = require("../services/queue");
 const { emitToUser, getIO } = require("../config/socket");
 
+const USER_POPULATE_FIELDS =
+  "fullname email avatar profilePicture role department departmentName publicId jobTitle status";
+
 // 1. Send / Record Encrypted Message
 exports.sendMessage = async (req, res) => {
   try {
@@ -19,7 +22,10 @@ exports.sendMessage = async (req, res) => {
     } = req.body;
 
     if (!roomId || !encryptedPayload || !iv) {
-      return res.status(400).json({ success: false, message: "Missing required encrypted message payload or room ID" });
+      return res.status(400).json({
+        success: false,
+        message: "Missing required encrypted message payload or room ID",
+      });
     }
 
     const newMessage = await Message.create({
@@ -37,18 +43,19 @@ exports.sendMessage = async (req, res) => {
       readBy: [{ user: req.user._id, readAt: new Date() }],
     });
 
-    const populated = await Message.findById(newMessage._id).populate(
-      "sender",
-      "name email avatar role department"
-    );
+    const populated = await Message.findById(newMessage._id)
+      .populate("sender", USER_POPULATE_FIELDS)
+      .populate("recipient", USER_POPULATE_FIELDS);
 
     // Broadcast in real-time
     const io = getIO();
     if (io) {
       io.to(`chat_${roomId}`).emit("chat:message", populated);
       if (recipientId) {
+        emitToUser(recipientId.toString(), "chat:message", populated);
         emitToUser(recipientId.toString(), "chat:notification", {
-          sender: req.user.name,
+          sender: req.user.fullname || req.user.email,
+          senderId: req.user._id,
           roomId,
           chatType,
         });
@@ -88,7 +95,8 @@ exports.getMessages = async (req, res) => {
     const messages = await Message.find(query)
       .sort({ createdAt: 1 })
       .limit(parseInt(limit, 10))
-      .populate("sender", "name email avatar role department");
+      .populate("sender", USER_POPULATE_FIELDS)
+      .populate("recipient", USER_POPULATE_FIELDS);
 
     res.status(200).json({ success: true, count: messages.length, messages });
   } catch (error) {
@@ -110,14 +118,76 @@ exports.markRead = async (req, res) => {
   }
 };
 
-// 4. Get active chat conversations / colleagues
+// 4. Get active chat conversations / colleagues with real DM metadata & unread counts
 exports.getConversations = async (req, res) => {
   try {
-    const colleagues = await User.find({ _id: { $ne: req.user._id }, isActive: true })
-      .select("name email avatar role department")
-      .populate("department", "name");
+    const currentUserId = req.user._id.toString();
 
-    res.status(200).json({ success: true, colleagues });
+    const colleagues = await User.find({
+      _id: { $ne: req.user._id },
+      isActive: true,
+      status: "active",
+    })
+      .select(USER_POPULATE_FIELDS)
+      .populate("department", "name code color")
+      .sort({ fullname: 1 })
+      .lean();
+
+    const enrichedColleagues = await Promise.all(
+      colleagues.map(async (colleague) => {
+        const sortedIds = [currentUserId, colleague._id.toString()].sort();
+        const dmRoomId = `dm_${sortedIds[0]}_${sortedIds[1]}`;
+
+        const [lastMessage, unreadCount] = await Promise.all([
+          Message.findOne({ roomId: dmRoomId })
+            .sort({ createdAt: -1 })
+            .select("createdAt attachments sender")
+            .lean(),
+          Message.countDocuments({
+            roomId: dmRoomId,
+            sender: { $ne: req.user._id },
+            "readBy.user": { $ne: req.user._id },
+          }),
+        ]);
+
+        return {
+          ...colleague,
+          departmentName: colleague.department?.name || colleague.departmentName || "General",
+          dmRoomId,
+          lastMessageAt: lastMessage?.createdAt || null,
+          unreadCount,
+        };
+      })
+    );
+
+    // Sort colleagues with recent DMs first, then alphabetically
+    enrichedColleagues.sort((a, b) => {
+      if (a.lastMessageAt && b.lastMessageAt) {
+        return new Date(b.lastMessageAt) - new Date(a.lastMessageAt);
+      }
+      if (a.lastMessageAt) return -1;
+      if (b.lastMessageAt) return 1;
+      return (a.fullname || "").localeCompare(b.fullname || "");
+    });
+
+    // Also compute unread counts for department channels
+    const channelIds = ["dept_general", "dept_engineering", "dept_hr", "dept_finance"];
+    const channelUnread = {};
+    await Promise.all(
+      channelIds.map(async (roomId) => {
+        channelUnread[roomId] = await Message.countDocuments({
+          roomId,
+          sender: { $ne: req.user._id },
+          "readBy.user": { $ne: req.user._id },
+        });
+      })
+    );
+
+    res.status(200).json({
+      success: true,
+      colleagues: enrichedColleagues,
+      channelUnread,
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

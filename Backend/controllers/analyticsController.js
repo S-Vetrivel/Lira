@@ -3,7 +3,10 @@ const Project = require("../models/projectModel");
 const User = require("../models/userModel");
 const Department = require("../models/departmentModel");
 const ActionLog = require("../models/actionLogModel");
+const ActivityLog = require("../models/activityLogModel");
 const batchLogger = require("../services/batchLogger");
+
+const HOURLY_RATE_INR = 1500;
 
 exports.getManagerOverview = async (req, res) => {
   try {
@@ -17,11 +20,17 @@ exports.getManagerOverview = async (req, res) => {
       taskFilter.project = projectId;
     }
 
-    // 1. Overall Task Metrics
+    // 1. Overall Task Metrics (Real DB counts)
     const totalAllTasks = await Task.countDocuments(taskFilter);
     const totalDoneTasks = await Task.countDocuments({ ...taskFilter, status: "done" });
-    const totalInProgressTasks = await Task.countDocuments({ ...taskFilter, status: "in_progress" });
-    const totalReviewTasks = await Task.countDocuments({ ...taskFilter, status: "review" });
+    const totalInProgressTasks = await Task.countDocuments({
+      ...taskFilter,
+      status: { $in: ["in_progress", "redo_requested"] },
+    });
+    const totalReviewTasks = await Task.countDocuments({
+      ...taskFilter,
+      status: { $in: ["review", "submitted_for_review"] },
+    });
     const totalTodoTasks = await Task.countDocuments({ ...taskFilter, status: "todo" });
     const totalOverdueCount = await Task.countDocuments({
       ...taskFilter,
@@ -52,8 +61,11 @@ exports.getManagerOverview = async (req, res) => {
       },
     };
 
-    // 2. Effort & Hours calculation
-    const allMatchingTasks = await Task.find(taskFilter).select("estimatedHours loggedHours workLogs").lean();
+    // 2. Effort & Hours calculation (Real DB records)
+    const allMatchingTasks = await Task.find(taskFilter)
+      .select("_id estimatedHours loggedHours workLogs createdAt updatedAt dueDate status")
+      .lean();
+
     let totalEstimatedHours = 0;
     let totalLoggedHours = 0;
 
@@ -62,8 +74,13 @@ exports.getManagerOverview = async (req, res) => {
       totalLoggedHours += Number(t.loggedHours) || 0;
     });
 
-    // 3. Weekly Velocity (Mon - Sun)
-    // Compute real daily task distributions for the current week
+    totalEstimatedHours = Math.round(totalEstimatedHours * 10) / 10;
+    totalLoggedHours = Math.round(totalLoggedHours * 10) / 10;
+
+    // Real INR valuation based strictly on logged work hours
+    const sprintValuationINR = Math.round(totalLoggedHours * HOURLY_RATE_INR);
+
+    // 3. Weekly Velocity (Mon - Sun of current week, real workLogs)
     const dayOfWeek = (now.getDay() + 6) % 7; // 0 for Mon, 6 for Sun
     const startOfWeek = new Date(now);
     startOfWeek.setDate(now.getDate() - dayOfWeek);
@@ -76,50 +93,92 @@ exports.getManagerOverview = async (req, res) => {
       const dEnd = new Date(dStart);
       dEnd.setDate(dStart.getDate() + 1);
 
-      // Filter tasks touched on this day
-      const dayTasks = allMatchingTasks.filter((t) => {
-        const hasLog = t.workLogs?.some((l) => {
-          const lDate = new Date(l.date || l.createdAt || now);
-          return lDate >= dStart && lDate < dEnd;
-        });
-        return hasLog;
-      });
-
       let dayHours = 0;
+      const touchedTaskIds = new Set();
+
       allMatchingTasks.forEach((t) => {
         t.workLogs?.forEach((l) => {
           const lDate = new Date(l.date || l.createdAt || now);
           if (lDate >= dStart && lDate < dEnd) {
             dayHours += Number(l.hours) || 0;
+            touchedTaskIds.add(t._id.toString());
           }
         });
       });
 
       return {
         day: dayName,
-        tasksCount: dayTasks.length,
+        tasksCount: touchedTaskIds.size,
         hours: Math.round(dayHours * 10) / 10,
         isToday: idx === dayOfWeek,
       };
     });
 
-    // 4. Throughput Timeline (14 Days)
+    // 4. Real Throughput Timeline (Last 14 Days from real ActivityLogs + Task workLogs + Task events)
+    const fourteenDaysAgo = new Date(now);
+    fourteenDaysAgo.setDate(now.getDate() - 13);
+    fourteenDaysAgo.setHours(0, 0, 0, 0);
+
+    const activityFilter = { createdAt: { $gte: fourteenDaysAgo } };
+    if (projectId) activityFilter.project = projectId;
+    const recentActivities = await ActivityLog.find(activityFilter).select("createdAt").lean();
+
     const throughputCurve = [];
     for (let i = 13; i >= 0; i--) {
-      const pDay = new Date(now);
-      pDay.setDate(now.getDate() - i);
-      const dayLabel = pDay.toLocaleDateString([], { month: "short", day: "numeric" });
-      const dayNumber = pDay.getDate();
+      const dStart = new Date(now);
+      dStart.setDate(now.getDate() - i);
+      dStart.setHours(0, 0, 0, 0);
+      const dEnd = new Date(dStart);
+      dEnd.setDate(dStart.getDate() + 1);
 
-      // Estimate actions based on actual tasks & work logs
-      const actionsCount = Math.max(1, totalAllTasks * 2 + (i % 3) * 3);
+      const dayLabel = dStart.toLocaleDateString("en-IN", { month: "short", day: "numeric" });
+      const dayNumber = dStart.getDate();
+
+      // Count real activities logged on this day
+      let actionsCount = recentActivities.filter((a) => {
+        const dt = new Date(a.createdAt);
+        return dt >= dStart && dt < dEnd;
+      }).length;
+
+      // Also include tasks created/updated on this day if no activity log was recorded for them
+      const taskUpdatesCount = allMatchingTasks.filter((t) => {
+        const created = t.createdAt ? new Date(t.createdAt) : null;
+        return created && created >= dStart && created < dEnd;
+      }).length;
+
+      // Real workLog hours on this day
+      let dayHours = 0;
+      allMatchingTasks.forEach((t) => {
+        t.workLogs?.forEach((l) => {
+          const lDate = new Date(l.date || l.createdAt);
+          if (lDate >= dStart && lDate < dEnd) {
+            dayHours += Number(l.hours) || 0;
+          }
+        });
+      });
+
+      const realActions = actionsCount > 0 ? actionsCount : taskUpdatesCount;
+
       throughputCurve.push({
         date: dayLabel,
         dayNumber,
-        actions: actionsCount,
-        hours: Math.round((actionsCount * 1.5) * 10) / 10,
+        actions: realActions,
+        hours: Math.round(dayHours * 10) / 10,
       });
     }
+
+    // Current month task due dates (for real sprint calendar markers)
+    const currentMonthDueDays = [];
+    allMatchingTasks.forEach((t) => {
+      if (!t.dueDate) return;
+      const d = new Date(t.dueDate);
+      if (d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()) {
+        currentMonthDueDays.push({
+          day: d.getDate(),
+          status: t.status,
+        });
+      }
+    });
 
     // 5. Top Priority Tasks (Real database records)
     const priorityOrder = { urgent: 1, high: 2, medium: 3, low: 4 };
@@ -155,30 +214,34 @@ exports.getManagerOverview = async (req, res) => {
         dueDate: t.dueDate,
       }));
 
-    // 6. Team Workload Breakdown
-    const activeUsers = await User.find({ isActive: true })
+    // 6. Team Workload Breakdown (Real active workspace staff)
+    const activeUsers = await User.find({ isActive: true, status: "active" })
       .select("fullname email avatar profilePicture jobTitle departmentName role")
       .lean();
 
     const teamWorkload = await Promise.all(
       activeUsers.map(async (u) => {
         const openTasks = await Task.countDocuments({
+          ...taskFilter,
           assignee: u._id,
-          status: { $in: ["todo", "in_progress", "review"] },
+          status: { $in: ["todo", "in_progress", "review", "submitted_for_review", "redo_requested"] },
         });
 
         const overdueTasks = await Task.countDocuments({
+          ...taskFilter,
           assignee: u._id,
           status: { $ne: "done" },
           dueDate: { $lt: now },
         });
 
         const completedTasks = await Task.countDocuments({
+          ...taskFilter,
           assignee: u._id,
           status: "done",
         });
 
         const totalHoursLogged = await Task.aggregate([
+          ...(projectId ? [{ $match: { project: allMatchingTasks[0]?.project || null } }] : []),
           { $match: { "workLogs.user": u._id } },
           { $unwind: "$workLogs" },
           { $match: { "workLogs.user": u._id } },
@@ -205,28 +268,31 @@ exports.getManagerOverview = async (req, res) => {
     const departments = await Department.find().lean();
     const departmentBreakdown = await Promise.all(
       departments.map(async (dept) => {
-        // Find users in this department
         const deptUsers = await User.find({
+          isActive: true,
+          status: "active",
           $or: [{ department: dept._id }, { departmentName: dept.name }],
         }).select("_id");
         const deptUserIds = deptUsers.map((u) => u._id);
 
         const deptTasksCount = await Task.countDocuments({
+          ...taskFilter,
           assignee: { $in: deptUserIds },
         });
 
         const deptDoneCount = await Task.countDocuments({
+          ...taskFilter,
           assignee: { $in: deptUserIds },
           status: "done",
         });
 
-        // Sum hours logged by users in this department
-        const deptHoursRes = await Task.aggregate([
-          { $match: { "workLogs.user": { $in: deptUserIds } } },
-          { $unwind: "$workLogs" },
-          { $match: { "workLogs.user": { $in: deptUserIds } } },
-          { $group: { _id: null, total: { $sum: "$workLogs.hours" } } },
-        ]);
+        const deptTasks = await Task.find({
+          ...taskFilter,
+          assignee: { $in: deptUserIds },
+        })
+          .select("loggedHours")
+          .lean();
+        const deptHours = deptTasks.reduce((sum, t) => sum + (Number(t.loggedHours) || 0), 0);
 
         return {
           id: dept._id,
@@ -235,7 +301,7 @@ exports.getManagerOverview = async (req, res) => {
           color: dept.color,
           taskCount: deptTasksCount,
           completedCount: deptDoneCount,
-          hoursLogged: deptHoursRes[0]?.total || 0,
+          hoursLogged: Math.round(deptHours * 10) / 10,
           membersCount: deptUsers.length,
         };
       })
@@ -250,8 +316,14 @@ exports.getManagerOverview = async (req, res) => {
       projects.map(async (proj) => {
         const total = await Task.countDocuments({ project: proj._id });
         const done = await Task.countDocuments({ project: proj._id, status: "done" });
-        const inProgress = await Task.countDocuments({ project: proj._id, status: "in_progress" });
-        const review = await Task.countDocuments({ project: proj._id, status: "review" });
+        const inProgress = await Task.countDocuments({
+          project: proj._id,
+          status: { $in: ["in_progress", "redo_requested"] },
+        });
+        const review = await Task.countDocuments({
+          project: proj._id,
+          status: { $in: ["review", "submitted_for_review"] },
+        });
         const todo = await Task.countDocuments({ project: proj._id, status: "todo" });
         const overdue = await Task.countDocuments({
           project: proj._id,
@@ -277,6 +349,7 @@ exports.getManagerOverview = async (req, res) => {
 
     // 9. Overdue Tasks list
     const overdueTasks = await Task.find({
+      ...taskFilter,
       dueDate: { $lt: now },
       status: { $ne: "done" },
     })
@@ -295,10 +368,14 @@ exports.getManagerOverview = async (req, res) => {
     };
 
     if (currentUser.role === "employee") {
-      const myTasks = await Task.find({ assignee: currentUser._id }).lean();
+      const myTasks = await Task.find({ ...taskFilter, assignee: currentUser._id }).lean();
       const myDone = myTasks.filter((t) => t.status === "done").length;
-      const myInProgress = myTasks.filter((t) => t.status === "in_progress").length;
-      const myReview = myTasks.filter((t) => t.status === "review").length;
+      const myInProgress = myTasks.filter((t) =>
+        ["in_progress", "redo_requested"].includes(t.status)
+      ).length;
+      const myReview = myTasks.filter((t) =>
+        ["review", "submitted_for_review"].includes(t.status)
+      ).length;
       const myTodo = myTasks.filter((t) => t.status === "todo").length;
       const myOverdue = myTasks.filter(
         (t) => t.status !== "done" && t.dueDate && new Date(t.dueDate) < now
@@ -308,11 +385,7 @@ exports.getManagerOverview = async (req, res) => {
       let myEstimatedHours = 0;
       myTasks.forEach((t) => {
         myEstimatedHours += Number(t.estimatedHours) || 0;
-        t.workLogs?.forEach((l) => {
-          if (l.user?.toString() === currentUser._id.toString()) {
-            myLoggedHours += Number(l.hours) || 0;
-          }
-        });
+        myLoggedHours += Number(t.loggedHours) || 0;
       });
 
       userRoleData.myMetrics = {
@@ -322,8 +395,8 @@ exports.getManagerOverview = async (req, res) => {
         reviewTasks: myReview,
         todoTasks: myTodo,
         overdueCount: myOverdue,
-        loggedHours: myLoggedHours,
-        estimatedHours: myEstimatedHours,
+        loggedHours: Math.round(myLoggedHours * 10) / 10,
+        estimatedHours: Math.round(myEstimatedHours * 10) / 10,
         completionRate: myTasks.length > 0 ? Math.round((myDone / myTasks.length) * 100) : 0,
       };
 
@@ -360,8 +433,8 @@ exports.getManagerOverview = async (req, res) => {
       };
     } else if (currentUser.role === "admin") {
       const totalDepartmentsCount = await Department.countDocuments();
-      const totalUsersCount = await User.countDocuments({ isActive: true });
-      const totalProjectsCount = await Project.countDocuments();
+      const totalUsersCount = await User.countDocuments({ isActive: true, status: "active" });
+      const totalProjectsCount = await Project.countDocuments({ status: { $ne: "archived" } });
 
       userRoleData.adminMetrics = {
         totalDepartmentsCount,
@@ -382,10 +455,13 @@ exports.getManagerOverview = async (req, res) => {
         completionRate,
         totalEstimatedHours,
         totalLoggedHours,
+        hourlyRateINR: HOURLY_RATE_INR,
+        sprintValuationINR,
       },
       statusBreakdown,
       weeklyVelocity,
       throughputCurve,
+      currentMonthDueDays,
       topPriorityTickets,
       teamWorkload: teamWorkload.sort((a, b) => b.openTasks - a.openTasks),
       departmentBreakdown,

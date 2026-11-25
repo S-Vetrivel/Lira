@@ -1,29 +1,19 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useApp } from "../context/Appcontext";
 import { getManagerOverview } from "../services/api";
+import { formatINR, formatNumberIN, formatDateIN } from "../utils/formatters";
 import {
-  TrendingUp,
-  ArrowUpRight,
   ChevronDown,
   Calendar as CalendarIcon,
-  BarChart2,
+  IndianRupee,
   PieChart,
-  CheckCircle2,
-  Clock,
-  Layers,
-  Sparkles,
   RefreshCw,
   Globe,
-  SlidersHorizontal,
-  Flame,
-  ArrowRight,
-  AlertCircle,
   ShieldCheck,
   Briefcase,
   User,
-  Users,
-  Target,
   CheckSquare,
+  Activity,
 } from "lucide-react";
 
 export default function Analytics() {
@@ -33,7 +23,7 @@ export default function Analytics() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [timeFilter, setTimeFilter] = useState("Month");
-  const [installTimeFilter, setInstallTimeFilter] = useState("Week");
+  const [velocityFilter, setVelocityFilter] = useState("Week");
   const [selectedTaskType, setSelectedTaskType] = useState("All");
 
   const loadOverview = async () => {
@@ -65,6 +55,8 @@ export default function Analytics() {
       completionRate: 0,
       totalEstimatedHours: 0,
       totalLoggedHours: 0,
+      hourlyRateINR: 1500,
+      sprintValuationINR: 0,
     },
     statusBreakdown = {
       inProgress: { count: 0, percentage: 0 },
@@ -74,15 +66,23 @@ export default function Analytics() {
     },
     weeklyVelocity = [],
     throughputCurve = [],
+    currentMonthDueDays = [],
     topPriorityTickets = [],
     teamWorkload = [],
     departmentBreakdown = [],
     projectProgress = [],
-    overdueTasks = [],
     userRoleData = {},
   } = data || {};
 
   const currentRole = user?.role || "employee";
+
+  // Slice real throughput data based on selected time filter
+  const visibleCurve = useMemo(() => {
+    if (!throughputCurve || throughputCurve.length === 0) return [];
+    if (timeFilter === "Today") return throughputCurve.slice(-2);
+    if (timeFilter === "Week") return throughputCurve.slice(-7);
+    return throughputCurve;
+  }, [throughputCurve, timeFilter]);
 
   // Filtered tickets based on dropdown selection
   const filteredTickets = useMemo(() => {
@@ -97,7 +97,7 @@ export default function Analytics() {
     return topPriorityTickets;
   }, [topPriorityTickets, selectedTaskType]);
 
-  // Determine effective status breakdown (role-aware: contributor sees their own, manager/admin sees project/company)
+  // Role-aware status breakdown
   const activeStatusBreakdown = useMemo(() => {
     if (currentRole === "employee" && userRoleData?.myStatusBreakdown) {
       return userRoleData.myStatusBreakdown;
@@ -105,60 +105,73 @@ export default function Analytics() {
     return statusBreakdown;
   }, [currentRole, userRoleData, statusBreakdown]);
 
-  // Generate SVG path points for throughput curve
+  // Generate SVG path points strictly from real database throughputCurve
   const svgPathData = useMemo(() => {
-    if (!throughputCurve || throughputCurve.length === 0) {
-      return {
-        pathD: "M 10,60 Q 50,30 100,55 T 180,75 T 240,30 T 320,45 T 390,55",
-        areaD: "M 10,60 Q 50,30 100,55 T 180,75 T 240,30 T 320,45 T 390,55 L 390,95 L 10,95 Z",
-        amberD: "M 10,75 Q 50,50 100,70 T 180,85 T 240,45 T 320,60 T 390,70",
-        activeX: 240,
-        activeY: 30,
-      };
+    if (!visibleCurve || visibleCurve.length === 0) {
+      return null;
     }
 
     const width = 390;
     const height = 85;
     const paddingX = 12;
-    const maxVal = Math.max(...throughputCurve.map((d) => d.actions), 10);
-    const stepX = (width - paddingX * 2) / (throughputCurve.length - 1);
+    const maxActions = Math.max(...visibleCurve.map((d) => d.actions), 1);
+    const maxHours = Math.max(...visibleCurve.map((d) => d.hours), 1);
+    const stepX =
+      visibleCurve.length > 1
+        ? (width - paddingX * 2) / (visibleCurve.length - 1)
+        : 0;
 
-    const points = throughputCurve.map((d, i) => {
-      const x = paddingX + i * stepX;
-      const y = height - (d.actions / maxVal) * (height - 20);
-      return { x, y, hours: d.hours, actions: d.actions };
+    const points = visibleCurve.map((d, i) => {
+      const x = visibleCurve.length === 1 ? width / 2 : paddingX + i * stepX;
+      const y = height - (d.actions / maxActions) * (height - 20);
+      const hy = height - (d.hours / maxHours) * (height - 24);
+      return { x, y, hy, hours: d.hours, actions: d.actions, date: d.date };
     });
 
     let pathD = `M ${points[0].x},${points[0].y}`;
+    let hoursD = `M ${points[0].x},${points[0].hy}`;
     for (let i = 1; i < points.length; i++) {
       const prev = points[i - 1];
       const curr = points[i];
       const cx = (prev.x + curr.x) / 2;
       pathD += ` C ${cx},${prev.y} ${cx},${curr.y} ${curr.x},${curr.y}`;
+      hoursD += ` C ${cx},${prev.hy} ${cx},${curr.hy} ${curr.x},${curr.hy}`;
     }
 
     const areaD = `${pathD} L ${points[points.length - 1].x},95 L ${points[0].x},95 Z`;
-
-    let amberD = `M ${points[0].x},${Math.min(90, points[0].y + 12)}`;
-    for (let i = 1; i < points.length; i++) {
-      const prev = points[i - 1];
-      const curr = points[i];
-      const cx = (prev.x + curr.x) / 2;
-      amberD += ` C ${cx},${Math.min(90, prev.y + 12)} ${cx},${Math.min(90, curr.y + 12)} ${curr.x},${Math.min(90, curr.y + 12)}`;
-    }
-
     const lastIdx = points.length - 1;
-    const activeX = points[lastIdx]?.x || 240;
-    const activeY = points[lastIdx]?.y || 30;
+    const activeX = points[lastIdx]?.x || width / 2;
+    const activeY = points[lastIdx]?.y || height;
+    const activeHY = points[lastIdx]?.hy || height;
 
-    return { pathD, areaD, amberD, activeX, activeY, points };
-  }, [throughputCurve]);
+    return { pathD, areaD, hoursD, activeX, activeY, activeHY, points };
+  }, [visibleCurve]);
 
-  // Calendar dates setup (current real month)
+  // Real current month calendar matrix
   const today = new Date();
-  const currentMonthName = today.toLocaleDateString("en-US", { month: "short" });
+  const currentMonthName = today.toLocaleDateString("en-IN", { month: "short" });
   const currentYear = today.getFullYear();
+  const currentMonth = today.getMonth();
   const currentDayNumber = today.getDate();
+  const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+  const firstDayOffsetMon = (new Date(currentYear, currentMonth, 1).getDay() + 6) % 7; // Mon = 0 .. Sun = 6
+
+  const dueDaysSet = useMemo(() => {
+    const s = new Set();
+    currentMonthDueDays.forEach((d) => s.add(d.day));
+    return s;
+  }, [currentMonthDueDays]);
+
+  const displayedVelocity = useMemo(() => {
+    if (velocityFilter === "Day") {
+      return weeklyVelocity.filter((v) => v.isToday);
+    }
+    return weeklyVelocity;
+  }, [weeklyVelocity, velocityFilter]);
+
+  const hourlyRate = summary.hourlyRateINR || 1500;
+  const realValuationINR =
+    summary.sprintValuationINR ?? Math.round((summary.totalLoggedHours || 0) * hourlyRate);
 
   return (
     <div
@@ -166,9 +179,7 @@ export default function Analytics() {
         isDark ? "text-slate-100" : "text-slate-800"
       }`}
     >
-      {/* ==============================================================
-          1. COMPACT ROLE-AWARE EXECUTIVE HEADER BANNER (Fixed Height)
-          ============================================================== */}
+      {/* 1. COMPACT ROLE-AWARE EXECUTIVE HEADER BANNER */}
       <div
         className={`px-4 py-2.5 sm:px-5 sm:py-3 rounded-2xl border shrink-0 transition-all ${
           isDark
@@ -215,15 +226,21 @@ export default function Analytics() {
               <>
                 <div className={`px-2.5 py-1 rounded-xl border text-center ${isDark ? "bg-[#1b1c26] border-white/10" : "bg-slate-100 border-slate-200"}`}>
                   <span className={`text-[9px] uppercase font-bold block ${isDark ? "text-slate-400" : "text-slate-500"}`}>Workspaces</span>
-                  <span className={`text-xs font-black ${isDark ? "text-white" : "text-slate-900"}`}>{userRoleData.adminMetrics?.totalProjectsCount ?? projectProgress.length}</span>
+                  <span className={`text-xs font-black ${isDark ? "text-white" : "text-slate-900"}`}>
+                    {formatNumberIN(userRoleData.adminMetrics?.totalProjectsCount ?? projectProgress.length)}
+                  </span>
                 </div>
                 <div className={`px-2.5 py-1 rounded-xl border text-center ${isDark ? "bg-[#1b1c26] border-white/10" : "bg-slate-100 border-slate-200"}`}>
                   <span className={`text-[9px] uppercase font-bold block ${isDark ? "text-slate-400" : "text-slate-500"}`}>Staff</span>
-                  <span className={`text-xs font-black ${isDark ? "text-white" : "text-slate-900"}`}>{userRoleData.adminMetrics?.totalUsersCount ?? teamWorkload.length}</span>
+                  <span className={`text-xs font-black ${isDark ? "text-white" : "text-slate-900"}`}>
+                    {formatNumberIN(userRoleData.adminMetrics?.totalUsersCount ?? teamWorkload.length)}
+                  </span>
                 </div>
                 <div className={`px-2.5 py-1 rounded-xl border text-center ${isDark ? "bg-[#1b1c26] border-white/10" : "bg-slate-100 border-slate-200"}`}>
                   <span className={`text-[9px] uppercase font-bold block ${isDark ? "text-slate-400" : "text-slate-500"}`}>Depts</span>
-                  <span className={`text-xs font-black ${isDark ? "text-white" : "text-slate-900"}`}>{userRoleData.adminMetrics?.totalDepartmentsCount ?? departmentBreakdown.length}</span>
+                  <span className={`text-xs font-black ${isDark ? "text-white" : "text-slate-900"}`}>
+                    {formatNumberIN(userRoleData.adminMetrics?.totalDepartmentsCount ?? departmentBreakdown.length)}
+                  </span>
                 </div>
                 <div className={`px-2.5 py-1 rounded-xl border text-center ${isDark ? "bg-emerald-500/10 border-emerald-500/20" : "bg-emerald-50 border-emerald-200"}`}>
                   <span className="text-[9px] uppercase font-bold text-emerald-600 block">Done</span>
@@ -236,12 +253,12 @@ export default function Analytics() {
               <>
                 <div className={`px-2.5 py-1 rounded-xl border text-center ${isDark ? "bg-[#1b1c26] border-white/10" : "bg-slate-100 border-slate-200"}`}>
                   <span className={`text-[9px] uppercase font-bold block ${isDark ? "text-slate-400" : "text-slate-500"}`}>Tickets</span>
-                  <span className={`text-xs font-black ${isDark ? "text-white" : "text-slate-900"}`}>{summary.totalTasks}</span>
+                  <span className={`text-xs font-black ${isDark ? "text-white" : "text-slate-900"}`}>{formatNumberIN(summary.totalTasks)}</span>
                 </div>
                 <div className={`px-2.5 py-1 rounded-xl border text-center ${isDark ? "bg-[#1b1c26] border-white/10" : "bg-slate-100 border-slate-200"}`}>
                   <span className={`text-[9px] uppercase font-bold block ${isDark ? "text-slate-400" : "text-slate-500"}`}>Unassigned</span>
                   <span className={`text-xs font-black ${isDark ? "text-amber-400" : "text-amber-600"}`}>
-                    {userRoleData.managerMetrics?.unassignedTasksCount ?? 0}
+                    {formatNumberIN(userRoleData.managerMetrics?.unassignedTasksCount ?? 0)}
                   </span>
                 </div>
                 <div className={`px-2.5 py-1 rounded-xl border text-center ${
@@ -250,7 +267,7 @@ export default function Analytics() {
                     : isDark ? "bg-[#1b1c26] border-white/10" : "bg-slate-100 border-slate-200"
                 }`}>
                   <span className="text-[9px] uppercase font-bold block">Overloaded</span>
-                  <span className="text-xs font-black">{userRoleData.managerMetrics?.overloadedMembersCount ?? 0}</span>
+                  <span className="text-xs font-black">{formatNumberIN(userRoleData.managerMetrics?.overloadedMembersCount ?? 0)}</span>
                 </div>
                 <div className={`px-2.5 py-1 rounded-xl border text-center ${isDark ? "bg-indigo-500/10 border-indigo-500/20" : "bg-indigo-50 border-indigo-200"}`}>
                   <span className="text-[9px] uppercase font-bold text-indigo-500 block">Sprint</span>
@@ -263,11 +280,11 @@ export default function Analytics() {
               <>
                 <div className={`px-2.5 py-1 rounded-xl border text-center ${isDark ? "bg-[#1b1c26] border-white/10" : "bg-slate-100 border-slate-200"}`}>
                   <span className={`text-[9px] uppercase font-bold block ${isDark ? "text-slate-400" : "text-slate-500"}`}>Assigned</span>
-                  <span className={`text-xs font-black ${isDark ? "text-white" : "text-slate-900"}`}>{userRoleData.myMetrics?.totalTasks ?? 0}</span>
+                  <span className={`text-xs font-black ${isDark ? "text-white" : "text-slate-900"}`}>{formatNumberIN(userRoleData.myMetrics?.totalTasks ?? 0)}</span>
                 </div>
                 <div className={`px-2.5 py-1 rounded-xl border text-center ${isDark ? "bg-[#1b1c26] border-white/10" : "bg-slate-100 border-slate-200"}`}>
                   <span className={`text-[9px] uppercase font-bold block ${isDark ? "text-slate-400" : "text-slate-500"}`}>In Flight</span>
-                  <span className={`text-xs font-black text-blue-500`}>{userRoleData.myMetrics?.inProgressTasks ?? 0}</span>
+                  <span className="text-xs font-black text-blue-500">{formatNumberIN(userRoleData.myMetrics?.inProgressTasks ?? 0)}</span>
                 </div>
                 <div className={`px-2.5 py-1 rounded-xl border text-center ${isDark ? "bg-[#1b1c26] border-white/10" : "bg-slate-100 border-slate-200"}`}>
                   <span className={`text-[9px] uppercase font-bold block ${isDark ? "text-slate-400" : "text-slate-500"}`}>Logged</span>
@@ -297,16 +314,12 @@ export default function Analytics() {
         </div>
       </div>
 
-      {/* ==============================================================
-          2. ROW 1: Throughput (Chart), Calendar (Sprint), Velocity (Bars)
-          ============================================================== */}
+      {/* 2. ROW 1: Throughput (Chart), Calendar (Real Current Month), Velocity (Bars) */}
       <div className="lg:flex-1 lg:min-h-0 grid grid-cols-1 lg:grid-cols-12 gap-2.5 sm:gap-3 xl:gap-3.5 items-stretch shrink-0 lg:shrink">
-        {/* Card 1: Throughput & Velocity Curve (5 Cols) */}
+        {/* Card 1: Throughput & Delivery Curve */}
         <div
           className={`lg:col-span-5 p-3.5 xl:p-4 rounded-2xl border flex flex-col justify-between overflow-hidden transition-all ${
-            isDark
-              ? "bg-[#14151c] border-white/10 shadow-lg"
-              : "bg-white border-slate-200/90 shadow-xs"
+            isDark ? "bg-[#14151c] border-white/10 shadow-lg" : "bg-white border-slate-200/90 shadow-xs"
           }`}
         >
           <div>
@@ -316,7 +329,7 @@ export default function Analytics() {
                   Throughput & Delivery Curve
                 </h3>
                 <span className={`text-[10px] block ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-                  {currentRole === "employee" ? "Your contribution activity over 14 days" : "Sprint task actions & velocity"}
+                  Live activity logs & work hours ({visibleCurve.length}d window)
                 </span>
               </div>
               <div
@@ -344,21 +357,23 @@ export default function Analytics() {
               </div>
             </div>
 
-            {/* Metric Numbers */}
+            {/* Real Metric Numbers */}
             <div className="flex items-baseline gap-4 mb-2">
               <div>
                 <div className="flex items-center gap-1.5">
                   <span className={`text-xl xl:text-2xl font-black tracking-tight ${isDark ? "text-white" : "text-slate-900"}`}>
-                    {currentRole === "employee"
-                      ? userRoleData.myMetrics?.totalTasks || summary.totalTasks
-                      : summary.totalTasks}
+                    {formatNumberIN(
+                      currentRole === "employee"
+                        ? userRoleData.myMetrics?.totalTasks ?? summary.totalTasks
+                        : summary.totalTasks
+                    )}
                   </span>
                   <span className="text-[9px] font-bold bg-emerald-500/15 text-emerald-500 px-1.5 py-0.2 rounded-full border border-emerald-500/20">
                     ↗ {summary.completionRate}%
                   </span>
                 </div>
                 <span className={`text-[10px] font-medium block ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-                  {currentRole === "employee" ? "Active in queue" : "Sprint tickets"}
+                  {currentRole === "employee" ? "Assigned tickets" : "Active workspace tickets"}
                 </span>
               </div>
 
@@ -370,7 +385,7 @@ export default function Analytics() {
                       : `${summary.totalLoggedHours || 0}h`}
                   </span>
                   <span className="text-[9px] font-bold bg-indigo-500/15 text-indigo-400 px-1.5 py-0.2 rounded-full border border-indigo-500/20">
-                    {summary.totalEstimatedHours ? `${summary.totalEstimatedHours}h est.` : "Effort"}
+                    {summary.totalEstimatedHours}h est.
                   </span>
                 </div>
                 <span className={`text-[10px] font-medium block ${isDark ? "text-slate-400" : "text-slate-500"}`}>
@@ -380,10 +395,10 @@ export default function Analytics() {
             </div>
           </div>
 
-          {/* Glowing Wave Chart */}
+          {/* Real Data Curve */}
           <div className="relative pt-1 w-full">
             <div
-              className={`absolute top-0 right-1/4 z-10 flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[9px] shadow-md border ${
+              className={`absolute top-0 right-4 z-10 flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[9px] shadow-md border ${
                 isDark
                   ? "bg-[#222330] border-white/10 text-white"
                   : "bg-white border-slate-200 text-slate-800"
@@ -391,97 +406,96 @@ export default function Analytics() {
             >
               <span className="flex items-center gap-1 text-purple-400 font-bold">
                 <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />
-                {summary.totalTasks} Tasks
+                {visibleCurve.reduce((acc, d) => acc + d.actions, 0)} Events
               </span>
               <span className={isDark ? "text-slate-500" : "text-slate-400"}>•</span>
               <span className="flex items-center gap-1 text-amber-500 font-bold">
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                {summary.totalLoggedHours}h
+                {Math.round(visibleCurve.reduce((acc, d) => acc + d.hours, 0) * 10) / 10}h
               </span>
             </div>
 
-            <svg viewBox="0 0 390 100" className="w-full h-16 xl:h-20 2xl:h-24 overflow-visible">
-              <defs>
-                <linearGradient id="purpleGradMini" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#818cf8" stopOpacity="0.4" />
-                  <stop offset="100%" stopColor="#818cf8" stopOpacity="0" />
-                </linearGradient>
-              </defs>
+            {svgPathData ? (
+              <svg viewBox="0 0 390 100" className="w-full h-16 xl:h-20 2xl:h-24 overflow-visible">
+                <defs>
+                  <linearGradient id="purpleGradMini" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#818cf8" stopOpacity="0.4" />
+                    <stop offset="100%" stopColor="#818cf8" stopOpacity="0" />
+                  </linearGradient>
+                </defs>
 
-              <line
-                x1={svgPathData.activeX}
-                y1="5"
-                x2={svgPathData.activeX}
-                y2="90"
-                stroke={isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.15)"}
-                strokeDasharray="2 2"
-              />
+                <line
+                  x1={svgPathData.activeX}
+                  y1="5"
+                  x2={svgPathData.activeX}
+                  y2="90"
+                  stroke={isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.15)"}
+                  strokeDasharray="2 2"
+                />
 
-              <path d={svgPathData.areaD} fill="url(#purpleGradMini)" />
-              <path
-                d={svgPathData.pathD}
-                fill="none"
-                stroke="#818cf8"
-                strokeWidth="2"
-                strokeLinecap="round"
-              />
-              <path
-                d={svgPathData.amberD}
-                fill="none"
-                stroke="#f59e0b"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                opacity="0.85"
-              />
+                <path d={svgPathData.areaD} fill="url(#purpleGradMini)" />
+                <path
+                  d={svgPathData.pathD}
+                  fill="none"
+                  stroke="#818cf8"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                />
+                <path
+                  d={svgPathData.hoursD}
+                  fill="none"
+                  stroke="#f59e0b"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  opacity="0.85"
+                />
 
-              <circle
-                cx={svgPathData.activeX}
-                cy={svgPathData.activeY}
-                r="3.5"
-                fill="#818cf8"
-                stroke={isDark ? "#ffffff" : "#0f172a"}
-                strokeWidth="1.5"
-              />
-              <circle
-                cx={svgPathData.activeX}
-                cy={Math.min(90, svgPathData.activeY + 12)}
-                r="2.5"
-                fill="#f59e0b"
-                stroke={isDark ? "#ffffff" : "#0f172a"}
-                strokeWidth="1"
-              />
-            </svg>
+                <circle
+                  cx={svgPathData.activeX}
+                  cy={svgPathData.activeY}
+                  r="3.5"
+                  fill="#818cf8"
+                  stroke={isDark ? "#ffffff" : "#0f172a"}
+                  strokeWidth="1.5"
+                />
+                <circle
+                  cx={svgPathData.activeX}
+                  cy={svgPathData.activeHY}
+                  r="2.5"
+                  fill="#f59e0b"
+                  stroke={isDark ? "#ffffff" : "#0f172a"}
+                  strokeWidth="1"
+                />
+              </svg>
+            ) : (
+              <div className="h-20 flex items-center justify-center text-xs text-slate-500">
+                <Activity className="w-4 h-4 mr-1.5 opacity-60" />
+                <span>No recorded timeline activity yet</span>
+              </div>
+            )}
 
             <div className={`flex items-center justify-between text-[9px] font-mono pt-0.5 ${isDark ? "text-slate-500" : "text-slate-400"}`}>
-              {throughputCurve.length > 0 ? (
-                throughputCurve.filter((_, idx) => idx % 2 === 0).map((d, i) => (
+              {visibleCurve.map((d, i) => {
+                if (visibleCurve.length > 8 && i % 2 !== 0 && i !== visibleCurve.length - 1) {
+                  return null;
+                }
+                return (
                   <span
-                    key={i}
+                    key={d.date}
                     className={d.dayNumber === currentDayNumber ? `font-bold ${isDark ? "text-white" : "text-slate-900"}` : ""}
                   >
                     {d.dayNumber}
                   </span>
-                ))
-              ) : (
-                <>
-                  <span>1</span>
-                  <span>5</span>
-                  <span>10</span>
-                  <span className={`font-bold ${isDark ? "text-white" : "text-slate-900"}`}>{currentDayNumber}</span>
-                  <span>25</span>
-                  <span>30</span>
-                </>
-              )}
+                );
+              })}
             </div>
           </div>
         </div>
 
-        {/* Card 2: Sprint Calendar / Schedule (3 Cols) */}
+        {/* Card 2: Real Current Month Calendar & INR Sprint Valuation */}
         <div
           className={`lg:col-span-3 p-3.5 xl:p-4 rounded-2xl border flex flex-col justify-between overflow-hidden transition-all ${
-            isDark
-              ? "bg-[#14151c] border-white/10 shadow-lg"
-              : "bg-white border-slate-200/90 shadow-xs"
+            isDark ? "bg-[#14151c] border-white/10 shadow-lg" : "bg-white border-slate-200/90 shadow-xs"
           }`}
         >
           <div>
@@ -495,11 +509,11 @@ export default function Analytics() {
               <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full border ${
                 isDark ? "bg-indigo-500/15 border-indigo-500/30 text-indigo-300" : "bg-indigo-50 border-indigo-200 text-indigo-700"
               }`}>
-                Active Sprint
+                {currentMonthDueDays.length} Due
               </span>
             </div>
 
-            {/* Calendar Days Matrix */}
+            {/* Real Calendar Matrix */}
             <div className="grid grid-cols-7 gap-0.5 text-center text-[9px] font-mono">
               {["M", "T", "W", "T", "F", "S", "S"].map((d, idx) => (
                 <div key={idx} className={`py-0.5 font-bold ${isDark ? "text-slate-500" : "text-slate-400"}`}>
@@ -507,45 +521,36 @@ export default function Analytics() {
                 </div>
               ))}
 
-              {Array.from({ length: 12 }, (_, i) => i + 1).map((day) => (
-                <div key={day} className={`py-0.5 font-medium ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-                  {day}
-                </div>
+              {Array.from({ length: firstDayOffsetMon }).map((_, idx) => (
+                <div key={`pad-${idx}`} className="py-0.5" />
               ))}
 
-              {/* Active Sprint highlighted days */}
-              <div
-                className={`col-span-7 grid grid-cols-7 gap-0.5 p-0.5 rounded-xl border my-0.5 ${
-                  isDark
-                    ? "bg-indigo-500/10 border-indigo-500/20"
-                    : "bg-indigo-50 border-indigo-200"
-                }`}
-              >
-                {[13, 14, 15, 16, 17, 18, 19].map((day) => (
+              {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((day) => {
+                const isToday = day === currentDayNumber;
+                const hasDue = dueDaysSet.has(day);
+                return (
                   <div
                     key={day}
-                    className={`py-0.5 rounded-lg font-bold transition-all ${
-                      day === currentDayNumber
-                        ? "bg-indigo-600 text-white shadow-xs"
+                    className={`py-0.5 rounded-md font-semibold relative ${
+                      isToday
+                        ? "bg-indigo-600 text-white font-black shadow-xs"
+                        : hasDue
+                        ? isDark
+                          ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                          : "bg-amber-100 text-amber-800 border border-amber-300"
                         : isDark
-                        ? "bg-indigo-500/20 text-indigo-300"
-                        : "bg-indigo-100 text-indigo-700"
+                        ? "text-slate-400"
+                        : "text-slate-600"
                     }`}
                   >
                     {day}
                   </div>
-                ))}
-              </div>
-
-              {Array.from({ length: 11 }, (_, i) => i + 20).map((day) => (
-                <div key={day} className={`py-0.5 ${isDark ? "text-slate-500" : "text-slate-400"}`}>
-                  {day}
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
-          {/* Bottom Card: Sprint Valuation / Personal Effort */}
+          {/* Bottom Card: Real INR Sprint Valuation / Personal Effort */}
           <div
             className={`mt-2 p-2.5 rounded-xl border flex items-center justify-between ${
               isDark
@@ -555,17 +560,17 @@ export default function Analytics() {
           >
             <div>
               <span className={`text-[9px] uppercase tracking-wider block font-semibold ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-                {currentRole === "employee" ? "Logged Effort" : "Sprint Valuation"}
+                {currentRole === "employee" ? "Logged Effort" : "Sprint Valuation (INR)"}
               </span>
               <span className={`text-base xl:text-lg font-black tracking-tight ${isDark ? "text-white" : "text-slate-900"}`}>
                 {currentRole === "employee"
                   ? `${userRoleData.myMetrics?.loggedHours || 0} Hours`
-                  : `$${Math.max(1200, (summary.totalLoggedHours || 12) * 75).toLocaleString()}`}
+                  : formatINR(realValuationINR)}
               </span>
               <span className={`text-[9px] block ${isDark ? "text-slate-400" : "text-slate-500"}`}>
                 {currentRole === "employee"
                   ? `${userRoleData.myMetrics?.doneTasks || 0} tasks resolved`
-                  : `@ $75/hr billing`}
+                  : `${summary.totalLoggedHours || 0}h logged @ ${formatINR(hourlyRate)}/hr`}
               </span>
             </div>
             <div
@@ -575,17 +580,15 @@ export default function Analytics() {
                   : "bg-indigo-100 text-indigo-600 border-indigo-200"
               }`}
             >
-              <BarChart2 className="w-3.5 h-3.5" />
+              <IndianRupee className="w-3.5 h-3.5" />
             </div>
           </div>
         </div>
 
-        {/* Card 3: Task Velocity & Bar Chart (4 Cols) */}
+        {/* Card 3: Weekly Burnup & Real Effort */}
         <div
           className={`lg:col-span-4 p-3.5 xl:p-4 rounded-2xl border flex flex-col justify-between overflow-hidden transition-all ${
-            isDark
-              ? "bg-[#14151c] border-white/10 shadow-lg"
-              : "bg-white border-slate-200/90 shadow-xs"
+            isDark ? "bg-[#14151c] border-white/10 shadow-lg" : "bg-white border-slate-200/90 shadow-xs"
           }`}
         >
           <div>
@@ -598,12 +601,12 @@ export default function Analytics() {
                   isDark ? "bg-[#1b1c26] border-white/5" : "bg-slate-100 border-slate-200"
                 }`}
               >
-                {["Day", "Week", "Month"].map((period) => (
+                {["Day", "Week"].map((period) => (
                   <button
                     key={period}
-                    onClick={() => setInstallTimeFilter(period)}
+                    onClick={() => setVelocityFilter(period)}
                     className={`px-2 py-0.5 rounded-full transition-all cursor-pointer ${
-                      installTimeFilter === period
+                      velocityFilter === period
                         ? isDark
                           ? "bg-white text-slate-950 font-bold shadow-xs"
                           : "bg-slate-900 text-white font-bold shadow-xs"
@@ -621,10 +624,10 @@ export default function Analytics() {
             <div className="flex items-center justify-between mb-2">
               <div>
                 <span className={`text-xl xl:text-2xl font-black tracking-tight ${isDark ? "text-white" : "text-slate-900"}`}>
-                  {summary.totalTasks > 0 ? summary.totalTasks * 4 : 24}
+                  {summary.doneTasks} / {summary.totalTasks}
                 </span>
                 <span className={`text-[10px] font-medium block ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-                  Story points this cycle
+                  Tasks completed this cycle
                 </span>
               </div>
 
@@ -634,8 +637,7 @@ export default function Analytics() {
                     isDark ? "bg-[#1b1c26] border-white/10 text-white" : "bg-slate-100 border-slate-200 text-slate-900"
                   }`}
                 >
-                  <span>💻</span>
-                  <span>{summary.inProgressTasks + summary.doneTasks} Active</span>
+                  <span>{summary.inProgressTasks + summary.reviewTasks} In Flight</span>
                 </div>
                 <div
                   className={`flex items-center gap-1 px-2 py-1 rounded-xl border text-[10px] font-bold ${
@@ -644,55 +646,58 @@ export default function Analytics() {
                       : "bg-amber-50 border-amber-200 text-amber-800"
                   }`}
                 >
-                  <span>⚙️</span>
                   <span>{summary.totalLoggedHours}h</span>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Bar Chart */}
+          {/* Real Bar Chart */}
           <div className="space-y-1 pt-1">
             <div className="flex items-end justify-between gap-1.5 h-16 xl:h-20 2xl:h-24 px-1">
-              {weeklyVelocity.map((v) => {
-                const maxBarHours = Math.max(...weeklyVelocity.map((x) => x.hours), 4);
-                const heightPercent = Math.max(18, Math.round((v.hours / maxBarHours) * 85));
-
-                if (v.isToday) {
-                  return (
-                    <div key={v.day} className="flex-1 flex flex-col items-center gap-0.5 h-full justify-end relative">
-                      <span className="absolute -top-2.5 text-[8px] font-bold bg-indigo-500 text-white px-1 rounded-sm shadow-xs">
-                        {v.hours}h
-                      </span>
-                      <div
-                        style={{ height: `${heightPercent}%` }}
-                        className="w-full max-w-[22px] rounded-xl bg-indigo-500 shadow-md shadow-indigo-500/20"
-                      />
-                      <div className="w-full max-w-[22px] h-3 rounded-lg bg-amber-400 relative flex items-center justify-center">
-                        <span className="text-[7px] font-black text-slate-950">{v.tasksCount}</span>
-                      </div>
-                    </div>
-                  );
-                }
+              {displayedVelocity.map((v) => {
+                const maxBarHours = Math.max(...weeklyVelocity.map((x) => x.hours), 1);
+                const heightPercent =
+                  v.hours > 0 ? Math.max(18, Math.round((v.hours / maxBarHours) * 85)) : 8;
 
                 return (
-                  <div key={v.day} className="flex-1 flex flex-col items-center gap-0.5 h-full justify-end">
+                  <div
+                    key={v.day}
+                    className="flex-1 flex flex-col items-center gap-0.5 h-full justify-end relative"
+                    title={`${v.day}: ${v.hours}h logged across ${v.tasksCount} tasks`}
+                  >
+                    {v.hours > 0 && (
+                      <span className="text-[8px] font-bold bg-indigo-500 text-white px-1 rounded-sm shadow-xs">
+                        {v.hours}h
+                      </span>
+                    )}
                     <div
                       style={{ height: `${heightPercent}%` }}
-                      className={`w-full max-w-[22px] rounded-xl transition-all ${
-                        isDark ? "bg-[#222330] hatched-bar" : "bg-slate-100 hatched-bar-light border border-slate-200"
+                      className={`w-full max-w-[26px] rounded-xl transition-all ${
+                        v.hours > 0
+                          ? v.isToday
+                            ? "bg-indigo-500 shadow-md shadow-indigo-500/20"
+                            : "bg-indigo-500/60"
+                          : isDark
+                          ? "bg-[#222330]"
+                          : "bg-slate-200"
                       }`}
                     />
+                    {v.tasksCount > 0 && (
+                      <div className="w-full max-w-[26px] h-3 rounded-lg bg-amber-400 flex items-center justify-center">
+                        <span className="text-[7px] font-black text-slate-950">{v.tasksCount}</span>
+                      </div>
+                    )}
                   </div>
                 );
               })}
             </div>
 
             <div className={`flex items-center justify-between text-[9px] font-medium px-1 ${isDark ? "text-slate-500" : "text-slate-400"}`}>
-              {weeklyVelocity.map((v) => (
+              {displayedVelocity.map((v) => (
                 <span
                   key={v.day}
-                  className={v.isToday ? `font-bold ${isDark ? "text-white" : "text-slate-900"}` : ""}
+                  className={`flex-1 text-center ${v.isToday ? `font-bold ${isDark ? "text-white" : "text-slate-900"}` : ""}`}
                 >
                   {v.day}
                 </span>
@@ -702,16 +707,12 @@ export default function Analytics() {
         </div>
       </div>
 
-      {/* ==============================================================
-          3. ROW 2: Top Tickets (List), Status Bubbles, Role-Specific Widget
-          ============================================================== */}
+      {/* 3. ROW 2: Top Tickets (List), Status Bubbles, Role-Specific Widget */}
       <div className="lg:flex-1 lg:min-h-0 grid grid-cols-1 lg:grid-cols-12 gap-2.5 sm:gap-3 xl:gap-3.5 items-stretch shrink-0 lg:shrink">
-        {/* Card 4: Top Priority Tickets (4 Cols) */}
+        {/* Card 4: Top Priority Tickets */}
         <div
           className={`lg:col-span-4 p-3.5 xl:p-4 rounded-2xl border flex flex-col justify-between overflow-hidden transition-all ${
-            isDark
-              ? "bg-[#14151c] border-white/10 shadow-lg"
-              : "bg-white border-slate-200/90 shadow-xs"
+            isDark ? "bg-[#14151c] border-white/10 shadow-lg" : "bg-white border-slate-200/90 shadow-xs"
           }`}
         >
           <div className="flex items-center justify-between mb-2 shrink-0">
@@ -809,7 +810,7 @@ export default function Analytics() {
                           : "text-slate-700 bg-white border-slate-200"
                       }`}
                     >
-                      {item.status.replace("_", " ")}
+                      {item.status.replace(/_/g, " ")}
                     </span>
                   </div>
                 );
@@ -822,12 +823,10 @@ export default function Analytics() {
           </div>
         </div>
 
-        {/* Card 5: Status Distribution Bubbles (3 Cols) */}
+        {/* Card 5: Status Distribution Bubbles */}
         <div
           className={`lg:col-span-3 p-3.5 xl:p-4 rounded-2xl border flex flex-col justify-between overflow-hidden transition-all ${
-            isDark
-              ? "bg-[#14151c] border-white/10 shadow-lg"
-              : "bg-white border-slate-200/90 shadow-xs"
+            isDark ? "bg-[#14151c] border-white/10 shadow-lg" : "bg-white border-slate-200/90 shadow-xs"
           }`}
         >
           <div className="flex items-center justify-between mb-1 shrink-0">
@@ -839,55 +838,47 @@ export default function Analytics() {
                 {currentRole === "employee" ? "Your workload breakdown" : "Sprint cycle completion"}
               </span>
             </div>
-            <button
-              className={`w-6 h-6 rounded-full border flex items-center justify-center transition-all cursor-pointer ${
+            <div
+              className={`w-6 h-6 rounded-full border flex items-center justify-center ${
                 isDark
-                  ? "bg-white/5 hover:bg-white/10 border-white/10 text-slate-300 hover:text-white"
-                  : "bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-700 hover:text-slate-900"
+                  ? "bg-white/5 border-white/10 text-slate-300"
+                  : "bg-slate-100 border-slate-200 text-slate-700"
               }`}
             >
               <PieChart className="w-3 h-3" />
-            </button>
+            </div>
           </div>
 
-          {/* Compact Overlapping Circular Bubbles */}
           <div className="relative h-28 xl:h-32 2xl:h-36 flex items-center justify-center overflow-hidden">
-            {/* In Progress */}
-            <div className="absolute left-4 bottom-1 w-20 h-20 xl:w-22 xl:h-22 rounded-full bg-indigo-500 flex flex-col items-center justify-center text-white font-black shadow-lg shadow-indigo-500/25 z-10 transition-transform hover:scale-105">
+            <div className="absolute left-4 bottom-1 w-20 h-20 xl:w-22 xl:h-22 rounded-full bg-indigo-500 flex flex-col items-center justify-center text-white font-black shadow-lg shadow-indigo-500/25 z-10">
               <span className="text-lg xl:text-xl font-black">{activeStatusBreakdown.inProgress.percentage}%</span>
               <span className="text-[8px] font-bold uppercase opacity-90">In Flight</span>
               <span className="text-[8px] opacity-75 font-mono">{activeStatusBreakdown.inProgress.count} t</span>
             </div>
 
-            {/* Completed */}
-            <div className="absolute right-4 bottom-2 w-16 h-16 xl:w-18 xl:h-18 rounded-full bg-amber-400 flex flex-col items-center justify-center text-slate-950 font-black shadow-md shadow-amber-500/25 z-20 transition-transform hover:scale-105">
+            <div className="absolute right-4 bottom-2 w-16 h-16 xl:w-18 xl:h-18 rounded-full bg-amber-400 flex flex-col items-center justify-center text-slate-950 font-black shadow-md shadow-amber-500/25 z-20">
               <span className="text-sm xl:text-base font-black">{activeStatusBreakdown.done.percentage}%</span>
               <span className="text-[7px] font-bold text-slate-900 uppercase">Done</span>
               <span className="text-[7px] opacity-75 font-mono">{activeStatusBreakdown.done.count} t</span>
             </div>
 
-            {/* Review */}
-            <div className="absolute top-1 right-14 w-12 h-12 xl:w-14 xl:h-14 rounded-full bg-sky-400 flex flex-col items-center justify-center text-slate-950 font-black shadow-sm shadow-sky-500/25 z-15 transition-transform hover:scale-105">
+            <div className="absolute top-1 right-14 w-12 h-12 xl:w-14 xl:h-14 rounded-full bg-sky-400 flex flex-col items-center justify-center text-slate-950 font-black shadow-sm shadow-sky-500/25 z-15">
               <span className="text-xs xl:text-sm font-black">{activeStatusBreakdown.review.percentage}%</span>
               <span className="text-[7px] font-bold text-slate-900 uppercase">Rev</span>
             </div>
 
-            {/* Backlog */}
-            <div className="absolute top-4 right-3 w-8 h-8 rounded-full bg-emerald-400 flex flex-col items-center justify-center text-slate-950 text-[9px] font-black shadow-xs shadow-emerald-500/25 z-30 transition-transform hover:scale-105">
+            <div className="absolute top-4 right-3 w-8 h-8 rounded-full bg-emerald-400 flex flex-col items-center justify-center text-slate-950 text-[9px] font-black shadow-xs shadow-emerald-500/25 z-30">
               <span>{activeStatusBreakdown.todo.percentage}%</span>
             </div>
           </div>
         </div>
 
-        {/* Card 6: Dynamic Role Widget (5 Cols) */}
+        {/* Card 6: Dynamic Role Widget */}
         <div
           className={`lg:col-span-5 p-3.5 xl:p-4 rounded-2xl border flex flex-col justify-between overflow-hidden transition-all ${
-            isDark
-              ? "bg-[#14151c] border-white/10 shadow-lg"
-              : "bg-white border-slate-200/90 shadow-xs"
+            isDark ? "bg-[#14151c] border-white/10 shadow-lg" : "bg-white border-slate-200/90 shadow-xs"
           }`}
         >
-          {/* ================= ADMIN VIEW: Company Departments ================= */}
           {currentRole === "admin" && (
             <div className="flex flex-col h-full justify-between">
               <div className="flex items-center justify-between mb-2 shrink-0">
@@ -918,47 +909,42 @@ export default function Analytics() {
                   <div className="text-center space-y-1">
                     <Globe className={`w-6 h-6 mx-auto ${isDark ? "text-indigo-400/60" : "text-indigo-600/60"}`} />
                     <span className={`text-[9px] font-mono block ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-                      Cross-Sync
+                      {formatINR(realValuationINR)} logged
                     </span>
                     <span className="text-[9px] font-bold text-emerald-500 bg-emerald-500/10 px-2 py-0.2 rounded-full border border-emerald-500/20">
-                      🟢 All Nominal
+                      {summary.overdueCount > 0 ? `${summary.overdueCount} Overdue` : "All On Track"}
                     </span>
                   </div>
                 </div>
 
                 <div className="space-y-1 flex-1 min-h-0 overflow-y-auto">
-                  {departmentBreakdown.slice(0, 4).map((dept) => {
-                    const icon =
-                      dept.name.toLowerCase().includes("engineer") ? "💻" :
-                      dept.name.toLowerCase().includes("operation") ? "⚙️" :
-                      dept.name.toLowerCase().includes("market") ? "📈" : "👥";
-
-                    return (
-                      <div
-                        key={dept.id}
-                        className={`flex items-center justify-between p-1.5 rounded-lg transition-colors text-xs ${
-                          isDark
-                            ? "bg-white/5 hover:bg-white/10 text-slate-200"
-                            : "bg-slate-100 hover:bg-slate-200 text-slate-800"
-                        }`}
-                      >
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <span className="text-xs">{icon}</span>
-                          <span className="font-semibold truncate text-[11px]">{dept.name}</span>
-                        </div>
-                        <div className="flex items-center gap-1.5 font-mono shrink-0">
-                          <span className="text-[9px] opacity-75">{dept.taskCount}t</span>
-                          <span className="font-bold text-[10px]">{dept.hoursLogged}h</span>
-                        </div>
+                  {departmentBreakdown.slice(0, 4).map((dept) => (
+                    <div
+                      key={dept.id}
+                      className={`flex items-center justify-between p-1.5 rounded-lg transition-colors text-xs ${
+                        isDark
+                          ? "bg-white/5 hover:bg-white/10 text-slate-200"
+                          : "bg-slate-100 hover:bg-slate-200 text-slate-800"
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span
+                          className="w-2 h-2 rounded-full shrink-0"
+                          style={{ backgroundColor: dept.color || "#6366f1" }}
+                        />
+                        <span className="font-semibold truncate text-[11px]">{dept.name}</span>
                       </div>
-                    );
-                  })}
+                      <div className="flex items-center gap-1.5 font-mono shrink-0">
+                        <span className="text-[9px] opacity-75">{dept.taskCount}t</span>
+                        <span className="font-bold text-[10px]">{dept.hoursLogged}h</span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
           )}
 
-          {/* ================= MANAGER VIEW: Team Workload Radar ================= */}
           {currentRole === "manager" && (
             <div className="flex flex-col h-full justify-between">
               <div className="flex items-center justify-between mb-2 shrink-0">
@@ -1028,7 +1014,6 @@ export default function Analytics() {
             </div>
           )}
 
-          {/* ================= EMPLOYEE VIEW: Personal Deadlines ================= */}
           {currentRole === "employee" && (
             <div className="flex flex-col h-full justify-between">
               <div className="flex items-center justify-between mb-2 shrink-0">
@@ -1071,7 +1056,7 @@ export default function Analytics() {
                             [{t.key}] {t.title}
                           </span>
                           <span className={`text-[9px] block ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-                            Due: {t.dueDate ? new Date(t.dueDate).toLocaleDateString([], { month: "short", day: "numeric" }) : "Sprint end"}
+                            Due: {t.dueDate ? formatDateIN(t.dueDate, { day: "2-digit", month: "short" }) : "Sprint end"}
                           </span>
                         </div>
                       </div>
@@ -1085,13 +1070,13 @@ export default function Analytics() {
                           ? "bg-white/10 text-slate-300"
                           : "bg-slate-200 text-slate-700"
                       }`}>
-                        {t.status.replace("_", " ")}
+                        {t.status.replace(/_/g, " ")}
                       </span>
                     </div>
                   ))
                 ) : (
                   <div className={`p-3 text-center text-xs italic ${isDark ? "text-slate-500" : "text-slate-400"}`}>
-                    All assigned tasks completed! Great work!
+                    All assigned tasks completed!
                   </div>
                 )}
               </div>

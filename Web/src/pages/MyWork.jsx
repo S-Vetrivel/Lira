@@ -14,6 +14,7 @@ import {
   RefreshCw,
   CheckCheck,
 } from "lucide-react";
+import { formatDateIN } from "../utils/formatters";
 
 export default function MyWork() {
   const { user, setSelectedTaskKeyOrId, theme } = useApp();
@@ -101,7 +102,9 @@ export default function MyWork() {
               {
                 todo: isDark ? "bg-slate-500/15 text-slate-300" : "bg-slate-100 text-slate-700",
                 in_progress: isDark ? "bg-blue-500/15 text-blue-300" : "bg-blue-50 text-blue-700",
+                redo_requested: isDark ? "bg-rose-500/15 text-rose-300" : "bg-rose-50 text-rose-700",
                 review: isDark ? "bg-purple-500/15 text-purple-300" : "bg-purple-50 text-purple-700",
+                submitted_for_review: isDark ? "bg-amber-500/15 text-amber-300" : "bg-amber-50 text-amber-700",
                 done: isDark ? "bg-emerald-500/15 text-emerald-300" : "bg-emerald-50 text-emerald-700",
               }[task.status]
             }`}
@@ -127,7 +130,7 @@ export default function MyWork() {
             >
               <Calendar className="w-3.5 h-3.5" />
               <span>
-                {new Date(task.dueDate).toLocaleDateString([], {
+                {formatDateIN(task.dueDate, {
                   month: "short",
                   day: "numeric",
                 })}

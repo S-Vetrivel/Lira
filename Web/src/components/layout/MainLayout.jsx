@@ -6,6 +6,7 @@ import Header from "./Header";
 import TaskDrawer from "../task/TaskDrawer";
 import CreateTaskModal from "../task/CreateTaskModal";
 import CommandPalette from "../search/CommandPalette";
+import OfficeChatDrawer from "../chat/OfficeChatDrawer";
 import JoinRequestStatus from "../../pages/JoinRequestStatus";
 
 export function MainLayout() {
@@ -20,6 +21,8 @@ export function MainLayout() {
     setIsCreateTaskModalOpen,
     isCommandPaletteOpen,
     setIsCommandPaletteOpen,
+    isChatOpen,
+    setIsChatOpen,
     refreshProjects,
     theme,
   } = useApp();
@@ -100,6 +103,9 @@ export function MainLayout() {
         isOpen={isCommandPaletteOpen}
         onClose={() => setIsCommandPaletteOpen(false)}
       />
+
+      {/* Slide-over E2EE Office Chat & File Sharing Drawer (Top-level stacking context) */}
+      <OfficeChatDrawer isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
     </div>
   );
 }

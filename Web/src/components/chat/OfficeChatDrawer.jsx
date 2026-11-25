@@ -1,20 +1,21 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   MessageSquare,
-  Lock,
   Send,
   X,
   Users,
-  Wifi,
   UploadCloud,
   Paperclip,
-  Share2,
   FileText,
   Search,
-  ExternalLink,
-  Shield,
   Hash,
-  ChevronDown,
+  Download,
+  FolderOpen,
+  ArrowLeft,
+  CheckCheck,
+  Image as ImageIcon,
+  ShieldCheck,
+  Loader2,
 } from "lucide-react";
 import { useApp } from "../../context/Appcontext";
 import {
@@ -22,6 +23,7 @@ import {
   getChatMessages,
   sendChatMessage,
   markChatRoomRead,
+  uploadSingleChunk,
 } from "../../services/api";
 import {
   getSocket,
@@ -31,69 +33,120 @@ import {
 } from "../../services/socket";
 import { encryptText, decryptText } from "../../services/crypto";
 import ChunkUploader from "../files/ChunkUploader";
+import {
+  getDisplayName,
+  getInitials,
+  formatTimeIN,
+  formatDateIN,
+  formatFileSize,
+  getDownloadUrl,
+} from "../../utils/formatters";
 import toast from "react-hot-toast";
 
+const CHANNELS = [
+  { id: "dept_general", name: "operations", label: "Operations & General", type: "department" },
+  { id: "dept_engineering", name: "engineering", label: "Engineering & QA", type: "department" },
+  { id: "dept_hr", name: "people-culture", label: "Human Resources", type: "department" },
+  { id: "dept_finance", name: "finance", label: "Finance & Payroll", type: "department" },
+];
+
+const CHUNK_SIZE = 1024 * 1024; // 1MB
+
 export default function OfficeChatDrawer({ isOpen, onClose }) {
-  const { user } = useApp();
-  const [viewMode, setViewMode] = useState("chat"); // 'chat', 'directory', 'uploader'
-  const [conversations, setConversations] = useState([]);
-  const [selectedRoom, setSelectedRoom] = useState(null); // { id, name, type, recipientId, colleague }
+  const { user, theme, chatTargetUser, setChatTargetUser } = useApp();
+  const isDark = theme === "dark";
+
+  const [colleagues, setColleagues] = useState([]);
+  const [channelUnread, setChannelUnread] = useState({});
+  const [selectedRoom, setSelectedRoom] = useState(CHANNELS[0]);
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState("");
   const [peers, setPeers] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [sending, setSending] = useState(false);
   const [searchFilter, setSearchFilter] = useState("");
-  const messagesEndRef = useRef(null);
+  const [rightTab, setRightTab] = useState("messages"); // 'messages' | 'uploader' | 'files'
+  const [showMobileSidebar, setShowMobileSidebar] = useState(false);
+  const [typingUsers, setTypingUsers] = useState({});
+  const [quickUploadProgress, setQuickUploadProgress] = useState(null);
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
 
-  // Default departmental channels
-  const channels = [
-    { id: "dept_general", name: "operations", label: "Operations & General", type: "department" },
-    { id: "dept_engineering", name: "engineering", label: "Engineering & QA", type: "department" },
-    { id: "dept_hr", name: "people-culture", label: "Human Resources", type: "department" },
-    { id: "dept_finance", name: "finance", label: "Finance & Payroll", type: "department" },
-  ];
+  const messagesEndRef = useRef(null);
+  const quickFileInputRef = useRef(null);
+  const typingTimeoutRef = useRef(null);
+
+  const onlineUserIds = useMemo(() => {
+    const ids = new Set();
+    peers.forEach((p) => {
+      if (p.userId) ids.add(p.userId.toString());
+    });
+    return ids;
+  }, [peers]);
+
+  const loadConversations = async () => {
+    const res = await getChatConversations();
+    if (res.success) {
+      setColleagues(res.colleagues || []);
+      setChannelUnread(res.channelUnread || {});
+    }
+  };
+
+  // Handle external direct-chat trigger (e.g., from Team page)
+  useEffect(() => {
+    if (isOpen && chatTargetUser && user) {
+      const targetId = chatTargetUser._id;
+      const sortedIds = [user._id, targetId].sort();
+      const directRoomId = `dm_${sortedIds[0]}_${sortedIds[1]}`;
+      setSelectedRoom({
+        id: directRoomId,
+        name: getDisplayName(chatTargetUser),
+        label: chatTargetUser.jobTitle || chatTargetUser.departmentName || "Team Member",
+        type: "direct",
+        recipientId: targetId,
+        colleague: chatTargetUser,
+      });
+      setRightTab("messages");
+      setShowMobileSidebar(false);
+      setChatTargetUser(null);
+    }
+  }, [isOpen, chatTargetUser, user, setChatTargetUser]);
 
   // 1. Fetch conversations & announce presence
   useEffect(() => {
     if (!isOpen || !user) return;
 
-    const loadData = async () => {
-      const res = await getChatConversations();
-      if (res.success && res.colleagues) {
-        setConversations(res.colleagues);
-      }
-    };
-    loadData();
-
-    if (!selectedRoom) {
-      setSelectedRoom(channels[0]);
-    }
+    loadConversations();
 
     const socket = getSocket();
     if (socket) {
       announcePeer({
         userId: user._id,
-        name: user.fullname || user.name,
+        name: getDisplayName(user),
         department: user.departmentName || "General",
         publicId: user.publicId,
       });
 
-      const handlePeerList = (list) => setPeers(list);
+      const handlePeerList = (list) => setPeers(list || []);
       const handlePeerJoined = (peer) => {
         setPeers((prev) => [...prev.filter((p) => p.socketId !== peer.socketId), peer]);
       };
       const handlePeerLeft = ({ socketId }) => {
         setPeers((prev) => prev.filter((p) => p.socketId !== socketId));
       };
+      const handleNotification = () => {
+        loadConversations();
+      };
 
       socket.on("peer:list", handlePeerList);
       socket.on("peer:joined", handlePeerJoined);
       socket.on("peer:left", handlePeerLeft);
+      socket.on("chat:notification", handleNotification);
 
       return () => {
         socket.off("peer:list", handlePeerList);
         socket.off("peer:joined", handlePeerJoined);
         socket.off("peer:left", handlePeerLeft);
+        socket.off("chat:notification", handleNotification);
       };
     }
   }, [isOpen, user]);
@@ -104,11 +157,12 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
 
     const roomId = selectedRoom.id;
     joinChatRoom(roomId);
+    setTypingUsers({});
 
     let isMounted = true;
     const loadMessages = async () => {
       setLoading(true);
-      const res = await getChatMessages(roomId);
+      const res = await getChatMessages(roomId, 100);
       if (res.success && isMounted) {
         const decryptedList = await Promise.all(
           res.messages.map(async (msg) => {
@@ -117,9 +171,17 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
           })
         );
         setMessages(decryptedList);
-        markChatRoomRead(roomId);
+        await markChatRoomRead(roomId);
+        // Clear unread count locally
+        if (selectedRoom.type === "direct") {
+          setColleagues((prev) =>
+            prev.map((c) => (c._id === selectedRoom.recipientId ? { ...c, unreadCount: 0 } : c))
+          );
+        } else {
+          setChannelUnread((prev) => ({ ...prev, [roomId]: 0 }));
+        }
       }
-      setLoading(false);
+      if (isMounted) setLoading(false);
     };
 
     loadMessages();
@@ -128,13 +190,29 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
     const handleIncomingMessage = async (newMsg) => {
       if (newMsg.roomId === roomId) {
         const text = await decryptText(newMsg.encryptedPayload, newMsg.iv, newMsg.salt);
-        setMessages((prev) => [...prev, { ...newMsg, decryptedText: text }]);
+        setMessages((prev) => {
+          if (newMsg._id && prev.some((m) => m._id === newMsg._id)) return prev;
+          return [...prev, { ...newMsg, decryptedText: text }];
+        });
         markChatRoomRead(roomId);
+      } else {
+        loadConversations();
       }
+    };
+
+    const handleTyping = ({ userId, userName, isTyping }) => {
+      if (!userId || userId === user?._id) return;
+      setTypingUsers((prev) => {
+        const next = { ...prev };
+        if (isTyping) next[userId] = userName || "Colleague";
+        else delete next[userId];
+        return next;
+      });
     };
 
     if (socket) {
       socket.on("chat:message", handleIncomingMessage);
+      socket.on("chat:typing", handleTyping);
     }
 
     return () => {
@@ -142,23 +220,40 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
       leaveChatRoom(roomId);
       if (socket) {
         socket.off("chat:message", handleIncomingMessage);
+        socket.off("chat:typing", handleTyping);
       }
     };
-  }, [selectedRoom, isOpen]);
+  }, [selectedRoom, isOpen, user?._id]);
 
   // Auto-scroll on new message
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+    if (rightTab === "messages") {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages, rightTab]);
 
-  const handleSendMessage = async (e) => {
-    e?.preventDefault();
-    if (!inputText.trim() || !selectedRoom) return;
+  const emitTyping = (isTyping) => {
+    const socket = getSocket();
+    if (socket && selectedRoom && user) {
+      socket.emit("chat:typing", {
+        roomId: selectedRoom.id,
+        userId: user._id,
+        userName: getDisplayName(user),
+        isTyping,
+      });
+    }
+  };
 
-    const textToSend = inputText.trim();
-    setInputText("");
+  const handleInputChange = (e) => {
+    setInputText(e.target.value);
+    emitTyping(true);
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = setTimeout(() => emitTyping(false), 1800);
+  };
 
-    const encrypted = await encryptText(textToSend);
+  const deliverMessage = async (plainText, attachments = []) => {
+    if (!selectedRoom) return false;
+    const encrypted = await encryptText(plainText);
 
     const payload = {
       chatType: selectedRoom.type,
@@ -168,329 +263,877 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
       iv: encrypted.iv,
       salt: encrypted.salt,
       keyId: "lira-aes-gcm-256",
+      attachments,
     };
 
     const res = await sendChatMessage(payload);
-    if (!res.success) {
+    if (res.success && res.message) {
+      const msgWithText = { ...res.message, decryptedText: plainText };
+      setMessages((prev) => {
+        if (prev.some((m) => m._id === msgWithText._id)) return prev;
+        return [...prev, msgWithText];
+      });
+      return true;
+    }
+    return false;
+  };
+
+  const handleSendMessage = async (e) => {
+    e?.preventDefault();
+    if (!inputText.trim() || !selectedRoom || sending) return;
+
+    const textToSend = inputText.trim();
+    setInputText("");
+    emitTyping(false);
+    setSending(true);
+
+    const ok = await deliverMessage(textToSend);
+    setSending(false);
+
+    if (!ok) {
+      setInputText(textToSend);
       toast.error("Failed to deliver message");
+    }
+  };
+
+  // Direct quick file upload & share inside active chat
+  const handleQuickFileUpload = async (file) => {
+    if (!file || !selectedRoom) return;
+    const uploadId = `up_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    const totalChunks = Math.max(1, Math.ceil(file.size / CHUNK_SIZE));
+
+    setQuickUploadProgress({ name: file.name, percent: 0 });
+
+    try {
+      let completedData = null;
+      for (let i = 0; i < totalChunks; i++) {
+        const start = i * CHUNK_SIZE;
+        const end = Math.min(start + CHUNK_SIZE, file.size);
+        const chunkBlob = file.slice(start, end);
+
+        const formData = new FormData();
+        formData.append("chunk", chunkBlob, `part_${i}`);
+        formData.append("uploadId", uploadId);
+        formData.append("chunkIndex", i);
+        formData.append("totalChunks", totalChunks);
+        formData.append("fileName", file.name);
+        formData.append("fileSize", file.size);
+        formData.append("mimeType", file.type || "application/octet-stream");
+        formData.append("speedLimitKbps", 0);
+
+        const response = await uploadSingleChunk(formData);
+        setQuickUploadProgress({
+          name: file.name,
+          percent: Math.round(((i + 1) / totalChunks) * 100),
+        });
+
+        if (response.data?.completed) {
+          completedData = response.data;
+        }
+      }
+
+      if (completedData) {
+        const attachment = {
+          filename: completedData.fileName,
+          originalName: completedData.originalName || file.name,
+          url: completedData.fileUrl,
+          size: completedData.size || file.size,
+          mimetype: file.type || completedData.mimetype || "application/octet-stream",
+        };
+        const ok = await deliverMessage(`Shared file: ${attachment.originalName}`, [attachment]);
+        if (ok) {
+          toast.success(`Shared ${attachment.originalName}`);
+          setRightTab("messages");
+        }
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to share file");
+    } finally {
+      setQuickUploadProgress(null);
+    }
+  };
+
+  const handleChunkUploaderComplete = async (fileData) => {
+    toast.success(`Uploaded: ${fileData.originalName}`);
+    if (selectedRoom) {
+      const attachment = {
+        filename: fileData.fileName,
+        originalName: fileData.originalName,
+        url: fileData.fileUrl,
+        size: fileData.size || 0,
+        mimetype: fileData.mimetype || "application/octet-stream",
+      };
+      await deliverMessage(`Shared file: ${attachment.originalName}`, [attachment]);
+      setRightTab("messages");
     }
   };
 
   const selectDirectColleague = (colleague) => {
     const sortedIds = [user._id, colleague._id].sort();
     const directRoomId = `dm_${sortedIds[0]}_${sortedIds[1]}`;
+    const displayName = getDisplayName(colleague);
     setSelectedRoom({
       id: directRoomId,
-      name: colleague.fullname || colleague.name,
-      label: colleague.fullname || colleague.name,
+      name: displayName,
+      label: colleague.jobTitle || colleague.departmentName || "Team Member",
       type: "direct",
       recipientId: colleague._id,
       colleague,
     });
-    setViewMode("chat");
+    setRightTab("messages");
+    setShowMobileSidebar(false);
   };
+
+  const selectChannel = (chan) => {
+    setSelectedRoom(chan);
+    setRightTab("messages");
+    setShowMobileSidebar(false);
+  };
+
+  // All files shared in current conversation
+  const sharedFilesInRoom = useMemo(() => {
+    const list = [];
+    messages.forEach((msg) => {
+      if (Array.isArray(msg.attachments) && msg.attachments.length > 0) {
+        msg.attachments.forEach((att) => {
+          list.push({
+            ...att,
+            senderName: getDisplayName(msg.sender),
+            createdAt: msg.createdAt,
+          });
+        });
+      } else if (msg.decryptedText?.startsWith("[Shared File]")) {
+        const raw = msg.decryptedText.replace("[Shared File] ", "");
+        const colonIdx = raw.indexOf(": http");
+        const name = colonIdx > -1 ? raw.slice(0, colonIdx) : raw;
+        const url = colonIdx > -1 ? raw.slice(colonIdx + 2) : "";
+        if (url) {
+          list.push({
+            originalName: name,
+            url,
+            size: 0,
+            senderName: getDisplayName(msg.sender),
+            createdAt: msg.createdAt,
+          });
+        }
+      }
+    });
+    return list.reverse();
+  }, [messages]);
+
+  const filteredColleagues = useMemo(() => {
+    const q = searchFilter.trim().toLowerCase();
+    if (!q) return colleagues;
+    return colleagues.filter(
+      (c) =>
+        getDisplayName(c).toLowerCase().includes(q) ||
+        c.publicId?.toLowerCase().includes(q) ||
+        c.departmentName?.toLowerCase().includes(q) ||
+        c.jobTitle?.toLowerCase().includes(q)
+    );
+  }, [colleagues, searchFilter]);
 
   if (!isOpen) return null;
 
   const isDirect = selectedRoom?.type === "direct";
+  const isRecipientOnline = isDirect && onlineUserIds.has(selectedRoom?.recipientId?.toString());
+  const typingNames = Object.values(typingUsers);
 
-  return (
-    <div className="fixed inset-y-0 right-0 z-50 w-full sm:w-[460px] bg-[#0c0d14] border-l border-white/10 shadow-2xl flex flex-col text-slate-200 animate-in slide-in-from-right duration-200 select-none">
-      {/* 1. Sleek Header */}
-      <div className="px-4 py-3 border-b border-white/10 bg-[#12141e]/90 backdrop-blur-md flex items-center justify-between">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="w-8 h-8 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 font-bold shrink-0">
-            {isDirect ? (
-              <span className="text-xs uppercase">
-                {(selectedRoom?.name || "U")[0]}
-              </span>
-            ) : (
-              <Hash className="w-4 h-4" />
-            )}
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <h3 className="text-xs sm:text-sm font-bold text-white truncate">
-                {isDirect ? `@${selectedRoom?.name}` : `#${selectedRoom?.name}`}
-              </h3>
-              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                E2EE
-              </span>
+  const renderAttachmentCard = (att, isMe) => {
+    const downloadHref = getDownloadUrl(att.url);
+    const isImage =
+      att.mimetype?.startsWith("image/") ||
+      /\.(png|jpe?g|gif|webp|svg)$/i.test(att.originalName || "");
+
+    return (
+      <div
+        key={att._id || att.url || att.originalName}
+        className={`mt-1.5 p-2.5 rounded-xl border flex flex-col gap-2 max-w-[270px] ${
+          isMe
+            ? "bg-white/15 border-white/25 text-white"
+            : isDark
+            ? "bg-[#12131c] border-white/10 text-slate-200"
+            : "bg-slate-50 border-slate-200 text-slate-800"
+        }`}
+      >
+        {isImage && att.url && (
+          <a href={downloadHref} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-lg">
+            <img
+              src={downloadHref}
+              alt={att.originalName}
+              className="max-h-40 w-full object-cover rounded-lg border border-black/10"
+            />
+          </a>
+        )}
+        <div className="flex items-center justify-between gap-2.5">
+          <div className="flex items-center gap-2 min-w-0">
+            <div
+              className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                isMe
+                  ? "bg-white/20 text-white"
+                  : isDark
+                  ? "bg-indigo-500/20 text-indigo-300"
+                  : "bg-indigo-100 text-indigo-600"
+              }`}
+            >
+              {isImage ? <ImageIcon className="w-4 h-4" /> : <FileText className="w-4 h-4" />}
             </div>
-            <p className="text-[10px] text-slate-400 truncate">
-              {isDirect
-                ? `${selectedRoom?.colleague?.departmentName || "Team"} • ${selectedRoom?.colleague?.publicId || "Active"}`
-                : selectedRoom?.label}
-            </p>
+            <div className="min-w-0">
+              <p className="text-xs font-semibold truncate">{att.originalName}</p>
+              {att.size > 0 && (
+                <p className={`text-[10px] font-mono ${isMe ? "text-white/75" : "text-slate-400"}`}>
+                  {formatFileSize(att.size)}
+                </p>
+              )}
+            </div>
           </div>
-        </div>
 
-        {/* Header Action Controls */}
-        <div className="flex items-center gap-1.5 shrink-0">
-          <button
-            onClick={() => setViewMode(viewMode === "directory" ? "chat" : "directory")}
-            className={`p-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 ${
-              viewMode === "directory"
-                ? "bg-purple-600/20 text-purple-300 border border-purple-500/30"
-                : "text-slate-400 hover:text-white hover:bg-white/5"
+          <a
+            href={downloadHref}
+            download={att.originalName}
+            target="_blank"
+            rel="noreferrer"
+            className={`p-1.5 rounded-lg transition-colors shrink-0 ${
+              isMe
+                ? "bg-white/20 hover:bg-white/30 text-white"
+                : isDark
+                ? "bg-white/10 hover:bg-white/20 text-indigo-300"
+                : "bg-indigo-50 hover:bg-indigo-100 text-indigo-700"
             }`}
-            title="Team Directory & DMs"
+            title="Download file"
           >
-            <Users className="w-3.5 h-3.5" />
-            <span className="text-[11px] hidden sm:inline">DMs</span>
-          </button>
-
-          <button
-            onClick={() => setViewMode(viewMode === "uploader" ? "chat" : "uploader")}
-            className={`p-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 ${
-              viewMode === "uploader"
-                ? "bg-purple-600/20 text-purple-300 border border-purple-500/30"
-                : "text-slate-400 hover:text-white hover:bg-white/5"
-            }`}
-            title="File Sharing Hub"
-          >
-            <UploadCloud className="w-3.5 h-3.5" />
-          </button>
-
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
+            <Download className="w-3.5 h-3.5" />
+          </a>
         </div>
       </div>
+    );
+  };
 
-      {/* 2. Channel Quick Switcher Bar */}
-      {viewMode === "chat" && (
-        <div className="px-3 py-2 border-b border-white/5 bg-[#141622]/60 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
-          {channels.map((chan) => {
-            const isSelected = selectedRoom?.id === chan.id;
-            return (
-              <button
-                key={chan.id}
-                onClick={() => setSelectedRoom(chan)}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-medium whitespace-nowrap transition-all flex items-center gap-1 cursor-pointer ${
-                  isSelected
-                    ? "bg-purple-600 text-white shadow-md shadow-purple-500/20 font-semibold"
-                    : "text-slate-400 hover:text-slate-200 hover:bg-white/5"
-                }`}
-              >
-                <Hash className="w-3 h-3 opacity-70" />
-                <span>{chan.name}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end">
+      {/* Backdrop */}
+      <div
+        onClick={onClose}
+        className="fixed inset-0 bg-black/50 backdrop-blur-xs transition-opacity animate-in fade-in duration-150"
+      />
 
-      {/* 3. Main View Area */}
-      <div className="flex-1 overflow-hidden flex flex-col">
-        {/* VIEW A: CHAT FEED */}
-        {viewMode === "chat" && (
-          <div className="flex-1 flex flex-col overflow-hidden">
-            {/* Messages Feed */}
-            <div className="flex-1 p-4 overflow-y-auto space-y-4">
-              {loading && (
-                <div className="text-center py-8 text-xs text-slate-500 animate-pulse">
-                  Decrypting local messages...
-                </div>
-              )}
-
-              {/* Minimal Room Welcome Banner */}
-              {!loading && messages.length === 0 && (
-                <div className="py-10 text-center space-y-2.5 select-none">
-                  <div className="w-12 h-12 mx-auto rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
-                    {isDirect ? <Users className="w-5 h-5" /> : <Hash className="w-5 h-5" />}
-                  </div>
-                  <div>
-                    <h4 className="text-xs sm:text-sm font-bold text-white">
-                      {isDirect ? `Chat with ${selectedRoom?.name}` : `Welcome to #${selectedRoom?.name}`}
-                    </h4>
-                    <p className="text-[11px] text-slate-400 max-w-xs mx-auto mt-0.5">
-                      Messages in this conversation are protected with client-side 256-bit AES encryption.
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* Message Items */}
-              {messages.map((msg, index) => {
-                const isMe = msg.sender?._id === user?._id || msg.sender === user?._id;
-                const senderName = isMe ? "You" : msg.sender?.fullname || msg.sender?.name || "Colleague";
-                const isFileShare = msg.decryptedText?.startsWith("[Shared File]");
-
-                return (
-                  <div
-                    key={msg._id || index}
-                    className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}
-                  >
-                    <div className="flex items-center gap-1.5 mb-1 px-1">
-                      <span className="text-[10px] font-semibold text-slate-400">
-                        {senderName}
-                      </span>
-                      {msg.sender?.publicId && !isMe && (
-                        <span className="text-[9px] font-mono px-1 rounded bg-white/5 text-purple-300">
-                          {msg.sender.publicId}
-                        </span>
-                      )}
-                      <span className="text-[9px] text-slate-500 font-mono">
-                        {new Date(msg.createdAt || Date.now()).toLocaleTimeString([], {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </span>
-                    </div>
-
-                    {isFileShare ? (
-                      <div className="max-w-[85%] p-3 rounded-2xl bg-[#191b28] border border-white/10 shadow-lg space-y-1.5 text-left">
-                        <div className="flex items-center gap-2 text-purple-300 text-xs font-semibold">
-                          <FileText className="w-4 h-4 shrink-0" />
-                          <span className="truncate">Attached File</span>
-                        </div>
-                        <p className="text-[11px] text-slate-300 break-all select-all">
-                          {msg.decryptedText.replace("[Shared File] ", "")}
-                        </p>
-                      </div>
-                    ) : (
-                      <div
-                        className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-xs leading-relaxed shadow-md ${
-                          isMe
-                            ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-tr-none font-medium"
-                            : "bg-[#181a26] text-slate-100 rounded-tl-none border border-white/10"
-                        }`}
-                      >
-                        <p className="whitespace-pre-wrap break-words">{msg.decryptedText}</p>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-              <div ref={messagesEndRef} />
+      {/* Split-Pane Chat Drawer */}
+      <div
+        className={`relative z-10 w-full sm:w-[700px] lg:w-[820px] h-full border-l shadow-2xl flex overflow-hidden animate-in slide-in-from-right duration-200 ${
+          isDark
+            ? "bg-[#0c0d12] border-white/10 text-slate-100"
+            : "bg-white border-slate-200 text-slate-900"
+        }`}
+      >
+        {/* LEFT SIDEBAR: CHANNELS & DIRECT MESSAGES */}
+        <aside
+          className={`${
+            showMobileSidebar ? "flex absolute inset-y-0 left-0 z-30 w-64" : "hidden sm:flex sm:w-64"
+          } flex-col border-r shrink-0 ${
+            isDark ? "bg-[#11121a] border-white/10" : "bg-slate-50 border-slate-200"
+          }`}
+        >
+          {/* Sidebar Header */}
+          <div
+            className={`px-4 py-3.5 border-b flex items-center justify-between ${
+              isDark ? "border-white/10" : "border-slate-200"
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white">
+                <MessageSquare className="w-3.5 h-3.5" />
+              </div>
+              <div>
+                <h2 className={`text-xs font-extrabold tracking-tight ${isDark ? "text-white" : "text-slate-900"}`}>
+                  Lira Office Chat
+                </h2>
+                <span className="text-[10px] text-emerald-500 font-semibold flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  {onlineUserIds.size} online now
+                </span>
+              </div>
             </div>
 
-            {/* Bottom Minimal Input Bar */}
-            <form
-              onSubmit={handleSendMessage}
-              className="p-3 bg-[#11131c] border-t border-white/10 flex items-center gap-2"
+            <button
+              onClick={() => setShowMobileSidebar(false)}
+              className="sm:hidden p-1 rounded-lg text-slate-400 hover:text-white"
             >
-              <button
-                type="button"
-                onClick={() => setViewMode("uploader")}
-                className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
-                title="Send File Attachment"
-              >
-                <Paperclip className="w-4 h-4" />
-              </button>
-
-              <input
-                type="text"
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
-                placeholder={`Message ${isDirect ? `@${selectedRoom?.name}` : `#${selectedRoom?.name}`}...`}
-                className="flex-1 bg-[#191b26] border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 transition-colors font-medium"
-              />
-
-              <button
-                type="submit"
-                disabled={!inputText.trim()}
-                className="p-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-30 text-white transition-all shadow-md shadow-blue-500/20 cursor-pointer"
-              >
-                <Send className="w-3.5 h-3.5" />
-              </button>
-            </form>
+              <X className="w-4 h-4" />
+            </button>
           </div>
-        )}
 
-        {/* VIEW B: TEAM DIRECTORY & DMs */}
-        {viewMode === "directory" && (
-          <div className="flex-1 p-4 overflow-y-auto space-y-4">
+          {/* Search Input */}
+          <div className="p-3">
             <div className="relative">
               <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 value={searchFilter}
                 onChange={(e) => setSearchFilter(e.target.value)}
-                placeholder="Search team by name or ID..."
-                className="w-full bg-[#161824] border border-white/10 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 font-medium"
+                placeholder="Search people or ID..."
+                className={`w-full rounded-xl pl-8 pr-3 py-1.5 text-xs border focus:outline-none focus:border-indigo-500 ${
+                  isDark
+                    ? "bg-[#181a24] border-white/10 text-white placeholder-slate-500"
+                    : "bg-white border-slate-200 text-slate-900 placeholder-slate-400"
+                }`}
               />
             </div>
+          </div>
 
-            <div className="space-y-1.5">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block px-1">
-                Workspace Colleagues ({conversations.length})
+          {/* Scrollable Channels & DMs */}
+          <div className="flex-1 overflow-y-auto px-2.5 pb-4 space-y-5">
+            {/* Department Channels */}
+            <div className="space-y-1">
+              <span className="px-2 text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                Channels
               </span>
+              {CHANNELS.map((chan) => {
+                const isSelected = selectedRoom?.id === chan.id && rightTab === "messages";
+                const unread = channelUnread[chan.id] || 0;
+                return (
+                  <button
+                    key={chan.id}
+                    onClick={() => selectChannel(chan)}
+                    className={`w-full px-2.5 py-2 rounded-xl text-xs font-semibold flex items-center justify-between transition-all cursor-pointer ${
+                      isSelected
+                        ? "bg-indigo-600 text-white shadow-sm"
+                        : isDark
+                        ? "text-slate-300 hover:bg-white/5 hover:text-white"
+                        : "text-slate-700 hover:bg-slate-200/70 hover:text-slate-900"
+                    }`}
+                  >
+                    <span className="flex items-center gap-2 truncate">
+                      <Hash className="w-3.5 h-3.5 opacity-75 shrink-0" />
+                      <span className="truncate">{chan.name}</span>
+                    </span>
+                    {unread > 0 && !isSelected && (
+                      <span className="px-1.5 py-0.2 rounded-full bg-rose-500 text-white text-[10px] font-bold">
+                        {unread}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
 
-              {conversations
-                .filter(
-                  (c) =>
-                    !searchFilter ||
-                    c.fullname?.toLowerCase().includes(searchFilter.toLowerCase()) ||
-                    c.publicId?.toLowerCase().includes(searchFilter.toLowerCase())
-                )
-                .map((colleague) => (
-                  <div
+            {/* Direct Messages */}
+            <div className="space-y-1">
+              <div className="px-2 flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  Direct Messages ({filteredColleagues.length})
+                </span>
+              </div>
+
+              {filteredColleagues.map((colleague) => {
+                const displayName = getDisplayName(colleague);
+                const sortedIds = [user?._id, colleague._id].sort();
+                const dmRoomId = `dm_${sortedIds[0]}_${sortedIds[1]}`;
+                const isSelected = selectedRoom?.id === dmRoomId;
+                const isOnline = onlineUserIds.has(colleague._id?.toString());
+
+                return (
+                  <button
                     key={colleague._id}
                     onClick={() => selectDirectColleague(colleague)}
-                    className="p-2.5 rounded-xl bg-[#141622] hover:bg-[#1b1e2e] border border-white/5 hover:border-purple-500/30 flex items-center justify-between cursor-pointer transition-all"
+                    className={`w-full p-2 rounded-xl flex items-center justify-between gap-2 text-left transition-all cursor-pointer ${
+                      isSelected
+                        ? isDark
+                          ? "bg-indigo-600/25 border border-indigo-500/40 text-white"
+                          : "bg-indigo-50 border border-indigo-200 text-indigo-950"
+                        : isDark
+                        ? "hover:bg-white/5 text-slate-200 border border-transparent"
+                        : "hover:bg-slate-200/60 text-slate-800 border border-transparent"
+                    }`}
                   >
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-300 font-bold text-xs uppercase">
-                        {(colleague.fullname || colleague.name || "U")[0]}
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="relative shrink-0">
+                        {colleague.avatar || colleague.profilePicture ? (
+                          <img
+                            src={colleague.avatar || colleague.profilePicture}
+                            alt={displayName}
+                            className="w-8 h-8 rounded-xl object-cover border border-white/10"
+                          />
+                        ) : (
+                          <div className="w-8 h-8 rounded-xl bg-indigo-500/15 border border-indigo-500/25 flex items-center justify-center text-indigo-400 font-bold text-xs">
+                            {getInitials(colleague)}
+                          </div>
+                        )}
+                        <span
+                          className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 ${
+                            isDark ? "border-[#11121a]" : "border-slate-50"
+                          } ${isOnline ? "bg-emerald-500" : "bg-slate-500"}`}
+                        />
                       </div>
-                      <div>
-                        <div className="flex items-center gap-1.5">
-                          <p className="text-xs font-semibold text-white">
-                            {colleague.fullname || colleague.name}
-                          </p>
-                          {colleague.publicId && (
-                            <span className="text-[9px] font-mono px-1 rounded bg-white/5 text-purple-300">
-                              {colleague.publicId}
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-[10px] text-slate-400">
-                          {colleague.departmentName || colleague.jobTitle || "Team Member"}
+
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold truncate">{displayName}</p>
+                        <p className={`text-[10px] truncate ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+                          {colleague.jobTitle || colleague.departmentName || "Staff"}
                         </p>
                       </div>
                     </div>
-                    <span className="text-[11px] text-purple-400 font-semibold hover:underline">
-                      Chat →
-                    </span>
-                  </div>
-                ))}
+
+                    {colleague.unreadCount > 0 && !isSelected && (
+                      <span className="px-1.5 py-0.5 rounded-full bg-indigo-600 text-white text-[10px] font-bold shrink-0">
+                        {colleague.unreadCount}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+
+              {filteredColleagues.length === 0 && (
+                <p className="px-2 py-4 text-[11px] text-slate-500 italic text-center">
+                  No colleagues match "{searchFilter}"
+                </p>
+              )}
             </div>
           </div>
-        )}
+        </aside>
 
-        {/* VIEW C: RESUMABLE CHUNK UPLOADER */}
-        {viewMode === "uploader" && (
-          <div className="flex-1 p-4 overflow-y-auto space-y-4">
-            <div className="flex items-center justify-between">
-              <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
-                <UploadCloud className="w-4 h-4 text-purple-400" />
-                <span>Upload File to MinIO</span>
-              </h4>
+        {/* RIGHT MAIN CONVERSATION PANEL */}
+        <div
+          className="flex-1 flex flex-col min-w-0 relative"
+          onDragOver={(e) => {
+            e.preventDefault();
+            setIsDraggingFile(true);
+          }}
+          onDragLeave={() => setIsDraggingFile(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setIsDraggingFile(false);
+            const droppedFile = e.dataTransfer.files?.[0];
+            if (droppedFile) handleQuickFileUpload(droppedFile);
+          }}
+        >
+          {/* Drag-and-drop overlay */}
+          {isDraggingFile && (
+            <div className="absolute inset-0 z-40 bg-indigo-600/20 backdrop-blur-xs border-2 border-dashed border-indigo-500 flex flex-col items-center justify-center pointer-events-none">
+              <UploadCloud className="w-12 h-12 text-indigo-400 mb-2 animate-bounce" />
+              <p className="text-sm font-bold text-white">Drop file to encrypt & share in chat</p>
+            </div>
+          )}
+
+          {/* Chat Header */}
+          <div
+            className={`px-4 py-3 border-b flex items-center justify-between gap-3 shrink-0 ${
+              isDark ? "bg-[#12131c] border-white/10" : "bg-white border-slate-200"
+            }`}
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
               <button
-                onClick={() => setViewMode("chat")}
-                className="text-xs text-purple-400 hover:underline font-medium"
+                onClick={() => setShowMobileSidebar(true)}
+                className={`sm:hidden p-1.5 rounded-lg border ${
+                  isDark ? "border-white/10 text-slate-300" : "border-slate-200 text-slate-700"
+                }`}
+                title="Channels & DMs"
               >
-                Back to chat
+                <Users className="w-4 h-4" />
+              </button>
+
+              {isDirect ? (
+                <div className="relative shrink-0">
+                  {selectedRoom?.colleague?.avatar || selectedRoom?.colleague?.profilePicture ? (
+                    <img
+                      src={selectedRoom.colleague.avatar || selectedRoom.colleague.profilePicture}
+                      alt={selectedRoom.name}
+                      className="w-9 h-9 rounded-xl object-cover border border-white/10"
+                    />
+                  ) : (
+                    <div className="w-9 h-9 rounded-xl bg-indigo-500/15 border border-indigo-500/25 flex items-center justify-center text-indigo-400 font-bold text-xs">
+                      {getInitials(selectedRoom?.name)}
+                    </div>
+                  )}
+                  <span
+                    className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 ${
+                      isDark ? "border-[#12131c]" : "border-white"
+                    } ${isRecipientOnline ? "bg-emerald-500" : "bg-slate-500"}`}
+                  />
+                </div>
+              ) : (
+                <div
+                  className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border ${
+                    isDark
+                      ? "bg-indigo-500/15 border-indigo-500/25 text-indigo-400"
+                      : "bg-indigo-50 border-indigo-200 text-indigo-600"
+                  }`}
+                >
+                  <Hash className="w-4 h-4" />
+                </div>
+              )}
+
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <h3 className={`text-sm font-bold truncate ${isDark ? "text-white" : "text-slate-900"}`}>
+                    {isDirect ? selectedRoom?.name : `#${selectedRoom?.name}`}
+                  </h3>
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 shrink-0">
+                    <ShieldCheck className="w-2.5 h-2.5" />
+                    E2EE
+                  </span>
+                </div>
+                <p className={`text-[11px] truncate ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+                  {isDirect
+                    ? `${selectedRoom?.colleague?.departmentName || "Team"} • ${
+                        selectedRoom?.colleague?.publicId || "Verified Staff"
+                      } • ${isRecipientOnline ? "Online" : "Offline"}`
+                    : selectedRoom?.label}
+                </p>
+              </div>
+            </div>
+
+            {/* Right Header Controls */}
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                onClick={() => setRightTab(rightTab === "files" ? "messages" : "files")}
+                className={`px-2.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  rightTab === "files"
+                    ? "bg-indigo-600 text-white"
+                    : isDark
+                    ? "text-slate-300 hover:bg-white/5 border border-white/10"
+                    : "text-slate-700 hover:bg-slate-100 border border-slate-200"
+                }`}
+                title="Shared files in this conversation"
+              >
+                <FolderOpen className="w-3.5 h-3.5" />
+                <span className="hidden md:inline">Files ({sharedFilesInRoom.length})</span>
+              </button>
+
+              <button
+                onClick={() => setRightTab(rightTab === "uploader" ? "messages" : "uploader")}
+                className={`px-2.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  rightTab === "uploader"
+                    ? "bg-indigo-600 text-white"
+                    : isDark
+                    ? "text-slate-300 hover:bg-white/5 border border-white/10"
+                    : "text-slate-700 hover:bg-slate-100 border border-slate-200"
+                }`}
+                title="Resumable Large File Transfer"
+              >
+                <UploadCloud className="w-3.5 h-3.5" />
+                <span className="hidden md:inline">Transfer</span>
+              </button>
+
+              <button
+                onClick={onClose}
+                className={`p-1.5 rounded-xl transition-colors cursor-pointer ${
+                  isDark ? "text-slate-400 hover:text-white hover:bg-white/10" : "text-slate-500 hover:text-slate-900 hover:bg-slate-100"
+                }`}
+                title="Close chat"
+              >
+                <X className="w-4 h-4" />
               </button>
             </div>
-
-            <ChunkUploader
-              onUploadComplete={(fileData) => {
-                toast.success(`Uploaded: ${fileData.originalName}`);
-                if (selectedRoom) {
-                  setInputText(`[Shared File] ${fileData.originalName}: ${window.location.origin}${fileData.fileUrl}`);
-                  setViewMode("chat");
-                }
-              }}
-            />
           </div>
-        )}
+
+          {/* VIEW 1: MESSAGES FEED */}
+          {rightTab === "messages" && (
+            <>
+              <div className="flex-1 p-4 overflow-y-auto space-y-3.5">
+                {loading && (
+                  <div className="flex items-center justify-center py-12 gap-2 text-xs text-slate-400">
+                    <Loader2 className="w-4 h-4 animate-spin text-indigo-500" />
+                    <span>Decrypting messages...</span>
+                  </div>
+                )}
+
+                {!loading && messages.length === 0 && (
+                  <div className="py-16 text-center space-y-3">
+                    <div
+                      className={`w-14 h-14 mx-auto rounded-2xl border flex items-center justify-center ${
+                        isDark
+                          ? "bg-indigo-500/10 border-indigo-500/20 text-indigo-400"
+                          : "bg-indigo-50 border-indigo-200 text-indigo-600"
+                      }`}
+                    >
+                      {isDirect ? <Users className="w-6 h-6" /> : <Hash className="w-6 h-6" />}
+                    </div>
+                    <div>
+                      <h4 className={`text-sm font-bold ${isDark ? "text-white" : "text-slate-900"}`}>
+                        {isDirect ? `Direct Chat with ${selectedRoom?.name}` : `Welcome to #${selectedRoom?.name}`}
+                      </h4>
+                      <p className={`text-xs max-w-xs mx-auto mt-1 ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+                        Send encrypted messages or drag & drop files here to share securely with your team.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {messages.map((msg, index) => {
+                  const senderId = msg.sender?._id || msg.sender;
+                  const isMe = senderId === user?._id;
+                  const senderName = isMe ? getDisplayName(user) : getDisplayName(msg.sender);
+                  const hasAttachments = Array.isArray(msg.attachments) && msg.attachments.length > 0;
+                  const isLegacyFile = msg.decryptedText?.startsWith("[Shared File]");
+
+                  let legacyAttachment = null;
+                  if (!hasAttachments && isLegacyFile) {
+                    const raw = msg.decryptedText.replace("[Shared File] ", "");
+                    const colonIdx = raw.indexOf(": http");
+                    if (colonIdx > -1) {
+                      legacyAttachment = {
+                        originalName: raw.slice(0, colonIdx),
+                        url: raw.slice(colonIdx + 2),
+                        size: 0,
+                      };
+                    }
+                  }
+
+                  const prevMsg = index > 0 ? messages[index - 1] : null;
+                  const msgDateStr = formatDateIN(msg.createdAt || Date.now());
+                  const prevDateStr = prevMsg ? formatDateIN(prevMsg.createdAt) : null;
+                  const showDateDivider = msgDateStr !== prevDateStr;
+
+                  return (
+                    <React.Fragment key={msg._id || index}>
+                      {showDateDivider && (
+                        <div className="flex items-center gap-3 my-2">
+                          <div className={`flex-1 h-px ${isDark ? "bg-white/10" : "bg-slate-200"}`} />
+                          <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                            {msgDateStr}
+                          </span>
+                          <div className={`flex-1 h-px ${isDark ? "bg-white/10" : "bg-slate-200"}`} />
+                        </div>
+                      )}
+
+                      <div className={`flex items-end gap-2 ${isMe ? "justify-end" : "justify-start"}`}>
+                        {!isMe && (
+                          <div className="shrink-0 mb-1">
+                            {msg.sender?.avatar || msg.sender?.profilePicture ? (
+                              <img
+                                src={msg.sender.avatar || msg.sender.profilePicture}
+                                alt={senderName}
+                                className="w-7 h-7 rounded-xl object-cover border border-white/10"
+                              />
+                            ) : (
+                              <div className="w-7 h-7 rounded-xl bg-indigo-500/15 border border-indigo-500/25 flex items-center justify-center text-indigo-400 font-bold text-[10px]">
+                                {getInitials(msg.sender)}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        <div className={`flex flex-col max-w-[78%] ${isMe ? "items-end" : "items-start"}`}>
+                          <div className="flex items-center gap-1.5 mb-1 px-1">
+                            <span className={`text-[10px] font-bold ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+                              {isMe ? "You" : senderName}
+                            </span>
+                            {msg.sender?.publicId && !isMe && (
+                              <span
+                                className={`text-[9px] font-mono px-1.5 py-0.2 rounded ${
+                                  isDark ? "bg-white/5 text-indigo-300" : "bg-indigo-50 text-indigo-700"
+                                }`}
+                              >
+                                {msg.sender.publicId}
+                              </span>
+                            )}
+                            <span className="text-[9px] text-slate-400 font-mono">
+                              {formatTimeIN(msg.createdAt || Date.now())}
+                            </span>
+                            {isMe && <CheckCheck className="w-3 h-3 text-indigo-400" />}
+                          </div>
+
+                          <div
+                            className={`rounded-2xl px-3.5 py-2 text-xs leading-relaxed shadow-sm ${
+                              isMe
+                                ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-br-xs"
+                                : isDark
+                                ? "bg-[#181924] text-slate-100 border border-white/10 rounded-bl-xs"
+                                : "bg-slate-100 text-slate-900 border border-slate-200 rounded-bl-xs"
+                            }`}
+                          >
+                            {(!hasAttachments || !msg.decryptedText?.startsWith("Shared file:")) &&
+                              !legacyAttachment && (
+                                <p className="whitespace-pre-wrap break-words">{msg.decryptedText}</p>
+                              )}
+
+                            {hasAttachments &&
+                              msg.attachments.map((att) => renderAttachmentCard(att, isMe))}
+
+                            {legacyAttachment && renderAttachmentCard(legacyAttachment, isMe)}
+                          </div>
+                        </div>
+                      </div>
+                    </React.Fragment>
+                  );
+                })}
+
+                {typingNames.length > 0 && (
+                  <div className="text-[11px] text-indigo-400 italic px-2 animate-pulse">
+                    {typingNames.join(", ")} {typingNames.length === 1 ? "is" : "are"} typing...
+                  </div>
+                )}
+
+                <div ref={messagesEndRef} />
+              </div>
+
+              {/* Quick Upload Progress Banner */}
+              {quickUploadProgress && (
+                <div
+                  className={`mx-4 mb-2 px-3 py-2 rounded-xl border text-xs flex items-center justify-between gap-3 ${
+                    isDark ? "bg-[#181924] border-indigo-500/30 text-slate-200" : "bg-indigo-50 border-indigo-200 text-indigo-900"
+                  }`}
+                >
+                  <span className="truncate font-medium">Uploading {quickUploadProgress.name}...</span>
+                  <span className="font-mono font-bold text-indigo-400">{quickUploadProgress.percent}%</span>
+                </div>
+              )}
+
+              {/* Message Composer Bar */}
+              <form
+                onSubmit={handleSendMessage}
+                className={`p-3 border-t flex items-center gap-2 shrink-0 ${
+                  isDark ? "bg-[#12131c] border-white/10" : "bg-slate-50 border-slate-200"
+                }`}
+              >
+                <input
+                  ref={quickFileInputRef}
+                  type="file"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleQuickFileUpload(file);
+                    e.target.value = "";
+                  }}
+                />
+
+                <button
+                  type="button"
+                  onClick={() => quickFileInputRef.current?.click()}
+                  className={`p-2 rounded-xl transition-colors cursor-pointer ${
+                    isDark
+                      ? "text-slate-400 hover:text-white hover:bg-white/10"
+                      : "text-slate-500 hover:text-slate-900 hover:bg-slate-200"
+                  }`}
+                  title="Attach & share file immediately"
+                >
+                  <Paperclip className="w-4 h-4" />
+                </button>
+
+                <input
+                  type="text"
+                  value={inputText}
+                  onChange={handleInputChange}
+                  placeholder={`Message ${isDirect ? selectedRoom?.name : `#${selectedRoom?.name}`}...`}
+                  className={`flex-1 rounded-xl px-3.5 py-2 text-xs border focus:outline-none focus:border-indigo-500 transition-colors font-medium ${
+                    isDark
+                      ? "bg-[#191b26] border-white/10 text-white placeholder-slate-500"
+                      : "bg-white border-slate-200 text-slate-900 placeholder-slate-400"
+                  }`}
+                />
+
+                <button
+                  type="submit"
+                  disabled={!inputText.trim() || sending}
+                  className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-30 text-white text-xs font-bold transition-all shadow-md shadow-blue-500/20 flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Send</span>
+                </button>
+              </form>
+            </>
+          )}
+
+          {/* VIEW 2: SHARED FILES GALLERY FOR THIS ROOM */}
+          {rightTab === "files" && (
+            <div className="flex-1 p-5 overflow-y-auto space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className={`text-sm font-bold ${isDark ? "text-white" : "text-slate-900"}`}>
+                    Shared Files in {isDirect ? selectedRoom?.name : `#${selectedRoom?.name}`}
+                  </h4>
+                  <p className="text-xs text-slate-400">
+                    {sharedFilesInRoom.length} files shared in this conversation
+                  </p>
+                </div>
+                <button
+                  onClick={() => setRightTab("messages")}
+                  className="text-xs font-semibold text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" /> Back to Chat
+                </button>
+              </div>
+
+              {sharedFilesInRoom.length === 0 ? (
+                <div
+                  className={`p-10 rounded-2xl border-2 border-dashed text-center space-y-2 ${
+                    isDark ? "border-white/10 text-slate-400" : "border-slate-200 text-slate-500"
+                  }`}
+                >
+                  <FolderOpen className="w-8 h-8 mx-auto opacity-60" />
+                  <p className="text-xs font-semibold">No files shared here yet</p>
+                  <button
+                    onClick={() => setRightTab("uploader")}
+                    className="mt-2 px-3 py-1.5 rounded-xl bg-indigo-600 text-white text-xs font-bold cursor-pointer"
+                  >
+                    Upload & Share a File
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {sharedFilesInRoom.map((file, i) => (
+                    <div
+                      key={i}
+                      className={`p-3.5 rounded-2xl border flex items-center justify-between gap-3 ${
+                        isDark ? "bg-[#14151c] border-white/10" : "bg-slate-50 border-slate-200"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-9 h-9 rounded-xl bg-indigo-500/15 text-indigo-400 flex items-center justify-center shrink-0">
+                          <FileText className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className={`text-xs font-bold truncate ${isDark ? "text-white" : "text-slate-900"}`}>
+                            {file.originalName}
+                          </p>
+                          <p className="text-[10px] text-slate-400 truncate">
+                            {file.senderName} • {formatDateIN(file.createdAt)}
+                            {file.size > 0 ? ` • ${formatFileSize(file.size)}` : ""}
+                          </p>
+                        </div>
+                      </div>
+                      <a
+                        href={getDownloadUrl(file.url)}
+                        download={file.originalName}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="p-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white shrink-0 transition-colors"
+                        title="Download"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                      </a>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* VIEW 3: RESUMABLE CHUNK UPLOADER HUB */}
+          {rightTab === "uploader" && (
+            <div className="flex-1 p-5 overflow-y-auto space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className={`text-sm font-bold flex items-center gap-1.5 ${isDark ? "text-white" : "text-slate-900"}`}>
+                    <UploadCloud className="w-4 h-4 text-indigo-400" />
+                    <span>Resumable File Transfer Hub</span>
+                  </h4>
+                  <p className="text-xs text-slate-400">
+                    Files upload in 1MB chunks and post automatically to {isDirect ? selectedRoom?.name : `#${selectedRoom?.name}`}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setRightTab("messages")}
+                  className="text-xs text-indigo-400 hover:underline font-semibold flex items-center gap-1 cursor-pointer"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" /> Back to chat
+                </button>
+              </div>
+
+              <ChunkUploader onUploadComplete={handleChunkUploaderComplete} />
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

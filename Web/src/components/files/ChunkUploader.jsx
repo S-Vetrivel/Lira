@@ -12,10 +12,13 @@ import {
   Wifi,
 } from "lucide-react";
 import { getChunkStatus, uploadSingleChunk } from "../../services/api";
+import { useApp } from "../../context/Appcontext";
 
 const CHUNK_SIZE = 1 * 1024 * 1024; // 1MB chunks
 
 export default function ChunkUploader({ onUploadComplete, onClose, accept = "*/*" }) {
+  const { theme } = useApp();
+  const isDark = theme === "dark";
   const [file, setFile] = useState(null);
   const [uploadId, setUploadId] = useState("");
   const [speedLimit, setSpeedLimit] = useState(0); // 0 = unlimited, in KB/s
@@ -95,6 +98,7 @@ export default function ChunkUploader({ onUploadComplete, onClose, accept = "*/*
         formData.append("totalChunks", tChunks);
         formData.append("fileName", file.name);
         formData.append("fileSize", file.size);
+        formData.append("mimeType", file.type || "application/octet-stream");
         formData.append("speedLimitKbps", speedLimit);
 
         const startTime = Date.now();
@@ -144,7 +148,13 @@ export default function ChunkUploader({ onUploadComplete, onClose, accept = "*/*
   };
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-2xl text-slate-200 w-full max-w-lg mx-auto">
+    <div
+      className={`border rounded-2xl p-5 shadow-xl w-full max-w-lg mx-auto ${
+        isDark
+          ? "bg-[#14151c] border-white/10 text-slate-200"
+          : "bg-white border-slate-200 text-slate-800"
+      }`}
+    >
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2.5">
@@ -152,8 +162,12 @@ export default function ChunkUploader({ onUploadComplete, onClose, accept = "*/*
             <UploadCloud className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-sm font-bold text-white">Resumable File Transfer</h3>
-            <p className="text-[11px] text-slate-400">Adaptive chunk upload with bandwidth governor</p>
+            <h3 className={`text-sm font-bold ${isDark ? "text-white" : "text-slate-900"}`}>
+              Resumable File Transfer
+            </h3>
+            <p className={`text-[11px] ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+              Adaptive chunk upload with bandwidth governor
+            </p>
           </div>
         </div>
         {onClose && (

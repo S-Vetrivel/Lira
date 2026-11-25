@@ -367,7 +367,15 @@ export default function KanbanBoard({ onSelectTask }) {
       <div className="flex-1 w-full min-h-0 p-5 sm:p-6 overflow-x-auto overflow-y-hidden">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 min-w-[900px] h-full">
           {COLUMNS.map((column) => {
-            const columnTasks = filteredTasks.filter((t) => t.status === column.id);
+            const columnTasks = filteredTasks.filter((t) => {
+              if (column.id === "in_progress") {
+                return t.status === "in_progress" || t.status === "redo_requested";
+              }
+              if (column.id === "review") {
+                return t.status === "review" || t.status === "submitted_for_review";
+              }
+              return t.status === column.id;
+            });
             const isTargeted = dragOverColumn === column.id;
 
             return (
