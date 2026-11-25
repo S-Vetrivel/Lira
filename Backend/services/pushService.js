@@ -18,19 +18,21 @@ if (vapidPublicKey && vapidPrivateKey) {
   console.log("ℹ️ VAPID keys not set, WebPush will simulate in logs");
 }
 
+const ts = () => new Date().toISOString();
+
 /**
  * Send Web Push notification to a specific user
  */
 async function sendPushToUser(userId, payload) {
   try {
-    const user = await User.findById(userId).select("pushSubscription fullname email");
+    const user = await User.findById(userId).select("pushSubscription fullname email publicId");
     if (!user || !user.pushSubscription) {
-      console.log(`[Push] User ${userId} has no active push subscription. Emitted in-app.`);
+      console.log(`[${ts()}] [PushService] User=${userId} (${user?.publicId || "-"}) has no browser push subscription; delivered in-app/WS.`);
       return false;
     }
 
     if (!isVapidConfigured) {
-      console.log(`[Simulated Push] To ${user.email}:`, payload);
+      console.log(`[${ts()}] [PushService] Simulated push to=${user.email} title="${payload.title}"`);
       return true;
     }
 
@@ -43,10 +45,10 @@ async function sendPushToUser(userId, payload) {
     });
 
     await webpush.sendNotification(user.pushSubscription, pushPayload);
-    console.log(`✅ [WebPush] Delivered push notification to ${user.email}`);
+    console.log(`[${ts()}] [PushService] Delivered WebPush to=${user.email} publicId=${user.publicId || "-"}`);
     return true;
   } catch (err) {
-    console.error(`❌ [WebPush] Failed to send push to user ${userId}:`, err.message);
+    console.error(`[${ts()}] [PushService] Failed push user=${userId}:`, err.message);
     if (err.statusCode === 410 || err.statusCode === 404) {
       // Clean up stale subscription
       await User.findByIdAndUpdate(userId, { $unset: { pushSubscription: 1 } });

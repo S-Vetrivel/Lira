@@ -6,6 +6,8 @@ const Redis = require("ioredis");
 // Redis publisher client for cluster-wide broadcast
 const redisPublisher = new Redis(redisConfig);
 
+const ts = () => new Date().toISOString();
+
 const websocketWorker = new Worker(
   "websocket-events-queue",
   async (job) => {
@@ -33,8 +35,12 @@ const websocketWorker = new Worker(
         JSON.stringify({ room, event, data, target })
       );
     } catch (err) {
-      console.warn("Failed to publish to CLUSTER_WEBSOCKET_CHANNEL:", err.message);
+      console.warn(`[${ts()}] [WebSocketWorker] Failed to publish to CLUSTER_WEBSOCKET_CHANNEL:`, err.message);
     }
+
+    console.log(
+      `[${ts()}] [WebSocketWorker] Dispatched job=${job.id} event=${event} target=${target} room=${room || "*"}`
+    );
 
     return { delivered: true, event, target, room };
   },
@@ -45,7 +51,7 @@ const websocketWorker = new Worker(
 );
 
 websocketWorker.on("failed", (job, err) => {
-  console.error(`[WebSocket Worker] Job ${job?.id} failed:`, err.message);
+  console.error(`[${ts()}] [WebSocketWorker] Job ${job?.id} failed:`, err.message);
 });
 
 module.exports = websocketWorker;

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useApp } from "../context/Appcontext";
 import {
   getTeamMembers,
@@ -37,10 +38,22 @@ import UserAvatar from "../components/common/UserAvatar";
 import SideDrawer from "../components/common/SideDrawer";
 
 export default function Team() {
-  const { user, departments, refreshDepartments, theme, openDirectChat } = useApp();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { user, departments, refreshDepartments, refreshPendingJoinCount, theme, openDirectChat } = useApp();
   const isDark = theme === "dark";
 
-  const [activeTab, setActiveTab] = useState("directory"); // 'directory' | 'join-requests'
+  const [activeTab, setActiveTab] = useState(() =>
+    searchParams.get("tab") === "join-requests" ? "join-requests" : "directory"
+  ); // 'directory' | 'join-requests'
+
+  useEffect(() => {
+    const tabParam = searchParams.get("tab");
+    if (tabParam === "join-requests") {
+      setActiveTab("join-requests");
+    } else if (tabParam === "directory") {
+      setActiveTab("directory");
+    }
+  }, [searchParams]);
   const [members, setMembers] = useState([]);
   const [pendingRequests, setPendingRequests] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -57,6 +70,15 @@ export default function Team() {
   const [jobTitle, setJobTitle] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [actionId, setActionId] = useState(null);
+
+  // Join Request Approve / Decline SideDrawers
+  const [reviewCandidate, setReviewCandidate] = useState(null);
+  const [approveDeptName, setApproveDeptName] = useState("");
+  const [approveRole, setApproveRole] = useState("employee");
+  const [approveJobTitle, setApproveJobTitle] = useState("");
+
+  const [declineCandidate, setDeclineCandidate] = useState(null);
+  const [declineReason, setDeclineReason] = useState("Position filled or information incomplete");
 
   // Selected member SideDrawer
   const [selectedMember, setSelectedMember] = useState(null);
@@ -154,31 +176,60 @@ export default function Team() {
     }
   }, [user?._id, user?.role]);
 
-  const handleApprove = async (candidate) => {
-    setActionId(candidate._id);
-    const res = await approveJoinRequest(candidate._id, {
-      departmentName: candidate.joinRequest?.requestedDepartmentName || candidate.departmentName,
-      jobTitle: candidate.joinRequest?.requestedJobTitle || candidate.jobTitle,
-      role: candidate.joinRequest?.requestedRole || "employee",
+  const openApproveModal = (candidate) => {
+    setReviewCandidate(candidate);
+    setApproveDeptName(
+      candidate.joinRequest?.requestedDepartmentName ||
+        candidate.departmentName ||
+        departments?.[0]?.name ||
+        "Engineering"
+    );
+    setApproveRole(candidate.joinRequest?.requestedRole || "employee");
+    setApproveJobTitle(
+      candidate.joinRequest?.requestedJobTitle || candidate.jobTitle || "Team Member"
+    );
+  };
+
+  const handleConfirmApprove = async (e) => {
+    e.preventDefault();
+    if (!reviewCandidate) return;
+
+    setActionId(reviewCandidate._id);
+    const res = await approveJoinRequest(reviewCandidate._id, {
+      departmentName: approveDeptName || "Engineering",
+      jobTitle: approveJobTitle.trim() || "Team Member",
+      role: approveRole || "employee",
     });
     setActionId(null);
 
     if (res.success) {
+      setReviewCandidate(null);
       fetchJoinRequests();
       fetchMembers();
+      refreshPendingJoinCount?.();
     }
   };
 
-  const handleReject = async (candidate) => {
-    const reason = window.prompt(`Enter reason for declining ${candidate.fullname}'s request:`, "Position filled or information incomplete");
-    if (reason === null) return;
+  const openDeclineModal = (candidate) => {
+    setDeclineCandidate(candidate);
+    setDeclineReason("Position filled or information incomplete");
+  };
 
-    setActionId(candidate._id);
-    const res = await rejectJoinRequest(candidate._id, reason);
+  const handleConfirmDecline = async (e) => {
+    e.preventDefault();
+    if (!declineCandidate) return;
+
+    setActionId(declineCandidate._id);
+    const res = await rejectJoinRequest(
+      declineCandidate._id,
+      declineReason.trim() || "Declined by workspace admin"
+    );
     setActionId(null);
 
     if (res.success) {
+      setDeclineCandidate(null);
       fetchJoinRequests();
+      refreshPendingJoinCount?.();
     }
   };
 
@@ -280,7 +331,10 @@ export default function Team() {
       {canManage && (
         <div className={`flex items-center gap-2 border-b pb-2 ${isDark ? "border-white/[0.08]" : "border-slate-900/[0.08]"}`}>
           <button
-            onClick={() => setActiveTab("directory")}
+            onClick={() => {
+              setActiveTab("directory");
+              setSearchParams({ tab: "directory" });
+            }}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${activeTab === "directory"
               ? "lira-btn-primary"
               : isDark
@@ -293,7 +347,10 @@ export default function Team() {
           </button>
 
           <button
-            onClick={() => setActiveTab("join-requests")}
+            onClick={() => {
+              setActiveTab("join-requests");
+              setSearchParams({ tab: "join-requests" });
+            }}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer relative ${activeTab === "join-requests"
               ? "bg-amber-500 text-zinc-950 shadow-sm"
               : isDark
@@ -395,7 +452,7 @@ export default function Team() {
                   <div className="flex items-center gap-2 pt-2 border-t border-white/10">
                     <button
                       type="button"
-                      onClick={() => handleReject(candidate)}
+                      onClick={() => openDeclineModal(candidate)}
                       disabled={actionId === candidate._id}
                       className="w-1/3 py-2 px-3 rounded-xl text-xs font-bold text-rose-300 hover:text-white bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                     >
@@ -405,7 +462,7 @@ export default function Team() {
 
                     <button
                       type="button"
-                      onClick={() => handleApprove(candidate)}
+                      onClick={() => openApproveModal(candidate)}
                       disabled={actionId === candidate._id}
                       className="w-2/3 py-2 px-3 rounded-xl text-xs font-bold bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                     >
@@ -872,6 +929,218 @@ export default function Team() {
               </form>
             )}
           </div>
+        )}
+      </SideDrawer>
+
+      {/* Approve Join Request Side Modal */}
+      <SideDrawer
+        isOpen={Boolean(reviewCandidate)}
+        onClose={() => setReviewCandidate(null)}
+        title="Approve & Grant Workspace Access"
+        subtitle={reviewCandidate?.publicId ? `Applicant ID: ${reviewCandidate.publicId}` : "Assign Department & Role"}
+        width="max-w-md"
+      >
+        {reviewCandidate && (
+          <form onSubmit={handleConfirmApprove} className="space-y-4">
+            <div
+              className={`p-3.5 rounded-2xl border flex items-center gap-3 ${
+                isDark ? "bg-white/[0.03] border-white/10" : "bg-slate-50 border-slate-200"
+              }`}
+            >
+              <UserAvatar
+                user={reviewCandidate}
+                className="w-11 h-11 rounded-xl border border-emerald-500/30"
+                textClass="text-sm"
+              />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-2">
+                  <h4 className={`text-sm font-bold truncate ${isDark ? "text-white" : "text-slate-900"}`}>
+                    {reviewCandidate.fullname}
+                  </h4>
+                  <span className="px-2 py-0.5 rounded-md bg-indigo-500/15 text-indigo-300 font-mono text-[10px] font-bold shrink-0">
+                    {reviewCandidate.publicId || "EMP-PENDING"}
+                  </span>
+                </div>
+                <p className={`text-xs truncate ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+                  {reviewCandidate.email}
+                </p>
+              </div>
+            </div>
+
+            {reviewCandidate.joinRequest?.reason && (
+              <div
+                className={`p-3 rounded-xl border text-xs ${
+                  isDark ? "bg-white/[0.02] border-white/[0.07] text-slate-300" : "bg-slate-50 border-slate-200 text-slate-600"
+                }`}
+              >
+                <span className="text-[10px] uppercase font-bold tracking-wider opacity-60 block mb-1">
+                  Candidate Note
+                </span>
+                <p className="italic">"{reviewCandidate.joinRequest.reason}"</p>
+              </div>
+            )}
+
+            <div>
+              <label className="text-xs font-semibold block mb-1.5">Assign Department</label>
+              <select
+                value={approveDeptName}
+                onChange={(e) => setApproveDeptName(e.target.value)}
+                required
+                className={`w-full border rounded-xl px-3.5 py-2.5 text-xs focus:outline-none ${
+                  isDark ? "bg-[#12131b] border-white/15 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
+                }`}
+              >
+                {departments.map((d) => (
+                  <option key={d._id} value={d.name}>
+                    {d.name}
+                  </option>
+                ))}
+                {!departments.some((d) => d.name === approveDeptName) && approveDeptName && (
+                  <option value={approveDeptName}>{approveDeptName}</option>
+                )}
+              </select>
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold block mb-1.5">Assign Workspace Role</label>
+              <select
+                value={approveRole}
+                onChange={(e) => setApproveRole(e.target.value)}
+                className={`w-full border rounded-xl px-3.5 py-2.5 text-xs focus:outline-none ${
+                  isDark ? "bg-[#12131b] border-white/15 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
+                }`}
+              >
+                <option value="employee">Employee (Contributor)</option>
+                <option value="manager">Manager (Team Lead)</option>
+                {user?.role === "admin" && <option value="admin">Admin (Executive)</option>}
+              </select>
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold block mb-1.5">Job Title</label>
+              <input
+                type="text"
+                value={approveJobTitle}
+                onChange={(e) => setApproveJobTitle(e.target.value)}
+                placeholder="e.g. Software Engineer"
+                className={`w-full border rounded-xl px-3.5 py-2.5 text-xs focus:outline-none ${
+                  isDark ? "bg-[#12131b] border-white/15 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
+                }`}
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-white/10">
+              <button
+                type="button"
+                onClick={() => setReviewCandidate(null)}
+                className={`px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer ${
+                  isDark ? "bg-white/5 hover:bg-white/10 text-slate-300" : "bg-slate-100 hover:bg-slate-200 text-slate-700"
+                }`}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={actionId === reviewCandidate._id}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-lg shadow-emerald-500/20 flex items-center gap-1.5 cursor-pointer"
+              >
+                <Check className="w-3.5 h-3.5" />
+                <span>{actionId === reviewCandidate._id ? "Approving..." : "Confirm & Grant Access"}</span>
+              </button>
+            </div>
+          </form>
+        )}
+      </SideDrawer>
+
+      {/* Decline Join Request Side Modal */}
+      <SideDrawer
+        isOpen={Boolean(declineCandidate)}
+        onClose={() => setDeclineCandidate(null)}
+        title="Decline Join Request"
+        subtitle={declineCandidate?.publicId ? `Applicant ID: ${declineCandidate.publicId}` : "Provide Feedback"}
+        width="max-w-md"
+      >
+        {declineCandidate && (
+          <form onSubmit={handleConfirmDecline} className="space-y-4">
+            <div
+              className={`p-3.5 rounded-2xl border flex items-center gap-3 ${
+                isDark ? "bg-white/[0.03] border-white/10" : "bg-slate-50 border-slate-200"
+              }`}
+            >
+              <UserAvatar
+                user={declineCandidate}
+                className="w-11 h-11 rounded-xl border border-rose-500/30"
+                textClass="text-sm"
+              />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-2">
+                  <h4 className={`text-sm font-bold truncate ${isDark ? "text-white" : "text-slate-900"}`}>
+                    {declineCandidate.fullname}
+                  </h4>
+                  <span className="px-2 py-0.5 rounded-md bg-rose-500/15 text-rose-300 font-mono text-[10px] font-bold shrink-0">
+                    {declineCandidate.publicId || "EMP-PENDING"}
+                  </span>
+                </div>
+                <p className={`text-xs truncate ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+                  {declineCandidate.email}
+                </p>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold block mb-1.5">Reason for Declining</label>
+              <textarea
+                rows={3}
+                value={declineReason}
+                onChange={(e) => setDeclineReason(e.target.value)}
+                required
+                placeholder="Enter reason shown to the applicant..."
+                className={`w-full border rounded-xl px-3.5 py-2.5 text-xs focus:outline-none ${
+                  isDark ? "bg-[#12131b] border-white/15 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
+                }`}
+              />
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {[
+                  "Position filled or information incomplete",
+                  "Unrecognized email domain",
+                  "Duplicate application",
+                ].map((preset) => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => setDeclineReason(preset)}
+                    className={`px-2 py-1 rounded-lg text-[10px] border cursor-pointer ${
+                      isDark
+                        ? "bg-white/[0.04] hover:bg-white/[0.08] border-white/10 text-slate-300"
+                        : "bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-700"
+                    }`}
+                  >
+                    {preset}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-white/10">
+              <button
+                type="button"
+                onClick={() => setDeclineCandidate(null)}
+                className={`px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer ${
+                  isDark ? "bg-white/5 hover:bg-white/10 text-slate-300" : "bg-slate-100 hover:bg-slate-200 text-slate-700"
+                }`}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={actionId === declineCandidate._id}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white shadow-lg shadow-rose-500/20 flex items-center gap-1.5 cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+                <span>{actionId === declineCandidate._id ? "Declining..." : "Confirm Decline"}</span>
+              </button>
+            </div>
+          </form>
         )}
       </SideDrawer>
     </div>

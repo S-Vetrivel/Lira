@@ -3,9 +3,11 @@ const Task = require("../models/taskModel");
 const Department = require("../models/departmentModel");
 const bcrypt = require("bcryptjs");
 const { isSuperAdminEmail } = require("../utils/roles");
-const { enqueueWebSocketEvent } = require("../services/queue");
+const { enqueueWebSocketEvent, enqueueEmailJob } = require("../services/queue");
 const { sendPushToUser, sendPushToAdmins } = require("../services/pushService");
-const { createNotification } = require("../utils/notificationHelper");
+const { createNotification, notifyAdmins } = require("../utils/notificationHelper");
+
+const ts = () => new Date().toISOString();
 
 // Get team members with open tasks count (Admin can pass ?includeInactive=true for full user management)
 exports.getTeamMembers = async (req, res) => {
@@ -247,7 +249,27 @@ exports.submitJoinRequest = async (req, res) => {
 
     await user.save();
 
-    // Broadcast real-time update to all Admins
+    console.log(
+      `[${ts()}] [JoinRequest] Submitted/Updated publicId=${user.publicId} email=${user.email} dept=${user.departmentName}`
+    );
+
+    // 1. Notify all Admins via Notification Queue + WebSocket + Email Queue
+    await notifyAdmins({
+      sender: user._id,
+      publicId: user.publicId,
+      type: "approval_request",
+      title: `New Join Request (${user.publicId})`,
+      message: `${user.fullname} (${user.publicId}) requested to join ${user.departmentName}.`,
+      emailType: "join_request_new",
+      emailData: {
+        applicantName: user.fullname,
+        applicantEmail: user.email,
+        publicId: user.publicId,
+        departmentName: user.departmentName,
+      },
+    });
+
+    // 2. Broadcast real-time update to all Admins
     enqueueWebSocketEvent({
       target: "all",
       event: "join-request:new",
@@ -337,13 +359,32 @@ exports.approveJoinRequest = async (req, res) => {
 
     await user.save();
 
-    // 1. In-App Notification
+    // 1. In-App Notification + WebSocket via Notification Queue
     await createNotification({
       recipient: user._id,
       sender: req.user._id,
+      publicId: user.publicId,
       type: "approval_request",
+      title: `Approved (${user.publicId})`,
       message: `🎉 Your application to join ${targetDeptName} has been approved by ${req.user.fullname}! Welcome to Lira Workspace.`,
     });
+
+    // 1b. Decision Email via Email Queue
+    if (user.email) {
+      enqueueEmailJob({
+        to: user.email,
+        type: "join_request_decision",
+        data: {
+          publicId: user.publicId,
+          decision: "Approved",
+          departmentName: targetDeptName,
+        },
+      });
+    }
+
+    console.log(
+      `[${ts()}] [JoinRequest] Approved publicId=${user.publicId} user=${user.email} by=${req.user.email}`
+    );
 
     // 2. Real-time WebSocket event to candidate user channel and publicId channel
     enqueueWebSocketEvent({
@@ -415,6 +456,32 @@ exports.rejectJoinRequest = async (req, res) => {
     user.joinRequest.rejectionReason = reason || "Declined by workspace admin";
 
     await user.save();
+
+    // 1. In-App Notification + Email Queue
+    await createNotification({
+      recipient: user._id,
+      sender: req.user._id,
+      publicId: user.publicId,
+      type: "approval_request",
+      title: `Application Declined (${user.publicId})`,
+      message: `Your request (${user.publicId}) was declined: "${user.joinRequest.rejectionReason}"`,
+    });
+
+    if (user.email) {
+      enqueueEmailJob({
+        to: user.email,
+        type: "join_request_decision",
+        data: {
+          publicId: user.publicId,
+          decision: "Declined",
+          reason: user.joinRequest.rejectionReason,
+        },
+      });
+    }
+
+    console.log(
+      `[${ts()}] [JoinRequest] Rejected publicId=${user.publicId} user=${user.email} by=${req.user.email}`
+    );
 
     // Notify user via WebSocket
     enqueueWebSocketEvent({

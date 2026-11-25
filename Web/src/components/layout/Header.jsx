@@ -41,7 +41,14 @@ export default function Header() {
     notifications,
     unreadCount,
     unreadChatCount,
+    pendingJoinCount,
+    pendingRequestsCount,
+    myPendingCount,
+    pendingReviewCount,
+    pushPermission,
+    setPushPermission,
     refreshNotifications,
+    navigateFromNotification,
     setIsCreateTaskModalOpen,
     setIsCommandPaletteOpen,
     setSelectedTaskKeyOrId,
@@ -70,12 +77,12 @@ export default function Header() {
 
   const navItems = [
     { label: "Dashboard", path: "/", icon: LayoutDashboard, aliases: ["/analytics", "/dashboard"] },
-    { label: "Board", path: "/board", icon: Kanban },
+    { label: "Board", path: "/board", icon: Kanban, pendingCount: pendingReviewCount },
     { label: "Grid", path: "/table", icon: Table2 },
     { label: "Calendar", path: "/calendar", icon: CalendarDays },
-    { label: "Requests", path: "/requests", icon: FileCheck2 },
-    { label: "My Day", path: "/my-work", icon: CheckSquare },
-    { label: "Team", path: "/team", icon: Users },
+    { label: "Requests", path: "/requests", icon: FileCheck2, pendingCount: pendingRequestsCount },
+    { label: "My Day", path: "/my-work", icon: CheckSquare, pendingCount: myPendingCount },
+    { label: "Team", path: "/team", icon: Users, pendingCount: pendingJoinCount },
     { label: "Workspaces", path: "/projects", icon: Layers },
   ];
 
@@ -85,14 +92,8 @@ export default function Header() {
   };
 
   const handleNotificationClick = async (notif) => {
-    if (!notif.isRead) {
-      await markNotificationRead(notif._id);
-      refreshNotifications();
-    }
-    if (notif.task?.key || notif.task?._id) {
-      setSelectedTaskKeyOrId(notif.task.key || notif.task._id);
-      setShowNotifications(false);
-    }
+    setShowNotifications(false);
+    await navigateFromNotification(notif);
   };
 
   const isDark = theme === "dark";
@@ -134,9 +135,8 @@ export default function Header() {
                 {activeProject?.name || "Select Workspace"}
               </span>
               <ChevronDown
-                className={`w-3.5 h-3.5 shrink-0 transition-transform duration-150 ${g.muted} ${
-                  showWorkspaceMenu ? "rotate-180" : ""
-                }`}
+                className={`w-3.5 h-3.5 shrink-0 transition-transform duration-150 ${g.muted} ${showWorkspaceMenu ? "rotate-180" : ""
+                  }`}
               />
             </button>
 
@@ -163,11 +163,10 @@ export default function Header() {
                             setActiveProject(proj);
                             setShowWorkspaceMenu(false);
                           }}
-                          className={`w-full flex items-center justify-between gap-2.5 px-2.5 py-2 rounded-xl text-left text-xs transition-all cursor-pointer border ${
-                            selected
-                              ? g.selectedRow
-                              : `border-transparent ${g.rowHover} ${isDark ? "text-zinc-300" : "text-slate-700"}`
-                          }`}
+                          className={`w-full flex items-center justify-between gap-2.5 px-2.5 py-2 rounded-xl text-left text-xs transition-all cursor-pointer border ${selected
+                            ? g.selectedRow
+                            : `border-transparent ${g.rowHover} ${isDark ? "text-zinc-300" : "text-slate-700"}`
+                            }`}
                         >
                           <div className="flex items-center gap-2.5 min-w-0">
                             <span
@@ -220,15 +219,14 @@ export default function Header() {
             <Link
               key={item.path}
               to={item.path}
-              className={`relative flex items-center gap-1.5 px-2.5 xl:px-3 py-2 rounded-xl text-[11px] xl:text-xs font-medium tracking-tight transition-colors duration-150 select-none whitespace-nowrap ${
-                isActive
-                  ? isDark
-                    ? "text-white font-semibold"
-                    : "text-slate-950 font-semibold"
-                  : isDark
+              className={`relative flex items-center gap-1.5 px-2.5 xl:px-3 py-2 rounded-xl text-[11px] xl:text-xs font-medium tracking-tight transition-colors duration-150 select-none whitespace-nowrap ${isActive
+                ? isDark
+                  ? "text-white font-semibold"
+                  : "text-slate-950 font-semibold"
+                : isDark
                   ? "text-zinc-400 hover:text-zinc-100"
                   : "text-slate-600 hover:text-slate-950"
-              }`}
+                }`}
             >
               {isActive && (
                 <motion.div
@@ -244,11 +242,16 @@ export default function Header() {
                 />
               )}
               <Icon
-                className={`w-3.5 h-3.5 relative z-10 shrink-0 ${
-                  isActive ? "opacity-100" : "opacity-65"
-                }`}
+                className={`w-3.5 h-3.5 relative z-10 shrink-0 ${isActive ? "opacity-100" : "opacity-65"
+                  }`}
               />
               <span className="relative z-10">{item.label}</span>
+              {item.pendingCount > 0 && (
+                <span
+                  className="relative z-10 w-2 h-2 rounded-full bg-amber-400 animate-pulse shrink-0"
+                  title={`${item.pendingCount} action(s) required`}
+                />
+              )}
             </Link>
           );
         })}
@@ -262,11 +265,10 @@ export default function Header() {
           <button
             type="button"
             onClick={() => setIsCommandPaletteOpen(true)}
-            className={`group h-9 flex items-center gap-1.5 px-2.5 rounded-xl text-xs font-medium transition-all duration-150 cursor-pointer border border-transparent ${
-              isDark
-                ? "text-zinc-300 hover:text-white hover:bg-white/[0.08]"
-                : "text-slate-600 hover:text-slate-950 hover:bg-white/90"
-            }`}
+            className={`group h-9 flex items-center gap-1.5 px-2.5 rounded-xl text-xs font-medium transition-all duration-150 cursor-pointer border border-transparent ${isDark
+              ? "text-zinc-300 hover:text-white hover:bg-white/[0.08]"
+              : "text-slate-600 hover:text-slate-950 hover:bg-white/90"
+              }`}
             title="Quick Search (⌘K or Ctrl+K)"
           >
             <Search className="w-4 h-4 opacity-80 group-hover:opacity-100" />
@@ -283,13 +285,12 @@ export default function Header() {
           <button
             type="button"
             onClick={() => setIsChatOpen(true)}
-            className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all cursor-pointer relative ${
-              isChatOpen
-                ? g.selectedRow
-                : isDark
+            className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all cursor-pointer relative ${isChatOpen
+              ? g.selectedRow
+              : isDark
                 ? "text-zinc-300 hover:text-white hover:bg-white/[0.09]"
                 : "text-slate-700 hover:text-slate-950 hover:bg-white"
-            }`}
+              }`}
             title="Office Chat & File Sharing"
             aria-label="Office Chat"
           >
@@ -305,11 +306,10 @@ export default function Header() {
           <button
             type="button"
             onClick={toggleTheme}
-            className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
-              isDark
-                ? "text-zinc-300 hover:text-white hover:bg-white/[0.09]"
-                : "text-slate-700 hover:text-slate-950 hover:bg-white"
-            }`}
+            className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all cursor-pointer ${isDark
+              ? "text-zinc-300 hover:text-white hover:bg-white/[0.09]"
+              : "text-slate-700 hover:text-slate-950 hover:bg-white"
+              }`}
             title={isDark ? "Switch to Light Theme" : "Switch to Dark Theme"}
             aria-label="Toggle Theme"
           >
@@ -329,13 +329,12 @@ export default function Header() {
                 setShowProfileMenu(false);
                 setShowWorkspaceMenu(false);
               }}
-              className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all cursor-pointer relative ${
-                showNotifications
-                  ? g.selectedRow
-                  : isDark
+              className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all cursor-pointer relative ${showNotifications
+                ? g.selectedRow
+                : isDark
                   ? "text-zinc-300 hover:text-white hover:bg-white/[0.09]"
                   : "text-slate-700 hover:text-slate-950 hover:bg-white"
-              }`}
+                }`}
               title="Notifications"
               aria-label="Notifications"
             >
@@ -364,6 +363,28 @@ export default function Header() {
                           {unreadCount} new
                         </span>
                       )}
+                      {pushPermission === "granted" ? (
+                        <span className="px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">
+                          Push Active
+                        </span>
+                      ) : pushPermission === "denied" ? (
+                        <span className="px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-rose-500/15 text-rose-400 border border-rose-500/25">
+                          Blocked
+                        </span>
+                      ) : pushPermission === "default" ? (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (typeof Notification !== "undefined") {
+                              const perm = await Notification.requestPermission();
+                              setPushPermission?.(perm);
+                            }
+                          }}
+                          className="px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/25 hover:bg-amber-500/25 cursor-pointer"
+                        >
+                          Enable Push
+                        </button>
+                      ) : null}
                     </div>
                     {unreadCount > 0 && (
                       <button
@@ -380,12 +401,23 @@ export default function Header() {
                       <div
                         key={n._id}
                         onClick={() => handleNotificationClick(n)}
-                        className={`p-3 rounded-xl text-xs transition-all cursor-pointer border ${
-                          n.isRead
-                            ? `${g.subtleSurface} opacity-75 hover:opacity-100`
-                            : `${g.selectedRow} font-medium`
-                        }`}
+                        className={`p-3 rounded-xl text-xs transition-all cursor-pointer border ${n.isRead
+                          ? `${g.subtleSurface} opacity-75 hover:opacity-100`
+                          : `${g.selectedRow} font-medium`
+                          }`}
                       >
+                        {(n.title || n.publicId) && (
+                          <div className="flex items-center justify-between gap-2 mb-1">
+                            {n.title && (
+                              <span className="text-[11px] font-bold truncate">{n.title}</span>
+                            )}
+                            {n.publicId && (
+                              <span className="px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-mono text-[9px] font-bold shrink-0">
+                                {n.publicId}
+                              </span>
+                            )}
+                          </div>
+                        )}
                         <p className="line-clamp-2 leading-relaxed">{n.message}</p>
                         <span className={`text-[10px] font-mono block mt-1 ${g.muted}`}>
                           {new Date(n.createdAt).toLocaleTimeString("en-IN", {
@@ -445,9 +477,8 @@ export default function Header() {
               </span>
             </div>
             <ChevronDown
-              className={`w-3.5 h-3.5 shrink-0 transition-transform duration-150 ${g.muted} ${
-                showProfileMenu ? "rotate-180" : ""
-              }`}
+              className={`w-3.5 h-3.5 shrink-0 transition-transform duration-150 ${g.muted} ${showProfileMenu ? "rotate-180" : ""
+                }`}
             />
           </button>
 
@@ -498,9 +529,8 @@ export default function Header() {
                         key={n.path}
                         to={n.path}
                         onClick={() => setShowProfileMenu(false)}
-                        className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium ${g.rowHover} ${
-                          isDark ? "text-zinc-200" : "text-slate-700"
-                        }`}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium ${g.rowHover} ${isDark ? "text-zinc-200" : "text-slate-700"
+                          }`}
                       >
                         <NavIcon className="w-3.5 h-3.5 opacity-70" />
                         <span>{n.label}</span>

@@ -3,6 +3,9 @@ const User = require("../models/userModel");
 const { isSuperAdminEmail } = require("../utils/roles");
 const { enqueueWebSocketEvent } = require("../services/queue");
 const { sendPushToAdmins } = require("../services/pushService");
+const { notifyAdmins } = require("../utils/notificationHelper");
+
+const ts = () => new Date().toISOString();
 
 module.exports = (passport) => {
   if (!process.env.GOOGLE_CLIENT_ID) {
@@ -112,12 +115,27 @@ module.exports = (passport) => {
             },
           };
 
-          console.log("Creating new user via Google Auth:", newUserObj.email, "PublicId:", publicId, "status:", userStatus);
+          console.log(`[${ts()}] [GoogleAuth] Creating new user: ${newUserObj.email} publicId=${publicId} status=${userStatus}`);
           const newUser = await User.create(newUserObj);
-          console.log("USER CREATED SUCCESSFULLY:", newUser._id);
+          console.log(`[${ts()}] [GoogleAuth] User created id=${newUser._id} publicId=${publicId}`);
 
-          // If pending approval, push notifications to workspace admins
+          // If pending approval, notify admins via NotificationQueue + WebSocket + EmailQueue + WebPush
           if (!isAdmin) {
+            await notifyAdmins({
+              sender: newUser._id,
+              publicId: newUser.publicId,
+              type: "approval_request",
+              title: `New Join Request (${newUser.publicId})`,
+              message: `${newUser.fullname} (${newUser.publicId}) signed up via Google and requested to join ${newUser.departmentName}.`,
+              emailType: "join_request_new",
+              emailData: {
+                applicantName: newUser.fullname,
+                applicantEmail: newUser.email,
+                publicId: newUser.publicId,
+                departmentName: newUser.departmentName,
+              },
+            });
+
             enqueueWebSocketEvent({
               target: "all",
               event: "join-request:new",
@@ -136,7 +154,7 @@ module.exports = (passport) => {
             });
 
             sendPushToAdmins({
-              title: "New Team Join Request",
+              title: `New Join Request (${newUser.publicId})`,
               body: `${newUser.fullname} (${newUser.publicId}) requested to join the workspace.`,
               url: "/team",
             }).catch(() => {});

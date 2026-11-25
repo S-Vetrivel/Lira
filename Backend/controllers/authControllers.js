@@ -5,7 +5,7 @@ const generateTokenAndSetCookie = require("../utils/generateToken");
 const { isSuperAdminEmail } = require("../utils/roles");
 const { enqueueWebSocketEvent } = require("../services/queue");
 const { sendPushToAdmins } = require("../services/pushService");
-const { createNotification } = require("../utils/notificationHelper");
+const { createNotification, notifyAdmins } = require("../utils/notificationHelper");
 
 // ==============================================
 // 1. SIGNUP
@@ -83,6 +83,21 @@ exports.Signup = async (req, res) => {
 
     // Notify Admins if pending approval
     if (!isAdmin) {
+      await notifyAdmins({
+        sender: newUser._id,
+        publicId: newUser.publicId,
+        type: "approval_request",
+        title: `New Join Request (${newUser.publicId})`,
+        message: `${newUser.fullname} (${newUser.publicId}) requested to join ${newUser.departmentName}.`,
+        emailType: "join_request_new",
+        emailData: {
+          applicantName: newUser.fullname,
+          applicantEmail: newUser.email,
+          publicId: newUser.publicId,
+          departmentName: newUser.departmentName,
+        },
+      });
+
       enqueueWebSocketEvent({
         target: "all",
         event: "join-request:new",

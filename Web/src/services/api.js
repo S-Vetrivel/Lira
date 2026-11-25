@@ -49,16 +49,16 @@ api.interceptors.response.use(
         localStorage.removeItem("lira_token");
         localStorage.removeItem("lira_user");
         if (!publicPaths.includes(currentPath)) {
-          toast.error(message);
+          toast.error(message, { id: message });
           window.location.href = "/login";
         }
       } else {
-        toast.error(message);
+        toast.error(message, { id: message });
       }
     } else if (status >= 400 && status < 500) {
-      toast.error(message);
+      toast.error(message, { id: message });
     } else if (status >= 500) {
-      toast.error("Server error. Please try again shortly.");
+      toast.error("Server error. Please try again shortly.", { id: "server-error" });
     }
 
     return Promise.reject(error);

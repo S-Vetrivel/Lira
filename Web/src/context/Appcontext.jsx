@@ -6,6 +6,7 @@ import React, {
   useCallback,
   useMemo,
 } from "react";
+import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import {
   checkAuth,
@@ -13,6 +14,11 @@ import {
   getDepartments,
   getTeamMembers,
   getNotifications,
+  getPendingJoinRequests,
+  getRequests,
+  getMyTasks,
+  getTasks,
+  markNotificationRead,
   getChatConversations,
   logoutUser,
 } from "../services/api";
@@ -21,6 +27,7 @@ import { initSocketClient, joinProjectRoom, leaveProjectRoom } from "../services
 const AppContext = createContext();
 
 export const AppProvider = ({ children }) => {
+  const navigate = useNavigate();
   // Theme state: 'dark' (default as per design) or 'light'
   const [theme, setTheme] = useState(() => {
     return localStorage.getItem("lira_theme") || "dark";
@@ -68,7 +75,14 @@ export const AppProvider = ({ children }) => {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [unreadChatCount, setUnreadChatCount] = useState(0);
+  const [pendingJoinCount, setPendingJoinCount] = useState(0);
+  const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
+  const [myPendingCount, setMyPendingCount] = useState(0);
+  const [pendingReviewCount, setPendingReviewCount] = useState(0);
   const [onlineUserIds, setOnlineUserIds] = useState([]);
+  const [pushPermission, setPushPermission] = useState(() =>
+    typeof Notification !== "undefined" ? Notification.permission : "unsupported"
+  );
 
   // Task drawer & modal states
   const [selectedTaskKeyOrId, setSelectedTaskKeyOrId] = useState(null);
@@ -155,6 +169,99 @@ export const AppProvider = ({ children }) => {
     }
   }, [user]);
 
+  const refreshPendingJoinCount = useCallback(async () => {
+    if (!user || (user.role !== "admin" && user.role !== "manager")) {
+      setPendingJoinCount(0);
+      return;
+    }
+    try {
+      const res = await getPendingJoinRequests();
+      if (res.success) {
+        setPendingJoinCount(res.count ?? res.requests?.length ?? 0);
+      }
+    } catch {
+      // ignore
+    }
+  }, [user]);
+
+  const refreshTabPendingCounts = useCallback(async () => {
+    if (!user || user.status !== "active") return;
+    try {
+      const [reqsRes, myRes, reviewRes] = await Promise.allSettled([
+        getRequests(),
+        getMyTasks(),
+        getTasks({ status: "review" }),
+      ]);
+      if (reqsRes.status === "fulfilled" && reqsRes.value?.success) {
+        const myActionableReqs = (reqsRes.value.requests || []).filter((r) => {
+          if (r.status !== "submitted" && r.status !== "in_review") return false;
+          const stage = r.stages?.[r.currentStageIndex];
+          if (!stage || stage.status !== "pending") return false;
+          if (user.role === "admin") return true;
+          if (user.role === "manager") return stage.roleRequired === "manager";
+          return false;
+        });
+        setPendingRequestsCount(myActionableReqs.length);
+      }
+      if (myRes.status === "fulfilled" && myRes.value?.success) {
+        const openMy = (myRes.value.tasks || []).filter((t) => {
+          const assigneeId = t.assignee?._id || t.assignee;
+          return t.status !== "done" && assigneeId?.toString() === user._id?.toString();
+        });
+        setMyPendingCount(openMy.length);
+      }
+      if (reviewRes.status === "fulfilled" && reviewRes.value?.success) {
+        const myReviews = (reviewRes.value.tasks || []).filter((t) => {
+          const reporterId = t.reporter?._id || t.reporter;
+          return t.status === "review" && reporterId?.toString() === user._id?.toString();
+        });
+        setPendingReviewCount(myReviews.length);
+      }
+    } catch {
+      // ignore
+    }
+  }, [user]);
+
+  const navigateFromNotification = useCallback(
+    async (notif) => {
+      if (!notif) return;
+      if (notif._id && !notif.isRead) {
+        try {
+          await markNotificationRead(notif._id);
+          refreshNotifications();
+        } catch {
+          // ignore
+        }
+      }
+
+      if (notif.task?.key || notif.task?._id) {
+        setSelectedTaskKeyOrId(notif.task.key || notif.task._id);
+        return;
+      }
+
+      const text = `${notif.title || ""} ${notif.message || ""}`.toLowerCase();
+      if (notif.type === "chat_message" || notif.type === "file_shared") {
+        setIsChatOpen(true);
+      } else if (
+        notif.type === "approval_request" ||
+        notif.publicId ||
+        text.includes("join request") ||
+        text.includes("application")
+      ) {
+        navigate("/team?tab=join-requests");
+      } else if (text.includes("req-") || text.includes("request") || text.includes("approv")) {
+        navigate("/requests");
+      } else if (notif.type === "project_update") {
+        navigate("/projects");
+      } else if (notif.type === "department_update") {
+        navigate("/team");
+      } else {
+        navigate("/board");
+      }
+    },
+    [navigate, refreshNotifications]
+  );
+
   // Initial Auth verification
   useEffect(() => {
     let mounted = true;
@@ -196,14 +303,16 @@ export const AppProvider = ({ children }) => {
     };
   }, []);
 
-  // Fetch workspace data when user is authenticated
+  // Fetch workspace data when user is authenticated and active
   useEffect(() => {
-    if (user) {
+    if (user && user.status !== "pending_approval" && user.status !== "rejected") {
       refreshProjects();
       refreshDepartments();
       refreshTeam();
       refreshNotifications();
       refreshChatUnread();
+      refreshPendingJoinCount();
+      refreshTabPendingCounts();
 
       // Initialize Socket connection
       const socket = initSocketClient(user._id);
@@ -211,30 +320,98 @@ export const AppProvider = ({ children }) => {
       // Listen for real-time notifications
       const handleNotification = (notif) => {
         toast((t) => (
-          <div className="flex items-start gap-3">
+          <div
+            onClick={() => {
+              toast.dismiss(t.id);
+              navigateFromNotification(notif);
+            }}
+            className="flex items-start gap-3 cursor-pointer"
+          >
             <span className="text-xl">🔔</span>
             <div>
-              <p className="font-semibold text-sm text-zinc-100">{notif.title || "Notification"}</p>
+              <div className="flex items-center gap-1.5">
+                <p className="font-semibold text-sm text-zinc-100">{notif.title || "Notification"}</p>
+                {notif.publicId && (
+                  <span className="px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-mono text-[10px] font-bold">
+                    {notif.publicId}
+                  </span>
+                )}
+              </div>
               <p className="text-xs text-zinc-300">{notif.message}</p>
-              <p className="text-[10px] text-zinc-500 mt-0.5">Just now</p>
+              <p className="text-[10px] text-zinc-500 mt-0.5">Click to view</p>
             </div>
           </div>
-        ), { duration: 5000 });
+        ), { id: notif?._id || `notif-${notif?.message}`, duration: 5000 });
 
-        setNotifications((prev) => [notif, ...prev]);
+        setNotifications((prev) => {
+          if (notif?._id && prev.some((n) => n._id === notif._id)) return prev;
+          return [notif, ...prev];
+        });
         setUnreadCount((c) => c + 1);
+      };
+
+      const handleNewJoinRequest = ({ user: applicant }) => {
+        if (!applicant || (user.role !== "admin" && user.role !== "manager")) return;
+        setPendingJoinCount((c) => c + 1);
+        toast(
+          (t) => (
+            <div
+              onClick={() => {
+                toast.dismiss(t.id);
+                navigate("/team?tab=join-requests");
+              }}
+              className="flex items-start gap-2.5 cursor-pointer"
+            >
+              <span className="text-lg">🛡️</span>
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <p className="font-semibold text-xs text-zinc-100">New Join Request</p>
+                  {applicant.publicId && (
+                    <span className="px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-mono text-[10px] font-bold">
+                      {applicant.publicId}
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-zinc-300">
+                  {applicant.fullname || applicant.email} requested access. Click to review.
+                </p>
+              </div>
+            </div>
+          ),
+          { id: `join-req-${applicant._id || applicant.publicId}`, duration: 6000 }
+        );
+        refreshNotifications();
+        refreshPendingJoinCount();
+      };
+
+      const handleUpdatedJoinRequest = () => {
+        refreshPendingJoinCount();
+      };
+
+      const handleRequestEvent = () => {
+        refreshTabPendingCounts();
+      };
+
+      const handleTaskEvent = () => {
+        refreshTabPendingCounts();
       };
 
       const handleChatNotification = (payload) => {
         setUnreadChatCount((c) => c + 1);
-        toast(() => (
-          <div className="flex items-start gap-2.5">
+        toast((t) => (
+          <div
+            onClick={() => {
+              toast.dismiss(t.id);
+              setIsChatOpen(true);
+            }}
+            className="flex items-start gap-2.5 cursor-pointer"
+          >
             <span className="text-lg">💬</span>
             <div>
               <p className="font-semibold text-xs text-zinc-100">
                 {payload?.sender || "Teammate"} sent a message
               </p>
-              <p className="text-[11px] text-zinc-400">Open Office Chat to reply</p>
+              <p className="text-[11px] text-zinc-400">Click to open Office Chat</p>
             </div>
           </div>
         ), { duration: 4000 });
@@ -247,16 +424,30 @@ export const AppProvider = ({ children }) => {
       };
 
       socket.on("notification:new", handleNotification);
+      socket.on("join-request:new", handleNewJoinRequest);
+      socket.on("join-request:updated", handleUpdatedJoinRequest);
+      socket.on("request:created", handleRequestEvent);
+      socket.on("request:updated", handleRequestEvent);
+      socket.on("task:created_global", handleTaskEvent);
+      socket.on("task:updated", handleTaskEvent);
+      socket.on("task:status_changed", handleTaskEvent);
       socket.on("chat:notification", handleChatNotification);
       socket.on("presence:update", handlePresenceUpdate);
 
       return () => {
         socket.off("notification:new", handleNotification);
+        socket.off("join-request:new", handleNewJoinRequest);
+        socket.off("join-request:updated", handleUpdatedJoinRequest);
+        socket.off("request:created", handleRequestEvent);
+        socket.off("request:updated", handleRequestEvent);
+        socket.off("task:created_global", handleTaskEvent);
+        socket.off("task:updated", handleTaskEvent);
+        socket.off("task:status_changed", handleTaskEvent);
         socket.off("chat:notification", handleChatNotification);
         socket.off("presence:update", handlePresenceUpdate);
       };
     }
-  }, [user, refreshProjects, refreshDepartments, refreshTeam, refreshNotifications, refreshChatUnread]);
+  }, [user, refreshProjects, refreshDepartments, refreshTeam, refreshNotifications, refreshChatUnread, refreshPendingJoinCount, refreshTabPendingCounts, navigate, navigateFromNotification]);
 
   // Join active project socket room when activeProject changes
   useEffect(() => {
@@ -294,7 +485,16 @@ export const AppProvider = ({ children }) => {
       unreadCount,
       unreadChatCount,
       setUnreadChatCount,
+      pendingJoinCount,
+      pendingRequestsCount,
+      myPendingCount,
+      pendingReviewCount,
+      refreshPendingJoinCount,
+      refreshTabPendingCounts,
       onlineUserIds,
+      pushPermission,
+      setPushPermission,
+      navigateFromNotification,
       selectedTaskKeyOrId,
       setSelectedTaskKeyOrId,
       isCreateTaskModalOpen,
@@ -329,7 +529,16 @@ export const AppProvider = ({ children }) => {
       unreadCount,
       unreadChatCount,
       setUnreadChatCount,
+      pendingJoinCount,
+      pendingRequestsCount,
+      myPendingCount,
+      pendingReviewCount,
+      refreshPendingJoinCount,
+      refreshTabPendingCounts,
       onlineUserIds,
+      pushPermission,
+      setPushPermission,
+      navigateFromNotification,
       selectedTaskKeyOrId,
       isCreateTaskModalOpen,
       isCommandPaletteOpen,

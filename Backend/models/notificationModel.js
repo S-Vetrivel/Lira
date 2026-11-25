@@ -37,6 +37,7 @@ const NotificationSchema = new Schema(
       required: true,
     },
     title: { type: String },
+    publicId: { type: String, index: true },
     message: { type: String, required: true },
     isRead: { type: Boolean, default: false },
   },

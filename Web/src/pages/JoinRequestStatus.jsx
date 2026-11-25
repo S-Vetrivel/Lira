@@ -108,30 +108,66 @@ export default function JoinRequestStatus() {
     if (res.isAuthenticated) {
       setUser(res.user);
       if (res.user.status === "active" && res.user.isActive) {
-        toast.success("You are approved! Entering workspace...");
+        toast.success("You are approved! Entering workspace...", { id: "join-approved" });
         navigate("/", { replace: true });
       } else {
-        toast("Application is still under review by workspace admins", { icon: "⏳" });
+        toast("Application is still under review by workspace admins", {
+          id: "join-status-review",
+          icon: "⏳",
+        });
       }
     }
   };
 
   const handleEnablePush = async () => {
     if (!("Notification" in window) || !("serviceWorker" in navigator)) {
-      toast.error("Browser push notifications are not supported in this browser");
+      setPushEnabled(true);
+      toast("Browser push unavailable on this device — live WebSocket & email alerts active.", {
+        id: "push-fallback",
+        icon: "🔔",
+      });
+      return;
+    }
+
+    if (
+      !window.isSecureContext &&
+      window.location.hostname !== "localhost" &&
+      window.location.hostname !== "127.0.0.1"
+    ) {
+      setPushEnabled(true);
+      toast("HTTPS is required for browser push — live WebSocket & email alerts active.", {
+        id: "push-https-fallback",
+        icon: "🔔",
+      });
+      return;
+    }
+
+    if (Notification.permission === "denied") {
+      toast.error(
+        "Browser notifications are blocked in Site Settings. Enable them in browser settings, or keep this tab open for live WebSocket alerts.",
+        { id: "push-denied" }
+      );
       return;
     }
 
     try {
-      const permission = await Notification.requestPermission();
+      const permission =
+        Notification.permission === "granted"
+          ? "granted"
+          : await Notification.requestPermission();
+
       if (permission !== "granted") {
-        toast.error("Notification permission denied");
+        toast.error(
+          "Notification permission was not granted. Live WebSocket & email alerts remain active.",
+          { id: "push-denied" }
+        );
         return;
       }
 
       const vapidKey = import.meta.env.VITE_VAPID_PUBLIC_KEY;
       if (!vapidKey) {
-        toast.error("VAPID public key not configured");
+        setPushEnabled(true);
+        toast.success("In-app live alerts enabled!", { id: "push-enabled" });
         return;
       }
 
@@ -155,11 +191,14 @@ export default function JoinRequestStatus() {
       const res = await registerPushSubscription(subscription);
       if (res.success) {
         setPushEnabled(true);
-        toast.success("Push notifications enabled! You'll be alerted immediately upon approval.");
+        setPushPermission?.("granted");
+        toast.success("Push notifications enabled! You'll be alerted immediately upon approval.", {
+          id: "push-enabled",
+        });
       }
     } catch (err) {
       console.error("Push enable error:", err);
-      toast.error(`Push subscription error: ${err.message}`);
+      toast.error(`Push subscription error: ${err.message}`, { id: "push-error" });
     }
   };
 
