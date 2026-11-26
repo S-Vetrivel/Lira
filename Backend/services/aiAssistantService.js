@@ -780,10 +780,17 @@ function buildConversationHistoryContext(sessionMessages = [], maxTurns = 8) {
     .slice(-maxTurns)
     .map((m) => ({
       role: m.role,
+      status: m.status,
       content: m.content,
       navigateTo: m.navigateTo || null,
       taskKey: m.executedResult?.taskKey || m.intent?.prefill?.taskKey || null,
       executedSummary: m.executedResult?.summary || null,
+      ...(m.status === "clarify" && !m.actionApplied && Array.isArray(m.steps) && m.steps.length > 0
+        ? { pendingSteps: m.steps }
+        : {}),
+      ...(m.status === "clarify" && !m.actionApplied && Array.isArray(m.choices) && m.choices.length > 0
+        ? { pendingChoices: m.choices.map((c) => ({ label: c.label, step: c.step || null })) }
+        : {}),
     }));
 }
 
@@ -1746,14 +1753,14 @@ const TYPO_REPLACEMENTS = [
   [/\b(updte|updt|updat|udpate)\b/gi, "update"],
   [/\b(delte|deleet|delet|dlete)\b/gi, "delete"],
   [/\b(remve|rmove|reomve|remov)\b/gi, "remove"],
-  [/\b(roel|rols|rloe|rolse|rle)\b/gi, "role"],
+  [/\b(roel|roels|rols|rloe|rolse|rle)\b/gi, "role"],
   [/\b(defualt|defult|defalt|deafult|dflt)\b/gi, "default"],
   [/\b(moduels|modles|moduls|mdoules)\b/gi, "modules"],
   [/\b(moduel|modul|mdoule)\b/gi, "module"],
   [/\b(calander|calender|calndr|clendar)\b/gi, "calendar"],
   [/\b(projct|proejct|projec|prject)\b/gi, "project"],
   [/\b(wrkspace|workspce|wrokspace)\b/gi, "workspace"],
-  [/\b(departmnt|departemnt|deprtment|deptment)\b/gi, "department"],
+  [/\b(departmnts?|departemtns?|departemnts?|departemnt|deparments?|deprtments?|deptments?|depts?)\b/gi, "departments"],
   [/\b(requst|reqest|requset|reqeust)\b/gi, "request"],
   [/\b(aprove|aprov|apporve|aproov)\b/gi, "approve"],
   [/\b(rejct|rjct|rejcet)\b/gi, "reject"],
@@ -2472,13 +2479,33 @@ function runLocalCopilotFallback({ prompt, scopedCtx, history = [] }) {
     navigateTo = "/team";
   }
 
-  // 5c. Targeted Project / Department / Task Deletion in local engine (with bulk safety!)
+  // 5c. Targeted Project / Department / Role / Task Deletion in local engine (with bulk safety!)
   if (steps.length === 0 && /\b(delete|remove|wipe|purge)\b/i.test(lower)) {
     const mentionsProj = /\b(projects?|workspaces?)\b/i.test(lower);
     const mentionsDept = /\bdepartments?\b/i.test(lower);
+    const mentionsRole = /\broles?\b/i.test(lower);
     const isAll = /\ball\b/i.test(lower);
     const delSteps = [];
 
+    if (mentionsRole && allowed.has("delete_role")) {
+      const deletableRoles = (scopedCtx.roles || []).filter(
+        (r) => !r.isSystem && String(r.name || "").toLowerCase() !== "superadmin"
+      );
+      const targetRoles = isAll
+        ? deletableRoles
+        : deletableRoles.filter(
+            (r) =>
+              lower.includes(String(r.name || "").toLowerCase()) ||
+              lower.includes(String(r.displayName || "").toLowerCase())
+          );
+      targetRoles.forEach((r) => {
+        delSteps.push({
+          type: "delete_role",
+          label: `Delete role "${r.displayName || r.name}"`,
+          prefill: { roleId: r.id, name: r.name },
+        });
+      });
+    }
     if (mentionsProj && allowed.has("delete_project")) {
       const targetProjects = isAll
         ? scopedCtx.projects || []
@@ -2924,10 +2951,54 @@ async function processAssistantJob({
       ? `${cleanPromptForMatch}\n(Also address previously stopped request: "${cleanUndoneContext}")`
       : cleanPromptForMatch;
 
+    // Context Confirmation Resolver: if user confirms ("confirm", "yes", "proceed", "Confirm: ...") right after
+    // an unapplied clarify/confirmation card, resolve its pending steps directly from session history.
+    const isAffirmativeConfirm =
+      /^(?:confirm|yes|yeah|yep|yup|ok|okay|sure|proceed|do\s+it|go\s+ahead|approved|execute)(?:\s*[:,-].*)?$/i.test(
+        cleanPromptForMatch
+      );
+    const latestPendingClarify = [...(sessionDoc?.messages || [])]
+      .filter((m) => m.jobId !== jobId && m.role === "assistant" && m.status === "clarify" && !m.actionApplied)
+      .pop();
+    const pendingStepsFromContext =
+      latestPendingClarify && Array.isArray(latestPendingClarify.steps) && latestPendingClarify.steps.length > 0
+        ? latestPendingClarify.steps
+        : latestPendingClarify && Array.isArray(latestPendingClarify.choices)
+        ? latestPendingClarify.choices.map((c) => c.step).filter((s) => s && s.type && s.type !== "navigate")
+        : [];
+
     // Parse user's chosen model/key from UI dropdown
     const [selKind, selProvider, selExtra] = String(selectedModelKey || "auto").split(":");
 
-    if (selKind === "local") {
+    if (isAffirmativeConfirm && pendingStepsFromContext.length > 0) {
+      parsed = {
+        status: "ok",
+        reply: `Executing ${pendingStepsFromContext.length} confirmed action(s).`,
+        navigateTo: latestPendingClarify.navigateTo || null,
+        intent: pendingStepsFromContext[0],
+        steps: pendingStepsFromContext,
+        uiHtml: "",
+        choices: [],
+        artifacts: [],
+        cursorGuide: mode === "review",
+      };
+      usedProvider = "local";
+      usedModel = "context-confirm";
+      usedKeySource = "session";
+      if (latestPendingClarify?._id) {
+        await AIAssistantSession.updateOne(
+          { _id: sessionId, "messages._id": latestPendingClarify._id },
+          {
+            $set: {
+              "messages.$.status": "completed",
+              "messages.$.actionApplied": true,
+              "messages.$.uiHtml": "",
+              "messages.$.choices": [],
+            },
+          }
+        ).catch(() => {});
+      }
+    } else if (selKind === "local") {
       parsed = runLocalCopilotFallback({ prompt: effectivePromptText, scopedCtx, history: recentHistory });
     } else {
       const avail = await getUserAvailableModels(userDoc);
@@ -3145,8 +3216,9 @@ async function processAssistantJob({
     // - AUTO mode -> Execute mutations via authenticated Express backend requests (unless clarifying/checkbox picker); no UI cursor!
     let wantsCursorWalkthrough = false;
 
-    const customCleanupCheck = inspectCustomRolesCleanup(cleanPromptForMatch, scopedCtx.roles || []);
-    const ambiguousRoleCheck = findAmbiguousRoleMatches(cleanPromptForMatch, scopedCtx.roles || []);
+    const isContextConfirmed = usedModel === "context-confirm";
+    const customCleanupCheck = !isContextConfirmed ? inspectCustomRolesCleanup(cleanPromptForMatch, scopedCtx.roles || []) : null;
+    const ambiguousRoleCheck = !isContextConfirmed ? findAmbiguousRoleMatches(cleanPromptForMatch, scopedCtx.roles || []) : null;
     if (customCleanupCheck && scopedCtx.allowedActions.includes("delete_role")) {
       parsed.choices = customCleanupCheck.customRoles.map((r) => ({
         label: `Delete ${r.displayName}`,
@@ -3253,9 +3325,9 @@ async function processAssistantJob({
           .slice(0, 6)
           .map((s) => escapeHtml(s.label || s.prefill?.name || s.type))
           .join(", ")}${delSteps.length > 6 ? ` (+${delSteps.length - 6} more)` : ""}.</div>
-        <button type="button" data-lira-reply="${escapeHtml(`Confirm: ${cleanPromptForMatch}`)}" class="px-3 py-1.5 rounded-lg text-xs font-semibold border cursor-pointer" style="background:var(--lira-card);border-color:var(--lira-danger-text);color:var(--lira-danger-text);">Confirm Delete All (${delSteps.length})</button>
+        <button type="button" data-lira-confirm-msg="true" class="px-3 py-1.5 rounded-lg text-xs font-semibold border cursor-pointer" style="background:var(--lira-card);border-color:var(--lira-danger-text);color:var(--lira-danger-text);">Confirm Delete All (${delSteps.length})</button>
       </div>`;
-      safeSteps.length = 0;
+      safeSteps.splice(0, safeSteps.length, ...delSteps);
     } else if (
       !isClarifying &&
       mode === "auto" &&
@@ -3637,8 +3709,19 @@ async function confirmAssistantMessageAction({ user, messageId }) {
     intent: allowedSteps[0],
     user,
   });
+  const applied = Boolean(executedResult?.executed);
+  msg.status = "completed";
   msg.executedResult = executedResult;
-  msg.actionApplied = Boolean(executedResult?.executed);
+  msg.actionApplied = applied;
+  if (applied) {
+    msg.uiHtml = "";
+    msg.choices = [];
+    msg.content = executedResult.partialFailure
+      ? `Completed ${executedResult.completedCount} step(s) (${executedResult.summary}), but ${executedResult.failedCount} failed: ${executedResult.error}`
+      : executedResult.summary || "Completed workspace actions.";
+  } else if (executedResult?.error) {
+    msg.content = `Could not complete action: ${executedResult.error}`;
+  }
   if (executedResult?.taskKey) {
     msg.navigateTo = `/board?task=${executedResult.taskKey}`;
   }

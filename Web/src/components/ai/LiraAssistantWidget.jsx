@@ -1261,6 +1261,7 @@ export default function LiraAssistantWidget() {
                         isDark={isDark}
                         onStepClick={(step) => handleCardStepClick(step, msg._id)}
                         onReplyClick={(txt) => dispatchPrompt(txt)}
+                        onConfirmClick={() => handleConfirmServerExecute(msg)}
                       />
                     )}
                     {!msg.uiHtml && Array.isArray(msg.choices) && msg.choices.length > 0 && (
@@ -1332,6 +1333,7 @@ export default function LiraAssistantWidget() {
                       isDark={isDark}
                       onStepClick={(step) => handleCardStepClick(step, msg._id)}
                       onReplyClick={(txt) => dispatchPrompt(txt)}
+                      onConfirmClick={() => handleConfirmServerExecute(msg)}
                     />
                   )}
 

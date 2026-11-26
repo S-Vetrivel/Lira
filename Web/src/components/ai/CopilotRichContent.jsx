@@ -83,7 +83,7 @@ if (!domPurifyHookAttached && typeof window !== "undefined") {
   domPurifyHookAttached = true;
 }
 
-export function SanitizedCopilotHtml({ html, isDark, onStepClick, onReplyClick }) {
+export function SanitizedCopilotHtml({ html, isDark, onStepClick, onReplyClick, onConfirmClick }) {
   const containerRef = React.useRef(null);
   const [submittingForm, setSubmittingForm] = React.useState(false);
 
@@ -101,6 +101,19 @@ export function SanitizedCopilotHtml({ html, isDark, onStepClick, onReplyClick }
   if (!cleanHtml) return null;
 
   const handleClick = async (e) => {
+    const confirmMsgTarget = e.target.closest("[data-lira-confirm-msg]");
+    if (confirmMsgTarget) {
+      e.preventDefault();
+      if (submittingForm) return;
+      setSubmittingForm(true);
+      try {
+        await onConfirmClick?.();
+      } finally {
+        setSubmittingForm(false);
+      }
+      return;
+    }
+
     const submitFormTarget = e.target.closest("[data-lira-submit-form]");
     if (submitFormTarget) {
       e.preventDefault();
