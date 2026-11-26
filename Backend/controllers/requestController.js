@@ -8,7 +8,7 @@ const {
   notifyUsers,
   notifyPermissionHolders,
 } = require("../utils/notificationHelper");
-const { enqueueWebSocketEvent, enqueueEmailJob } = require("../services/queue");
+const { enqueueWebSocketEvent, enqueueEmailJob, enqueueEntityVectorJob } = require("../services/queue");
 
 const REQUEST_POPULATE = [
   { path: "requester", select: "fullname email avatar jobTitle role publicId" },
@@ -167,6 +167,7 @@ exports.createRequest = async (req, res) => {
       event: "request:created",
       data: { request: populatedRequest },
     });
+    enqueueEntityVectorJob({ entityType: "request", entityId: String(request._id) });
 
     res.status(201).json({ success: true, request: populatedRequest });
   } catch (err) {
@@ -294,6 +295,7 @@ exports.approveStage = async (req, res) => {
       event: "request:updated",
       data: { request: populatedRequest },
     });
+    enqueueEntityVectorJob({ entityType: "request", entityId: String(request._id) });
 
     res.status(200).json({ success: true, request: populatedRequest });
   } catch (err) {
@@ -349,6 +351,7 @@ exports.rejectRequest = async (req, res) => {
       event: "request:updated",
       data: { request: populatedRequest },
     });
+    enqueueEntityVectorJob({ entityType: "request", entityId: String(request._id) });
 
     res.status(200).json({ success: true, request: populatedRequest });
   } catch (err) {

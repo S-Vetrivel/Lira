@@ -1,4 +1,5 @@
 const crypto = require("crypto");
+const mongoose = require("mongoose");
 const Project = require("../models/projectModel");
 const Department = require("../models/departmentModel");
 const User = require("../models/userModel");
@@ -76,16 +77,47 @@ async function executeSingleStep(step, user, chainState = {}) {
 
   if (step.type === "create_task") {
     let projectId = rawPrefill.projectId;
+    const accessFilter = isSuperAdminUser(user) ? { status: { $ne: "archived" } } : { members: user._id };
+
+    if (projectId && !mongoose.isValidObjectId(String(projectId))) {
+      const rawProjRef = String(projectId).trim();
+      const matched = await Project.findOne({
+        ...accessFilter,
+        $or: [
+          { prefix: rawProjRef.toUpperCase() },
+          { name: new RegExp(`^${escapeRegex(rawProjRef)}$`, "i") },
+        ],
+      })
+        .select("_id")
+        .lean();
+      projectId = matched?._id ? String(matched._id) : chainState.projectId || "";
+    }
+    if (!projectId && chainState.projectId) {
+      projectId = chainState.projectId;
+    }
     if (!projectId) {
-      const firstProj = await Project.findOne(
-        isSuperAdminUser(user) ? { status: { $ne: "archived" } } : { members: user._id }
-      )
+      const firstProj = await Project.findOne(accessFilter)
         .select("_id")
         .sort({ createdAt: -1 })
         .lean();
       projectId = firstProj?._id;
     }
     if (!projectId) throw new Error("No workspace project available to create task");
+
+    let resolvedDepts = Array.isArray(rawPrefill.assignedDepartments) ? rawPrefill.assignedDepartments : [];
+    const nonIdDepts = resolvedDepts.filter((d) => d && !mongoose.isValidObjectId(String(d)));
+    if (nonIdDepts.length > 0) {
+      const validIds = resolvedDepts.filter((d) => d && mongoose.isValidObjectId(String(d))).map(String);
+      const foundDepts = await Department.find({
+        $or: [
+          { code: { $in: nonIdDepts.map((d) => String(d).trim().toUpperCase()) } },
+          { name: { $in: nonIdDepts.map((d) => new RegExp(`^${escapeRegex(String(d).trim())}$`, "i")) } },
+        ],
+      })
+        .select("_id")
+        .lean();
+      resolvedDepts = Array.from(new Set([...validIds, ...foundDepts.map((d) => String(d._id))]));
+    }
 
     const res = await callProtectedBackendAPI({
       user,
@@ -100,7 +132,7 @@ async function executeSingleStep(step, user, chainState = {}) {
         priority: rawPrefill.priority || "medium",
         dueDate: rawPrefill.dueDate || undefined,
         assignees: Array.isArray(rawPrefill.assignees) ? rawPrefill.assignees : [],
-        assignedDepartments: Array.isArray(rawPrefill.assignedDepartments) ? rawPrefill.assignedDepartments : [],
+        assignedDepartments: resolvedDepts,
         subtasks: Array.isArray(rawPrefill.subtasks)
           ? rawPrefill.subtasks.map((s) => ({ title: typeof s === "string" ? s : s.title }))
           : [],

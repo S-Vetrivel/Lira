@@ -741,6 +741,7 @@ export default function Team() {
 
       {/* Add User Side Drawer */}
       <SideDrawer
+        sidebarId="team-add"
         isOpen={showAddUserModal}
         onClose={() => setShowAddUserModal(false)}
         title="Add Team Member"
@@ -857,6 +858,7 @@ export default function Team() {
 
       {/* Member Details & Management Side Drawer */}
       <SideDrawer
+        sidebarId="team-member"
         isOpen={Boolean(selectedMember)}
         onClose={() => setSelectedMember(null)}
         title={selectedMember?.fullname || "Team Member"}
@@ -1030,6 +1032,7 @@ export default function Team() {
 
       {/* Approve Join Request Side Modal */}
       <SideDrawer
+        sidebarId="team-approve"
         isOpen={Boolean(reviewCandidate)}
         onClose={() => setReviewCandidate(null)}
         title="Approve & Grant Workspace Access"
@@ -1146,6 +1149,7 @@ export default function Team() {
 
       {/* Decline Join Request Side Modal */}
       <SideDrawer
+        sidebarId="team-decline"
         isOpen={Boolean(declineCandidate)}
         onClose={() => setDeclineCandidate(null)}
         title="Decline Join Request"

@@ -1,14 +1,16 @@
 const path = require("path");
 require("dotenv").config({ path: path.resolve(__dirname, "../.env") });
 // Pre-register all Mongoose schemas needed by .populate() inside standalone worker processes
+const Task = require("../models/taskModel");
+const Project = require("../models/projectModel");
+const Request = require("../models/requestModel");
 require("../models/departmentModel");
 require("../models/roleModel");
-require("../models/projectModel");
 require("../models/userModel");
-require("../models/taskModel");
-require("../models/requestModel");
 require("../models/notificationModel");
 require("../models/messageModel");
+require("../models/copilotExperienceModel");
+require("../models/workspaceVectorIndexModel");
 const { Worker } = require("bullmq");
 const Redis = require("ioredis");
 const {
@@ -21,6 +23,12 @@ const {
   processAssistantJob,
   abortAssistantController,
 } = require("../services/aiAssistantService");
+const {
+  recordAndIndexExperience,
+  indexWorkspaceEntity,
+  removeWorkspaceEntityIndex,
+  pruneStaleExperiences,
+} = require("../services/copilotExperienceService");
 
 const ts = () => new Date().toISOString();
 const concurrency = Math.max(2, Number(process.env.AI_WORKER_CONCURRENCY || 6));
@@ -57,6 +65,39 @@ const aiWorker = new Worker(
       );
       await processAssistantJob(job.data);
       return { processed: true, jobId };
+    }
+
+    if (jobName === "index-copilot-experience") {
+      const res = await recordAndIndexExperience(job.data || {});
+      return { indexed: Boolean(res), ...(res || {}) };
+    }
+
+    if (jobName === "index-workspace-entity") {
+      const { entityType, entityId, action = "upsert", doc: rawDoc } = job.data || {};
+      if (!entityType || !entityId) return { skipped: true };
+      if (action === "delete") {
+        await removeWorkspaceEntityIndex({ entityType, entityId });
+        return { removed: true, entityType, entityId };
+      }
+      let doc = rawDoc;
+      if (!doc) {
+        if (entityType === "task") {
+          doc = await Task.findById(entityId).select("_id key title description status priority type project reporter dueDate").lean();
+        } else if (entityType === "project") {
+          doc = await Project.findById(entityId).select("_id prefix name description status").lean();
+        } else if (entityType === "request") {
+          doc = await Request.findById(entityId).select("_id requestCode title description requestType status targetProject requester").lean();
+        }
+      }
+      if (!doc) return { skipped: true, reason: "entity_not_found" };
+      await indexWorkspaceEntity({ entityType, doc });
+      return { indexed: true, entityType, entityId };
+    }
+
+    if (jobName === "prune-copilot-experiences") {
+      const stats = await pruneStaleExperiences(job.data || {});
+      console.log(`[${ts()}] [AIWorker] Nightly copilot experience prune: scanned=${stats.scanned} deleted=${stats.deleted}`);
+      return stats;
     }
 
     // Legacy / modular task-breakdown job

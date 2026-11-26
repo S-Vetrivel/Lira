@@ -179,6 +179,24 @@ const enqueueAIJob = async (jobName, payload, opts = {}) => {
   }
 };
 
+const enqueueExperienceIndexJob = async (payload = {}, opts = {}) => {
+  return enqueueAIJob("index-copilot-experience", payload, {
+    removeOnComplete: 200,
+    removeOnFail: 50,
+    attempts: 2,
+    ...opts,
+  });
+};
+
+const enqueueEntityVectorJob = async (payload = {}, opts = {}) => {
+  return enqueueAIJob("index-workspace-entity", payload, {
+    removeOnComplete: 300,
+    removeOnFail: 50,
+    attempts: 2,
+    ...opts,
+  });
+};
+
 const publishAIAbort = async (jobId) => {
   if (!jobId) return;
   try {
@@ -255,6 +273,8 @@ module.exports = {
   enqueueRoutineJob,
   enqueueMediaJob,
   enqueueAIJob,
+  enqueueExperienceIndexJob,
+  enqueueEntityVectorJob,
   publishAIAbort,
   enqueueEmailJob,
   getQueueHealth,

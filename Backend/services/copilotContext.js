@@ -12,6 +12,7 @@ const {
 } = require("../config/copilotActionRegistry");
 const { isSuperAdminUser } = require("../utils/roles");
 const { hasPerm, escapeRegex } = require("./copilotSecurity");
+const { retrieveSemanticWorkspaceEntities } = require("./copilotExperienceService");
 
 const ROUTE_MODULE_MAP = [
   { route: "/", moduleKey: "dashboard", perm: "dashboard.view", label: "Dashboard & Overview" },
@@ -55,7 +56,7 @@ function expandModulesToPermissions(moduleKeys = []) {
  * Assemble strictly RBAC-scoped live workspace context for a single user.
  * Independent collection reads are executed concurrently with Promise.all.
  */
-async function buildScopedWebsiteContext({ user, currentRoute = "/", activeProjectId = null }) {
+async function buildScopedWebsiteContext({ user, currentRoute = "/", activeProjectId = null, promptText = "" }) {
   const isSuper = isSuperAdminUser(user);
   const allowedRoutes = ROUTE_MODULE_MAP.filter((r) => isSuper || hasPerm(user, r.perm)).map(
     ({ route, moduleKey, label }) => ({ route, moduleKey, label })
@@ -131,7 +132,7 @@ async function buildScopedWebsiteContext({ user, currentRoute = "/", activeProje
   const canJoinReqs = isSuper || hasPerm(user, "team.join_requests");
   const canAiManage = isSuper || hasPerm(user, "ai.manage");
 
-  const [departments, teammates, recentTasks, pendingRequests, rolesSummary, pendingJoinRequests, aiGrantsSummary] =
+  const [departments, teammates, rawRecentTasks, semanticTasks, pendingRequests, rolesSummary, pendingJoinRequests, aiGrantsSummary] =
     await Promise.all([
       canDepts ? Department.find({}).select("_id name code description").limit(20).lean() : Promise.resolve([]),
       canTeam
@@ -150,6 +151,15 @@ async function buildScopedWebsiteContext({ user, currentRoute = "/", activeProje
             .limit(15)
             .lean()
         : Promise.resolve([]),
+      canTasks && promptText
+        ? retrieveSemanticWorkspaceEntities({
+            prompt: promptText,
+            accessibleProjIds,
+            activeProjectId,
+            canTasks,
+            topK: 10,
+          }).catch(() => [])
+        : Promise.resolve([]),
       canReqs
         ? Request.find(isSuper || hasPerm(user, "requests.approve") ? {} : { requester: user._id })
             .select("_id title status requestType priority amount")
@@ -167,6 +177,21 @@ async function buildScopedWebsiteContext({ user, currentRoute = "/", activeProje
         ? AIGlobalGrant.find({}).select("_id targetType targetId targetName provider isActive").limit(20).lean()
         : Promise.resolve([]),
     ]);
+
+  // Merge top semantic task hits (up to 10) + top 5 freshest updates (capped at 15 total)
+  const mergedTasksMap = new Map();
+  for (const t of rawRecentTasks.slice(0, 5)) mergedTasksMap.set(String(t._id), t);
+  for (const t of semanticTasks) {
+    if (!mergedTasksMap.has(String(t._id)) && mergedTasksMap.size < 15) {
+      mergedTasksMap.set(String(t._id), t);
+    }
+  }
+  for (const t of rawRecentTasks) {
+    if (!mergedTasksMap.has(String(t._id)) && mergedTasksMap.size < 15) {
+      mergedTasksMap.set(String(t._id), t);
+    }
+  }
+  const recentTasks = Array.from(mergedTasksMap.values());
 
   return {
     currentUser: {

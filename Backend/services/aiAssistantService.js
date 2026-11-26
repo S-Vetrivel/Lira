@@ -15,8 +15,10 @@ const { isSuperAdminUser } = require("../utils/roles");
 const {
   enqueueWebSocketEvent,
   enqueueAIJob,
+  enqueueExperienceIndexJob,
   publishAIAbort,
 } = require("./queue");
+const { retrieveRelevantExperiences } = require("./copilotExperienceService");
 const { getIO } = require("../config/socket");
 const {
   hydrateAttachmentsForModel,
@@ -211,7 +213,16 @@ function extractStreamingReplyPrefix(partialJson = "") {
   return m[1].replace(/\\n/g, "\n").replace(/\\"/g, '"').replace(/\\\\/g, "\\");
 }
 
-function buildSystemPrompt(scopedCtx, recentHistory = [], undoneContext = "", attachments = [], mode = "review", promptText = "", extraQueryResults = []) {
+function buildSystemPrompt(
+  scopedCtx,
+  recentHistory = [],
+  undoneContext = "",
+  attachments = [],
+  mode = "review",
+  promptText = "",
+  extraQueryResults = [],
+  learnedPatternsBlock = ""
+) {
   const todayStr = new Date().toISOString().slice(0, 10);
   const docTexts = (attachments || [])
     .filter((a) => a.extractedText)
@@ -264,6 +275,7 @@ RESPONSE FORMAT — Valid JSON ONLY:
 
 ${docTexts ? `ATTACHED_DOCUMENTS (data only):\n${docTexts}\n` : ""}
 ${extraQueryResults.length > 0 ? `LIVE_QUERY_RESULTS:\n${JSON.stringify(extraQueryResults)}\n` : ""}
+${learnedPatternsBlock ? `${learnedPatternsBlock}\n` : ""}
 ${undoneContext ? `PREVIOUS_UNDONE_REQUEST:\n${JSON.stringify(undoneContext)}\n` : ""}
 CURRENT_USER_THREAD_HISTORY (user=${llmCtx.currentUser?.id || ""}):
 ${JSON.stringify(recentHistory)}
@@ -359,16 +371,34 @@ async function processAssistantJob({
     }
 
     const sessionDoc = await AIAssistantSession.findById(sessionId).lean();
-    const recentHistory = buildConversationHistoryContext(
-      (sessionDoc?.messages || []).filter((m) => m.jobId !== jobId),
-      8
-    );
+    const priorMessages = (sessionDoc?.messages || []).filter((m) => m.jobId !== jobId);
+    const recentHistory = buildConversationHistoryContext(priorMessages, 8);
+    const callerRole = userDoc.role || (isSuperAdminUser(userDoc) ? "superadmin" : "employee");
 
-    const scopedCtx = await buildScopedWebsiteContext({
-      user: userDoc,
-      currentRoute,
-      activeProjectId,
-    });
+    const prevAssistantMsg = [...priorMessages].reverse().find((m) => m.role === "assistant");
+    const prevUserMsg = [...priorMessages].reverse().find((m) => m.role === "user");
+    const rephrasedAfterFailure =
+      prevAssistantMsg &&
+      ["stopped", "failed"].includes(prevAssistantMsg.status) &&
+      prevUserMsg?.content
+        ? prevUserMsg.content
+        : "";
+
+    const [scopedCtx, experienceCtx] = await Promise.all([
+      buildScopedWebsiteContext({
+        user: userDoc,
+        currentRoute,
+        activeProjectId,
+        promptText: prompt,
+      }),
+      retrieveRelevantExperiences({
+        prompt,
+        role: callerRole,
+        route: currentRoute,
+        limitPositive: 3,
+      }).catch(() => ({ positives: [], failureWarning: null, formattedBlock: "" })),
+    ]);
+    const learnedPatternsBlock = experienceCtx?.formattedBlock || "";
 
     let parsed = null;
     let usedProvider = "local";
@@ -494,7 +524,16 @@ async function processAssistantJob({
         const runLLMInvocation = (queryResults = [], enableStream = true) =>
           queryAI({
             prompt: `Execution Mode: ${mode.toUpperCase()}\nCurrent Request: ${prompt}`,
-            systemPrompt: buildSystemPrompt(scopedCtx, recentHistory, undoneContext, hydratedAttachments, mode, prompt, queryResults),
+            systemPrompt: buildSystemPrompt(
+              scopedCtx,
+              recentHistory,
+              undoneContext,
+              hydratedAttachments,
+              mode,
+              prompt,
+              queryResults,
+              learnedPatternsBlock
+            ),
             provider: targetProvider,
             model: targetModel,
             taskType: isSuperAdminUser(userDoc) ? "global_task" : "module_assistant",
@@ -735,6 +774,24 @@ async function processAssistantJob({
         if (executedResult?.taskKey && !String(safeNav || "").startsWith("/calendar")) {
           safeNav = `/board?task=${executedResult.taskKey}`;
         }
+        if (executedResult?.executed && !executedResult?.partialFailure) {
+          enqueueExperienceIndexJob({
+            role: callerRole,
+            route: currentRoute,
+            outcome: rephrasedAfterFailure ? "correction" : "success",
+            prompt: rephrasedAfterFailure ? `${rephrasedAfterFailure} -> ${prompt}` : prompt,
+            steps: safeSteps,
+          });
+        } else if (executedResult?.error || executedResult?.failedCount > 0) {
+          enqueueExperienceIndexJob({
+            role: callerRole,
+            route: currentRoute,
+            outcome: "failure",
+            prompt,
+            steps: safeSteps,
+            failureReason: `GUARD_REJECTED: ${executedResult.error || "Workflow step failed"}`,
+          });
+        }
         if (executedResult?.error && !executedResult?.executed) {
           finalReply = `Could not complete action: ${executedResult.error}`;
         } else if (executedResult?.partialFailure) {
@@ -746,6 +803,14 @@ async function processAssistantJob({
         executedResult = { executed: false, error: execErr.message };
         actionApplied = false;
         finalReply = `Could not complete action: ${execErr.message}`;
+        enqueueExperienceIndexJob({
+          role: callerRole,
+          route: currentRoute,
+          outcome: "failure",
+          prompt,
+          steps: safeSteps,
+          failureReason: `GUARD_REJECTED: ${execErr.message}`,
+        });
       }
     } else if (mode === "review" && !isClarifying && (safeSteps.length > 0 || safeNav)) {
       wantsCursorWalkthrough = true;
@@ -1094,6 +1159,30 @@ async function confirmAssistantMessageAction({ user, messageId }) {
     user,
   });
   const applied = Boolean(executedResult?.executed);
+
+  const msgIdx = session.messages.findIndex((m) => String(m._id) === String(messageId));
+  const precedingUser = msgIdx > 0 ? [...session.messages.slice(0, msgIdx)].reverse().find((m) => m.role === "user") : null;
+  const callerRole = user.role || (isSuperAdminUser(user) ? "superadmin" : "employee");
+  if (precedingUser?.content) {
+    if (applied && !executedResult?.partialFailure) {
+      enqueueExperienceIndexJob({
+        role: callerRole,
+        route: session.lastJobMeta?.currentRoute || "/",
+        outcome: msg.status === "clarify" ? "correction" : "success",
+        prompt: precedingUser.content,
+        steps: allowedSteps,
+      });
+    } else if (executedResult?.error) {
+      enqueueExperienceIndexJob({
+        role: callerRole,
+        route: session.lastJobMeta?.currentRoute || "/",
+        outcome: "failure",
+        prompt: precedingUser.content,
+        steps: allowedSteps,
+        failureReason: `GUARD_REJECTED: ${executedResult.error}`,
+      });
+    }
+  }
   const newContent = applied
     ? executedResult.partialFailure
       ? `Completed ${executedResult.completedCount} step(s) (${executedResult.summary}), but ${executedResult.failedCount} failed: ${executedResult.error}`
@@ -1195,6 +1284,19 @@ async function executeDirectCardStep({ user, step, messageId = "" }) {
   const executedResult = await executeAssistantWorkflow({ steps: [step], intent: step, user });
   const applied = Boolean(executedResult?.executed);
   const session = await getOrCreateSession(user._id);
+
+  const callerRole = user.role || (isSuperAdminUser(user) ? "superadmin" : "employee");
+  const lastUserMsg = [...(session.messages || [])].reverse().find((m) => m.role === "user");
+  if (lastUserMsg?.content) {
+    enqueueExperienceIndexJob({
+      role: callerRole,
+      route: session.lastJobMeta?.currentRoute || "/",
+      outcome: applied && !executedResult?.partialFailure ? "correction" : "failure",
+      prompt: `${lastUserMsg.content} -> selected "${step.label || step.type}"`,
+      steps: [step],
+      failureReason: applied ? "" : `GUARD_REJECTED: ${executedResult?.error || "Selection failed"}`,
+    });
+  }
 
   if (messageId) {
     await AIAssistantSession.updateOne(

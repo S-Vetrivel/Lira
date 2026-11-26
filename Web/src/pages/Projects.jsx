@@ -163,7 +163,16 @@ export default function Projects() {
       if (d.name) setProjName(d.name);
       if (d.prefix) setProjPrefix(String(d.prefix).toUpperCase());
       if (d.description) setProjDesc(d.description);
-      if (d.department) setProjDept(d.department);
+      if (d.department) {
+        const rawDept = String(d.department).trim().toLowerCase();
+        const matchedDept = (departments || []).find(
+          (dep) =>
+            String(dep._id) === String(d.department) ||
+            String(dep.name || "").toLowerCase() === rawDept ||
+            String(dep.code || "").toLowerCase() === rawDept
+        );
+        setProjDept(matchedDept ? matchedDept._id : "");
+      }
       setShowAddProjectDrawer(true);
       setAiPrefillDraft(null);
     } else if (aiPrefillDraft.type === "create_department") {
@@ -182,7 +191,7 @@ export default function Projects() {
       if (targetProj) setSelectedProj(targetProj);
       setAiPrefillDraft(null);
     }
-  }, [aiPrefillDraft, setAiPrefillDraft, projects]);
+  }, [aiPrefillDraft, setAiPrefillDraft, projects, departments]);
 
   const [projTasks, setProjTasks] = useState([]);
   const [loadingProjTasks, setLoadingProjTasks] = useState(false);

@@ -5,7 +5,12 @@ const Comment = require("../models/commentModel");
 const ActivityLog = require("../models/activityLogModel");
 const { logActivity } = require("../utils/activityLogger");
 const { createNotification } = require("../utils/notificationHelper");
-const { enqueueWebSocketEvent, enqueueTaskMetrics, enqueueEmailJob } = require("../services/queue");
+const {
+  enqueueWebSocketEvent,
+  enqueueTaskMetrics,
+  enqueueEmailJob,
+  enqueueEntityVectorJob,
+} = require("../services/queue");
 const { hasWildcardPermission, isSuperAdminUser } = require("../utils/roles");
 
 const normalizeAssignmentInput = ({ assignee, assignees, assignedDepartments }) => {
@@ -380,6 +385,7 @@ exports.createTask = async (req, res) => {
     });
 
     await enqueueTaskMetrics({ projectId: project._id });
+    enqueueEntityVectorJob({ entityType: "task", entityId: String(task._id) });
 
     res.status(201).json({ success: true, task: populated });
   } catch (error) {
@@ -557,6 +563,8 @@ exports.updateTask = async (req, res) => {
       }),
     ]);
 
+    enqueueEntityVectorJob({ entityType: "task", entityId: String(task._id) });
+
     res.status(200).json({ success: true, task: populated });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -669,6 +677,7 @@ exports.updateTaskStatus = async (req, res) => {
     ]);
 
     await enqueueTaskMetrics({ projectId: task.project });
+    enqueueEntityVectorJob({ entityType: "task", entityId: String(task._id) });
 
     res.status(200).json({ success: true, task: populated });
   } catch (error) {
@@ -940,6 +949,7 @@ exports.deleteTask = async (req, res) => {
     ]);
 
     await enqueueTaskMetrics({ projectId });
+    enqueueEntityVectorJob({ entityType: "task", entityId: String(id), action: "delete" });
 
     res.status(200).json({ success: true, message: `Task ${task.key} deleted` });
   } catch (error) {

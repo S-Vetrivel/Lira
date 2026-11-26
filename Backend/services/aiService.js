@@ -819,11 +819,157 @@ async function testRawAIKey({ provider, model, apiKey, thinkingLevel = "low" }) 
   };
 }
 
+const EMBEDDING_DIMS = 128;
+
+function l2NormalizeVector(vec) {
+  let normSq = 0;
+  for (let i = 0; i < vec.length; i++) normSq += vec[i] * vec[i];
+  if (normSq === 0) return vec;
+  const inv = 1 / Math.sqrt(normSq);
+  return vec.map((v) => Number((v * inv).toFixed(6)));
+}
+
+/**
+ * Compute cosine similarity in [-1, 1] between two numeric vectors.
+ */
+function cosineSimilarity(vecA, vecB) {
+  if (!Array.isArray(vecA) || !Array.isArray(vecB) || vecA.length === 0 || vecA.length !== vecB.length) {
+    return 0;
+  }
+  let dot = 0;
+  let normA = 0;
+  let normB = 0;
+  for (let i = 0; i < vecA.length; i++) {
+    const a = Number(vecA[i]) || 0;
+    const b = Number(vecB[i]) || 0;
+    dot += a * b;
+    normA += a * a;
+    normB += b * b;
+  }
+  if (normA === 0 || normB === 0) return 0;
+  return dot / (Math.sqrt(normA) * Math.sqrt(normB));
+}
+
+function fnv1aHash(str, seed = 2166136261) {
+  let h = seed >>> 0;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619) >>> 0;
+  }
+  return h;
+}
+
+/**
+ * Fast, deterministic 128-dim local feature-hashed embedding (word unigrams + char trigrams)
+ * used as zero-cost offline fallback when no embedding API key is reachable.
+ */
+function localEmbedText(text, dims = EMBEDDING_DIMS) {
+  const vec = new Array(dims).fill(0);
+  const clean = String(text || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!clean) return vec;
+
+  const words = clean.split(" ").filter(Boolean).slice(0, 160);
+  const addFeature = (token, weight) => {
+    const idx = fnv1aHash(token, 2166136261) % dims;
+    const sign = (fnv1aHash(token, 16777619) & 1) === 0 ? 1 : -1;
+    vec[idx] += sign * weight;
+  };
+
+  for (const w of words) {
+    addFeature(`w:${w}`, 1.0);
+    if (w.length >= 3) {
+      const padded = `_${w}_`;
+      for (let i = 0; i <= padded.length - 3; i++) {
+        addFeature(`c:${padded.slice(i, i + 3)}`, 0.4);
+      }
+    }
+  }
+  return l2NormalizeVector(vec);
+}
+
+/**
+ * Generate a 128-dim normalized embedding vector using configured Google/OpenAI embedding
+ * credentials when available, with automatic fallback to `localEmbedText`.
+ */
+async function generateEmbeddingVector(text, { userId = null, allowRemote = true } = {}) {
+  const clean = String(text || "").trim().slice(0, 4000);
+  if (!clean) return new Array(EMBEDDING_DIMS).fill(0);
+
+  if (allowRemote && !process.env.DISABLE_REMOTE_EMBEDDINGS) {
+    for (const providerKey of ["openai", "google"]) {
+      try {
+        const creds = await resolveExecutionCredentials({
+          providerKey,
+          requestedModel: providerKey === "openai" ? "text-embedding-3-small" : "gemini-embedding-001",
+          taskType: "global_task",
+          moduleKey: "assistant",
+          userId: null, // Global / system credential lookup without spamming per-user denied logs
+          preferGlobal: true,
+        });
+        if (!creds?.apiKey) continue;
+
+        if (providerKey === "openai") {
+          const resp = await axios.post(
+            "https://api.openai.com/v1/embeddings",
+            {
+              model: "text-embedding-3-small",
+              input: clean,
+              dimensions: EMBEDDING_DIMS,
+            },
+            {
+              headers: {
+                Authorization: `Bearer ${creds.apiKey}`,
+                "Content-Type": "application/json",
+              },
+              timeout: 3500,
+            }
+          );
+          const emb = resp?.data?.data?.[0]?.embedding;
+          if (Array.isArray(emb) && emb.length === EMBEDDING_DIMS) {
+            return l2NormalizeVector(emb);
+          }
+        } else if (providerKey === "google") {
+          const embedModel = "gemini-embedding-001";
+          const resp = await axios.post(
+            `https://generativelanguage.googleapis.com/v1beta/models/${embedModel}:embedContent?key=${encodeURIComponent(
+              creds.apiKey
+            )}`,
+            {
+              model: `models/${embedModel}`,
+              content: { parts: [{ text: clean }] },
+              outputDimensionality: EMBEDDING_DIMS,
+            },
+            {
+              headers: { "Content-Type": "application/json" },
+              timeout: 3500,
+            }
+          );
+          const emb = resp?.data?.embedding?.values;
+          if (Array.isArray(emb) && emb.length === EMBEDDING_DIMS) {
+            return l2NormalizeVector(emb);
+          }
+        }
+      } catch {
+        // Silently fall through to next provider or deterministic local vector
+      }
+    }
+  }
+
+  return localEmbedText(clean, EMBEDDING_DIMS);
+}
+
 module.exports = {
   resolveExecutionCredentials,
   queryAI,
   testRawAIKey,
   recordAIUsageLog,
   getUserGlobalGrantsSummary,
+  cosineSimilarity,
+  localEmbedText,
+  generateEmbeddingVector,
 };
 

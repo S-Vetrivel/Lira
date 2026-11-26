@@ -25,7 +25,21 @@ const startWorkers = async () => {
     const routineSchedulerWorker = require("./routineSchedulerWorker");
     const mediaWorker = require("./mediaWorker");
     const emailWorker = require("./emailWorker");
-    const { enqueueRoutineJob } = require("../services/queue");
+    const { enqueueRoutineJob, aiProcessingQueue } = require("../services/queue");
+
+    // Register nightly pruning job for stale/deprecated copilot experiences
+    aiProcessingQueue
+      .add(
+        "prune-copilot-experiences",
+        { maxAgeDays: 60 },
+        {
+          repeat: { pattern: "0 2 * * *" },
+          jobId: "nightly-prune-copilot-experiences",
+          removeOnComplete: 10,
+          removeOnFail: 10,
+        }
+      )
+      .catch((err) => console.warn("[Worker Engine] Failed to schedule nightly experience prune:", err.message));
 
     console.log("🚀 [Worker Engine] 9 Unified Background Queue Workers active:");
     console.log("   ⚡ 1. WebSocket Broadcast Worker (concurrency: 10)");

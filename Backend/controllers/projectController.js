@@ -1,9 +1,47 @@
+const mongoose = require("mongoose");
 const Project = require("../models/projectModel");
+const Department = require("../models/departmentModel");
 const Task = require("../models/taskModel");
 const User = require("../models/userModel");
 const minioService = require("../services/minioService");
 const { createNotification, notifyUsers } = require("../utils/notificationHelper");
-const { enqueueWebSocketEvent, enqueueFileJob } = require("../services/queue");
+const { enqueueWebSocketEvent, enqueueFileJob, enqueueEntityVectorJob } = require("../services/queue");
+const { escapeRegex } = require("../utils/envSecrets");
+
+/**
+ * Resolve mixed department inputs (ObjectIds, codes like "ENG", or names like "Engineering")
+ * into valid deduplicated Department ObjectId strings so User/Project queries never throw CastError.
+ */
+async function resolveDepartmentObjectIds(rawInputs = []) {
+  const flat = [];
+  for (const item of rawInputs) {
+    if (!item) continue;
+    if (Array.isArray(item)) flat.push(...item);
+    else flat.push(item);
+  }
+  const validIds = new Set();
+  const lookupTerms = [];
+  for (const val of flat) {
+    const str = typeof val === "object" && val?._id ? String(val._id) : String(val).trim();
+    if (!str) continue;
+    if (mongoose.isValidObjectId(str)) {
+      validIds.add(str);
+    } else {
+      lookupTerms.push(str);
+    }
+  }
+  if (lookupTerms.length > 0) {
+    const upperCodes = lookupTerms.map((t) => t.toUpperCase());
+    const nameRegexes = lookupTerms.map((t) => new RegExp(`^${escapeRegex(t)}$`, "i"));
+    const found = await Department.find({
+      $or: [{ code: { $in: upperCodes } }, { name: { $in: nameRegexes } }],
+    })
+      .select("_id")
+      .lean();
+    for (const d of found) validIds.add(String(d._id));
+  }
+  return Array.from(validIds);
+}
 
 const MEMBER_FIELDS = "fullname email avatar profilePicture role jobTitle departmentName publicId status";
 
@@ -150,16 +188,17 @@ exports.createProject = async (req, res) => {
       });
     }
 
-    const invokedDeptIds = Array.from(
-      new Set([
-        ...(department ? [department.toString()] : []),
-        ...(Array.isArray(departments) ? departments.filter(Boolean).map(String) : []),
-      ])
-    );
+    const invokedDeptIds = await resolveDepartmentObjectIds([
+      ...(department ? [department] : []),
+      ...(Array.isArray(departments) ? departments : []),
+    ]);
 
     const memberSet = new Set([req.user._id.toString()]);
     if (Array.isArray(members)) {
-      members.filter(Boolean).forEach((m) => memberSet.add(m.toString()));
+      members.filter(Boolean).forEach((m) => {
+        const ms = String(m);
+        if (mongoose.isValidObjectId(ms)) memberSet.add(ms);
+      });
     }
     if (invokedDeptIds.length > 0) {
       const deptUsers = await User.find({
@@ -172,14 +211,15 @@ exports.createProject = async (req, res) => {
       deptUsers.forEach((u) => memberSet.add(u._id.toString()));
     }
     const memberIds = Array.from(memberSet);
+    const resolvedLead = lead && mongoose.isValidObjectId(String(lead)) ? lead : req.user._id;
 
     const project = await Project.create({
       name: name.trim(),
       prefix: cleanPrefix,
       description: description || "",
-      department: department || invokedDeptIds[0] || null,
+      department: invokedDeptIds[0] || null,
       departments: invokedDeptIds,
-      lead: lead || req.user._id,
+      lead: resolvedLead,
       members: memberIds,
       color: color || "#4F46E5",
       taskSequence: 100,
@@ -210,6 +250,8 @@ exports.createProject = async (req, res) => {
       data: populated,
     });
 
+    enqueueEntityVectorJob({ entityType: "project", entityId: String(project._id) });
+
     res.status(201).json({ success: true, project: populated });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -235,6 +277,15 @@ exports.updateProject = async (req, res) => {
     allowed.forEach((field) => {
       if (req.body[field] !== undefined) updates[field] = req.body[field];
     });
+    if (updates.department !== undefined) {
+      const resolvedPrimary = await resolveDepartmentObjectIds([updates.department]);
+      updates.department = resolvedPrimary[0] || null;
+    }
+    if (updates.departments !== undefined) {
+      updates.departments = await resolveDepartmentObjectIds(
+        Array.isArray(updates.departments) ? updates.departments : [updates.departments]
+      );
+    }
 
     const project = await Project.findByIdAndUpdate(id, updates, { new: true })
       .populate("department", "name code color")
@@ -254,6 +305,8 @@ exports.updateProject = async (req, res) => {
       data: { projectId: project._id, action: "updated" },
     });
 
+    enqueueEntityVectorJob({ entityType: "project", entityId: String(project._id) });
+
     res.status(200).json({ success: true, project });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -270,6 +323,7 @@ exports.deleteProject = async (req, res) => {
       event: "project:updated",
       data: { projectId: id, action: "deleted" },
     });
+    enqueueEntityVectorJob({ entityType: "project", entityId: String(id), action: "delete" });
     res.status(200).json({ success: true, message: "Project and associated tasks removed" });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
