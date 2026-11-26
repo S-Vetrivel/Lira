@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { useApp } from "../context/Appcontext";
 import { getAuditOverview, getAIUsageLogsAPI } from "../services/api";
-import { subscribeRealtimeEvents } from "../services/socket";
+import { getSocket, subscribeRealtimeEvents } from "../services/socket";
 import UserAvatar from "../components/common/UserAvatar";
 import SideDrawer from "../components/common/SideDrawer";
 import { formatDateIN, formatTimeIN, getDisplayName } from "../utils/formatters";

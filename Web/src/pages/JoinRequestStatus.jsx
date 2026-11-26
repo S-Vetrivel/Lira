@@ -191,7 +191,6 @@ export default function JoinRequestStatus() {
       const res = await registerPushSubscription(subscription);
       if (res.success) {
         setPushEnabled(true);
-        setPushPermission?.("granted");
         toast.success("Push notifications enabled! You'll be alerted immediately upon approval.", {
           id: "push-enabled",
         });

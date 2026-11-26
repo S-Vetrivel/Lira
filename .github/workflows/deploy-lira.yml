@@ -6,8 +6,42 @@ on:
       - main
 
 jobs:
+  verify-backend:
+    name: verify-backend-syntax
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Check Backend JS syntax
+        run: find Backend -name "*.js" -not -path "*/node_modules/*" -exec node --check {} +
+
+  verify-frontend:
+    name: verify-frontend-build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies and build Web
+        working-directory: Web
+        run: |
+          npm install
+          npm run build
+
   deploy:
     name: deploy-to-vps
+    needs: [verify-backend, verify-frontend]
     runs-on: ubuntu-latest
 
     steps:
@@ -34,4 +68,3 @@ jobs:
 
             # Prune dangling images to save space
             docker builder prune -f
-

@@ -57,7 +57,14 @@ const AIUsageLogSchema = new mongoose.Schema(
     },
     misuseCategory: {
       type: String,
-      enum: ["", "off_topic_code_or_image", "architecture_probe", "unauthorized_module"],
+      enum: [
+        "",
+        "off_topic_code_or_image",
+        "architecture_probe",
+        "unauthorized_module",
+        "audit_tampering",
+        "destructive_wipe",
+      ],
       default: "",
     },
     promptSnippet: { type: String, default: "" },
