@@ -24,6 +24,7 @@ import {
   getAIAssistantSessionAPI,
   sendAIAssistantChatAPI,
   uploadAIAssistantFilesAPI,
+  deleteAIAssistantUploadAPI,
   executeAIAssistantCardStepAPI,
   stopAIAssistantAPI,
   setAIAssistantModeAPI,
@@ -42,10 +43,28 @@ function inferModuleFromPath(pathname) {
   if (pathname.startsWith("/requests")) return "requests";
   if (pathname.startsWith("/projects")) return "projects";
   if (pathname.startsWith("/team")) return "team";
-  if (pathname.startsWith("/roles")) return "roles";
+  if (pathname.startsWith("/roles")) return "rbac";
   if (pathname.startsWith("/audit")) return "dashboard";
   if (pathname.startsWith("/profile")) return "ai";
   return "dashboard";
+}
+
+async function computeFileFingerprint(file) {
+  try {
+    const slice = file.slice(0, 256 * 1024);
+    const buf = await slice.arrayBuffer();
+    if (typeof crypto !== "undefined" && crypto.subtle) {
+      const digest = await crypto.subtle.digest("SHA-256", buf);
+      const hex = Array.from(new Uint8Array(digest))
+        .slice(0, 12)
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("");
+      return `${file.size}:${file.type}:${hex}`;
+    }
+    return `${file.name}:${file.size}:${file.type}:${file.lastModified}`;
+  } catch {
+    return `${file.name}:${file.size}:${file.type}:${file.lastModified}`;
+  }
 }
 
 function formatPlainCopilotText(rawContent, prevPrompt = "") {
@@ -88,6 +107,12 @@ export default function LiraAssistantWidget() {
     refreshProjects,
     refreshDepartments,
     refreshTeam,
+    refreshRoles,
+    refreshNotifications,
+    toggleTheme,
+    openDirectChat,
+    openRoomChat,
+    teamMembers,
     theme,
   } = useApp();
 
@@ -102,13 +127,23 @@ export default function LiraAssistantWidget() {
   const [mode, setMode] = useState("review"); // "review" | "auto"
   const [input, setInput] = useState("");
   const [pendingAttachments, setPendingAttachments] = useState([]);
-  const [uploadingFiles, setUploadingFiles] = useState(false);
   const [isDraggingFiles, setIsDraggingFiles] = useState(false);
   const [sending, setSending] = useState(false);
   const [stopping, setStopping] = useState(false);
   const [confirmingMsgId, setConfirmingMsgId] = useState("");
   const fileInputRef = useRef(null);
+  const textareaRef = useRef(null);
   const dragCounterRef = useRef(0);
+  const recentFileHashesRef = useRef(new Map());
+  const hasHydratedPrefsRef = useRef(false);
+  const myTabJobsRef = useRef(new Set());
+  const isOpenRef = useRef(isAIAssistantOpen);
+  isOpenRef.current = isAIAssistantOpen;
+  const uploadingCount = useMemo(
+    () => pendingAttachments.filter((a) => a.status === "uploading").length,
+    [pendingAttachments]
+  );
+  const uploadingFiles = uploadingCount > 0;
 
   // 4-corner Glass Pebble position (numeric pixel transform for slow silky pull & drop animation; resets to "bottom-right" on reload)
   const [corner, setCorner] = useState("bottom-right");
@@ -146,39 +181,225 @@ export default function LiraAssistantWidget() {
   };
 
   const runCursorWalkthroughForMessage = (msg) => {
-    const step0 = msg.steps?.[0] || msg.intent;
-    closeAllSidebars?.();
-    if (msg.navigateTo) navigate(msg.navigateTo);
+    const step0 = msg?.steps?.[0] || msg?.intent;
+    const type = step0?.type || "";
+    const pf = { ...(step0?.prefill || {}) };
 
-    if (step0?.type === "create_task") {
-      const pf = { ...(step0.prefill || {}) };
+    if (type === "toggle_theme") {
+      closeAllSidebars?.();
+      playAICursorSequence?.([
+        { selector: '[data-ai-target="theme-toggle-btn"], button[aria-label="Toggle Theme"]', label: "1. Switching Theme", delayMs: 650 },
+      ]);
+      setTimeout(() => toggleTheme?.(), 500);
+      return;
+    }
+
+    if (type === "open_notifications" || type === "mark_notifications_read") {
+      closeAllSidebars?.();
+      playAICursorSequence?.([
+        { selector: '[data-ai-target="notifications-bell-btn"]', label: "1. Opening Notifications", delayMs: 700 },
+      ]);
+      setTimeout(() => {
+        document.querySelector('[data-ai-target="notifications-bell-btn"]')?.click();
+        if (type === "mark_notifications_read") {
+          playAICursorSequence?.([
+            { selector: '[data-ai-target="notifications-mark-read-btn"]', label: "2. Click Mark All Read", delayMs: 900 },
+          ]);
+        }
+      }, 650);
+      return;
+    }
+
+    if (["send_dm", "send_project_chat", "open_chat"].includes(type)) {
+      closeAllSidebars?.("chat");
+      if (type === "send_dm" && pf.recipientId) {
+        const target = (teamMembers || []).find((m) => String(m._id) === String(pf.recipientId)) || { _id: pf.recipientId };
+        openDirectChat?.(target);
+      } else {
+        const rid = pf.roomId || (pf.projectId ? `project_${pf.projectId}` : "dept_general");
+        openRoomChat?.({ roomId: rid });
+      }
+      if (pf.message) {
+        setTimeout(() => {
+          setAiPrefillDraft({ type: "chat_draft", data: { text: pf.message }, nonce: Date.now() });
+        }, 120);
+      }
+      setTimeout(() => {
+        playAICursorSequence?.([
+          { selector: '[data-ai-target="chat-message-input"]', label: "1. Drafting Message", delayMs: 800 },
+          { selector: '[data-ai-target="chat-send-btn"]', label: "2. Review & Send", delayMs: 1000 },
+        ]);
+      }, 300);
+      return;
+    }
+
+    const keepTaskOpen = [
+      "open_task",
+      "update_task",
+      "update_task_status",
+      "assign_task",
+      "submit_task_review",
+      "approve_task",
+      "redo_task",
+      "add_subtask",
+      "toggle_subtask",
+      "add_task_comment",
+      "add_worklog",
+      "delete_task",
+    ].includes(type);
+
+    closeAllSidebars?.(keepTaskOpen ? "task" : null);
+    if (msg?.navigateTo) navigate(msg.navigateTo);
+
+    if (type === "create_task") {
       if (!pf.dueDate && (window.location.pathname.startsWith("/calendar") || msg.navigateTo?.startsWith("/calendar"))) {
         pf.dueDate = new Date().toISOString().slice(0, 10);
       }
       setTimeout(() => {
         playAICursorSequence?.([
-          {
-            selector: '[data-ai-target="calendar-add-task-btn"], button[title*="New Task"]',
-            label: "1. Opening Task Creator",
-            delayMs: 850,
-          },
+          { selector: '[data-ai-target="calendar-add-task-btn"], [data-ai-target="header-new-task-btn"], button[title*="New Task"]', label: "1. Opening Task Creator", delayMs: 800 },
         ]);
         setTimeout(() => {
-          setAiPrefillDraft({
-            type: "create_task",
-            data: { ...pf, cursorWalkthrough: true },
-            nonce: Date.now(),
-          });
+          setAiPrefillDraft({ type: "create_task", data: { ...pf, cursorWalkthrough: true }, nonce: Date.now() });
           setIsCreateTaskModalOpen?.(true);
           playAICursorSequence?.([
-            { selector: '[data-ai-target="task-title-input"]', label: "2. Typing Title", delayMs: 950 },
-            { selector: '[data-ai-target="task-duedate-input"]', label: "3. Setting Schedule Date", delayMs: 900 },
-            { selector: '[data-ai-target="task-priority-select"]', label: "4. Picking Priority", delayMs: 800 },
+            { selector: '[data-ai-target="task-title-input"]', label: "2. Typing Title", delayMs: 900 },
+            { selector: '[data-ai-target="task-duedate-input"]', label: "3. Setting Schedule Date", delayMs: 850 },
+            { selector: '[data-ai-target="task-priority-select"]', label: "4. Picking Priority", delayMs: 750 },
             { selector: '[data-ai-target="task-submit-btn"]', label: "5. Ready — Click Create Task", delayMs: 1100 },
           ]);
-        }, 850);
+        }, 800);
       }, 220);
-    } else if (msg.navigateTo) {
+      return;
+    }
+
+    if (keepTaskOpen) {
+      const targetKey = pf.taskId || pf.taskKey;
+      setTimeout(() => {
+        if (targetKey) setSelectedTaskKeyOrId?.(targetKey);
+        const taskSeq = [
+          { selector: '[data-ai-target="task-status-select"]', label: "1. Inspecting Task", delayMs: 750 },
+        ];
+        if (type === "submit_task_review") {
+          taskSeq.push({ selector: '[data-ai-target="task-submit-review-btn"]', label: "2. Click Submit for Review", delayMs: 1000 });
+        } else if (type === "approve_task") {
+          taskSeq.push({ selector: '[data-ai-target="task-approve-btn"]', label: "2. Click Approve Task", delayMs: 1000 });
+        } else if (type === "redo_task") {
+          taskSeq.push({ selector: '[data-ai-target="task-redo-btn"]', label: "2. Click Request Revision", delayMs: 1000 });
+        } else if (type === "add_task_comment") {
+          taskSeq.push({ selector: '[data-ai-target="task-comment-input"]', label: "2. Write Comment", delayMs: 1000 });
+        } else if (type === "delete_task") {
+          taskSeq.push({ selector: '[data-ai-target="task-delete-btn"]', label: "2. Confirm Delete Task", delayMs: 1000 });
+        }
+        setTimeout(() => playAICursorSequence?.(taskSeq), 450);
+      }, 260);
+      return;
+    }
+
+    if (["create_role", "update_role", "delete_role", "grant_ai_access", "revoke_ai_access", "update_ai_config"].includes(type)) {
+      if (!window.location.pathname.startsWith("/roles")) navigate(type.includes("ai") ? "/roles?tab=ai" : "/roles");
+      setTimeout(() => {
+        if (type === "create_role" || type === "update_role") {
+          playAICursorSequence?.([
+            { selector: '[data-ai-target="new-role-btn"]', label: "1. Opening Role Editor", delayMs: 700 },
+          ]);
+          setTimeout(() => {
+            setAiPrefillDraft({ type, data: pf, nonce: Date.now() });
+            playAICursorSequence?.([
+              { selector: '[data-ai-target="role-name-input"]', label: "2. Prefilling Role Details", delayMs: 800 },
+              { selector: '[data-ai-target="role-modules-box"]', label: "3. Select Modules & Permissions", delayMs: 900 },
+              { selector: '[data-ai-target="save-role-btn"]', label: "4. Review & Save Role", delayMs: 1100 },
+            ]);
+          }, 650);
+        } else {
+          setAiPrefillDraft({ type, data: pf, nonce: Date.now() });
+          playAICursorSequence?.([
+            { selector: '[data-ai-target="grant-ai-submit-btn"], [data-ai-target="new-role-btn"]', label: "Review Settings Here", delayMs: 1000 },
+          ]);
+        }
+      }, 250);
+      return;
+    }
+
+    if (["create_project", "update_project", "add_project_member", "invoke_project_department", "add_project_url", "create_department", "update_department", "add_department_member"].includes(type)) {
+      if (!window.location.pathname.startsWith("/projects")) navigate("/projects");
+      setTimeout(() => {
+        const isDept = type.includes("department") && !type.includes("project");
+        playAICursorSequence?.([
+          { selector: isDept ? '[data-ai-target="add-dept-btn"]' : '[data-ai-target="add-project-btn"]', label: isDept ? "1. Opening Department Form" : "1. Opening Project Form", delayMs: 700 },
+        ]);
+        setTimeout(() => {
+          setAiPrefillDraft({ type, data: pf, nonce: Date.now() });
+          playAICursorSequence?.([
+            { selector: "form input, form textarea", label: "2. Prefilled Details", delayMs: 850 },
+            { selector: '[data-ai-target="save-project-btn"], [data-ai-target="save-dept-btn"], form button[type="submit"]', label: "3. Review & Submit", delayMs: 1000 },
+          ]);
+        }, 650);
+      }, 250);
+      return;
+    }
+
+    if (["create_request", "approve_request", "reject_request"].includes(type)) {
+      if (!window.location.pathname.startsWith("/requests")) navigate("/requests");
+      setTimeout(() => {
+        if (type === "create_request") {
+          playAICursorSequence?.([
+            { selector: '[data-ai-target="new-request-btn"]', label: "1. Opening Request Form", delayMs: 700 },
+          ]);
+          setTimeout(() => {
+            setAiPrefillDraft({ type, data: pf, nonce: Date.now() });
+            playAICursorSequence?.([
+              { selector: "form input, form textarea", label: "2. Prefilling Request", delayMs: 850 },
+              { selector: '[data-ai-target="save-request-btn"], form button[type="submit"]', label: "3. Review & Submit Request", delayMs: 1000 },
+            ]);
+          }, 650);
+        } else {
+          setAiPrefillDraft({ type, data: pf, nonce: Date.now() });
+          playAICursorSequence?.([
+            {
+              selector: type === "approve_request" ? '[data-ai-target="request-approve-btn"]' : '[data-ai-target="request-reject-btn"]',
+              label: type === "approve_request" ? "Review & Approve Stage" : "Review & Reject Request",
+              delayMs: 1100,
+            },
+          ]);
+        }
+      }, 250);
+      return;
+    }
+
+    if (["create_user", "update_user", "update_user_role", "delete_user", "approve_join_request", "reject_join_request"].includes(type)) {
+      const targetTab = type.includes("join_request") ? "/team?tab=join-requests" : "/team";
+      if (!window.location.pathname.startsWith("/team")) navigate(targetTab);
+      setTimeout(() => {
+        setAiPrefillDraft({ type, data: pf, nonce: Date.now() });
+        playAICursorSequence?.([
+          {
+            selector:
+              type === "create_user"
+                ? '[data-ai-target="add-member-btn"]'
+                : type.includes("join_request")
+                ? '[data-ai-target="join-approve-btn"]'
+                : '[data-ai-target="save-member-btn"], [data-ai-target="add-member-btn"]',
+            label: "Copilot Highlighted Action",
+            delayMs: 950,
+          },
+        ]);
+      }, 300);
+      return;
+    }
+
+    if (type === "update_profile") {
+      if (!window.location.pathname.startsWith("/profile")) navigate("/profile");
+      setTimeout(() => {
+        setAiPrefillDraft({ type, data: pf, nonce: Date.now() });
+        playAICursorSequence?.([
+          { selector: '[data-ai-target="save-profile-btn"]', label: "Review Profile Changes", delayMs: 1000 },
+        ]);
+      }, 300);
+      return;
+    }
+
+    if (msg?.navigateTo) {
       triggerAICursor?.({ label: `Navigated to ${msg.navigateTo}` });
     }
   };
@@ -189,29 +410,21 @@ export default function LiraAssistantWidget() {
     if (handled.has(msg.jobId)) return;
     markJobHandled(msg.jobId);
 
-    if (msg.cursorGuide) {
-      runCursorWalkthroughForMessage(msg);
-      return;
-    }
-
-    const targetIntent = msg.steps?.[0] || msg.intent;
-    const isExplicitNavigation =
-      targetIntent?.type === "navigate" || targetIntent?.type === "open_task";
-
-    if (msg.navigateTo) {
-      if (isExplicitNavigation) {
-        closeAllSidebars?.(targetIntent?.type === "open_task" ? "task" : null);
-        triggerAICursor?.({ label: `Navigated to ${msg.navigateTo}` });
-      }
-      navigate(msg.navigateTo);
-    }
-
     if (sourceMode === "auto" || msg.actionApplied) {
       refreshProjects?.();
       refreshDepartments?.();
       refreshTeam?.();
-      if (msg.executedResult?.taskKey && !String(msg.navigateTo || "").startsWith("/calendar")) {
-        setSelectedTaskKeyOrId?.(msg.executedResult.taskKey);
+      refreshRoles?.();
+      refreshNotifications?.();
+    }
+
+    // Only drive UI navigation, modals, or cursor walkthrough in the active tab that owns/opened Copilot
+    const tabOwnsEffect = myTabJobsRef.current.has(msg.jobId) || isOpenRef.current;
+    if (!tabOwnsEffect) return;
+
+    if (sourceMode === "auto" || msg.actionApplied) {
+      if (msg.navigateTo && !msg.uiHtml) {
+        if (msg.intent?.type === "navigate") navigate(msg.navigateTo);
       }
       if (msg.intent?.type === "open_task" && msg.intent?.prefill?.taskKey) {
         closeAllSidebars?.("task");
@@ -220,24 +433,9 @@ export default function LiraAssistantWidget() {
       return;
     }
 
-    // REVIEW MODE: open relevant form & fill draft with visible Copilot cursor
-    if (targetIntent?.type && targetIntent.type !== "navigate") {
-      if (targetIntent.type === "open_task" && targetIntent.prefill?.taskKey) {
-        closeAllSidebars?.("task");
-        setSelectedTaskKeyOrId?.(targetIntent.prefill.taskKey);
-        triggerAICursor?.({ label: `Opening ${targetIntent.prefill.taskKey}` });
-        return;
-      }
-      if (targetIntent.type === "create_task") {
-        setAiPrefillDraft({ type: "create_task", data: targetIntent.prefill || {}, nonce: Date.now() });
-        setIsCreateTaskModalOpen?.(true);
-        triggerAICursor?.({ selector: '[data-ai-target="task-title-input"], form input[type="text"]', label: "Prefilling Task Form" });
-        return;
-      }
-      if (["create_request", "create_project", "create_department"].includes(targetIntent.type)) {
-        setAiPrefillDraft({ type: targetIntent.type, data: targetIntent.prefill || {}, nonce: Date.now() });
-        triggerAICursor?.({ selector: "form input, form textarea", label: "Prefilling Form" });
-      }
+    if (msg.cursorGuide || (sourceMode === "review" && msg.status !== "clarify")) {
+      runCursorWalkthroughForMessage(msg);
+      return;
     }
   };
 
@@ -246,15 +444,20 @@ export default function LiraAssistantWidget() {
     const res = await getAIAssistantSessionAPI();
     if (res.success && res.session) {
       setSession(res.session);
-      setMode(res.session.mode || "review");
+      if (!hasHydratedPrefsRef.current) {
+        hasHydratedPrefsRef.current = true;
+        setMode(res.session.mode || "review");
+        if (Array.isArray(res.options)) {
+          if (res.session.selectedModelKey && res.session.selectedModelKey !== "auto") {
+            setSelectedModelKey(res.session.selectedModelKey);
+          } else if (!res.hasExternalAccess && res.options.length > 0) {
+            setSelectedModelKey(res.options[0].id);
+          }
+        }
+      }
       if (Array.isArray(res.options)) {
         setAvailableModels(res.options);
         setHasExternalAccess(Boolean(res.hasExternalAccess));
-        if (res.session.selectedModelKey && res.session.selectedModelKey !== "auto") {
-          setSelectedModelKey(res.session.selectedModelKey);
-        } else if (!res.hasExternalAccess && res.options.length > 0) {
-          setSelectedModelKey(res.options[0].id);
-        }
       }
       if (triggerEffectsOnLatest && Array.isArray(res.session.messages) && res.session.messages.length > 0) {
         const last = res.session.messages[res.session.messages.length - 1];
@@ -296,20 +499,82 @@ export default function LiraAssistantWidget() {
   }, [canUseAI, isAIAssistantOpen]);
 
   const uploadAndAttachFiles = async (fileList) => {
-    const picked = Array.from(fileList || []).filter(Boolean).slice(0, 5);
-    if (picked.length === 0) return;
-    setUploadingFiles(true);
-    const res = await uploadAIAssistantFilesAPI(picked);
-    setUploadingFiles(false);
-    if (res.success && Array.isArray(res.attachments)) {
-      setPendingAttachments((prev) => [...prev, ...res.attachments].slice(0, 5));
+    const incoming = Array.from(fileList || []).filter(Boolean);
+    if (incoming.length === 0) return;
+
+    const existingHashes = new Set(pendingAttachments.map((a) => a.hash).filter(Boolean));
+    const now = Date.now();
+    const accepted = [];
+
+    for (const file of incoming) {
+      if (pendingAttachments.length + accepted.length >= 5) break;
+      const hash = await computeFileFingerprint(file);
+      const lastSeen = recentFileHashesRef.current.get(hash) || 0;
+      // Ignore duplicate invocations of identical file within 1500ms or already queued
+      if (existingHashes.has(hash) || now - lastSeen < 1500) {
+        continue;
+      }
+      recentFileHashesRef.current.set(hash, now);
+      existingHashes.add(hash);
+
+      const isImg = String(file.type || "").startsWith("image/");
+      const tempId = `att-${now}-${Math.random().toString(36).slice(2, 8)}`;
+      const localUrl = isImg ? URL.createObjectURL(file) : "";
+      accepted.push({
+        file,
+        tempId,
+        hash,
+        placeholder: {
+          tempId,
+          hash,
+          name: file.name || `attachment-${now}`,
+          kind: isImg ? "image" : "document",
+          size: file.size || 0,
+          url: localUrl,
+          localUrl,
+          status: "uploading",
+        },
+      });
     }
+
+    if (accepted.length === 0) return;
+    setPendingAttachments((prev) => [...prev, ...accepted.map((a) => a.placeholder)].slice(0, 5));
+
+    await Promise.all(
+      accepted.map(async (item) => {
+        const res = await uploadAIAssistantFilesAPI([item.file]);
+        const uploaded = res.success && Array.isArray(res.attachments) ? res.attachments[0] : null;
+        if (item.placeholder.localUrl) URL.revokeObjectURL(item.placeholder.localUrl);
+
+        if (uploaded) {
+          setPendingAttachments((prev) =>
+            prev.map((att) =>
+              att.tempId === item.tempId
+                ? { ...uploaded, tempId: item.tempId, hash: item.hash, status: "ready" }
+                : att
+            )
+          );
+        } else {
+          setPendingAttachments((prev) => prev.filter((att) => att.tempId !== item.tempId));
+        }
+      })
+    );
   };
 
   const handleAttachFiles = async (e) => {
     const picked = Array.from(e.target.files || []);
     if (fileInputRef.current) fileInputRef.current.value = "";
     await uploadAndAttachFiles(picked);
+  };
+
+  const handleRemovePendingAttachment = (attToRemove) => {
+    if (attToRemove.localUrl) URL.revokeObjectURL(attToRemove.localUrl);
+    setPendingAttachments((prev) =>
+      prev.filter((att) => (attToRemove.tempId ? att.tempId !== attToRemove.tempId : att.url !== attToRemove.url))
+    );
+    if (attToRemove.filename || attToRemove.filePath) {
+      deleteAIAssistantUploadAPI(attToRemove.filename || attToRemove.filePath);
+    }
   };
 
   const handleClipboardPaste = async (e) => {
@@ -337,6 +602,7 @@ export default function LiraAssistantWidget() {
     }
     if (files.length > 0) {
       e.preventDefault();
+      e.stopPropagation();
       await uploadAndAttachFiles(files);
     }
   };
@@ -365,6 +631,7 @@ export default function LiraAssistantWidget() {
 
   const handleDrawerDrop = async (e) => {
     e.preventDefault();
+    e.stopPropagation();
     dragCounterRef.current = 0;
     setIsDraggingFiles(false);
     const files = e.dataTransfer?.files;
@@ -375,9 +642,11 @@ export default function LiraAssistantWidget() {
 
   const dispatchPrompt = async (promptText) => {
     const clean = String(promptText || "").trim();
-    if ((!clean && pendingAttachments.length === 0) || sending) return;
-    const attachmentsToSend = [...pendingAttachments];
+    const readyAtts = pendingAttachments.filter((a) => a.status !== "uploading");
+    if ((!clean && readyAtts.length === 0) || uploadingFiles || sending) return;
+    const attachmentsToSend = [...readyAtts];
     setInput("");
+    if (textareaRef.current) textareaRef.current.style.height = "auto";
     setPendingAttachments([]);
     setSending(true);
     const res = await sendAIAssistantChatAPI({
@@ -391,6 +660,8 @@ export default function LiraAssistantWidget() {
     });
     setSending(false);
     if (res.success && res.session) {
+      const dispatchedId = res.jobId || res.session?.activeJobId;
+      if (dispatchedId) myTabJobsRef.current.add(dispatchedId);
       setSession(res.session);
     }
   };
@@ -402,6 +673,7 @@ export default function LiraAssistantWidget() {
       refreshTeam?.();
       refreshProjects?.();
       refreshDepartments?.();
+      refreshRoles?.();
       if (res.executedResult?.taskKey) {
         closeAllSidebars?.("task");
         navigate(`/board?task=${res.executedResult.taskKey}`);
@@ -471,6 +743,7 @@ export default function LiraAssistantWidget() {
   if (!canUseAI) return null;
 
   const handleModeChange = async (nextMode) => {
+    hasHydratedPrefsRef.current = true;
     setMode(nextMode);
     await setAIAssistantModeAPI(nextMode);
   };
@@ -485,32 +758,7 @@ export default function LiraAssistantWidget() {
   };
 
   const handleReviewOrApply = (msg) => {
-    if (msg.cursorGuide) {
-      runCursorWalkthroughForMessage(msg);
-      return;
-    }
-    const targetIntent = msg.steps?.[0] || msg.intent;
-    closeAllSidebars?.(targetIntent?.type === "open_task" ? "task" : null);
-    if (msg.navigateTo) {
-      navigate(msg.navigateTo);
-    }
-    if (targetIntent?.type === "create_task") {
-      setAiPrefillDraft({ type: "create_task", data: targetIntent.prefill || {}, nonce: Date.now() });
-      setIsCreateTaskModalOpen?.(true);
-      triggerAICursor?.({ selector: '[data-ai-target="task-title-input"], form input[type="text"]', label: "Copilot Prefilling Task" });
-      return;
-    }
-    if (targetIntent?.type === "open_task" && targetIntent.prefill?.taskKey) {
-      setSelectedTaskKeyOrId?.(targetIntent.prefill.taskKey);
-      triggerAICursor?.({ label: `Opening ${targetIntent.prefill.taskKey}` });
-      return;
-    }
-    if (["create_request", "create_project", "create_department"].includes(targetIntent?.type)) {
-      setAiPrefillDraft({ type: targetIntent.type, data: targetIntent.prefill || {}, nonce: Date.now() });
-      triggerAICursor?.({ selector: "form input, form textarea", label: "Copilot Prefilling Form" });
-    } else if (msg.navigateTo) {
-      triggerAICursor?.({ label: `Navigated to ${msg.navigateTo}` });
-    }
+    runCursorWalkthroughForMessage(msg);
   };
 
   const handleConfirmServerExecute = async (msg) => {
@@ -664,7 +912,6 @@ export default function LiraAssistantWidget() {
           onDragOver: handleDrawerDragOver,
           onDragLeave: handleDrawerDragLeave,
           onDrop: handleDrawerDrop,
-          onPaste: handleClipboardPaste,
         }}
         headerActions={
           <div className="flex items-center gap-1.5">
@@ -720,7 +967,10 @@ export default function LiraAssistantWidget() {
 
               <select
                 value={selectedModelKey}
-                onChange={(e) => setSelectedModelKey(e.target.value)}
+                onChange={(e) => {
+                  hasHydratedPrefsRef.current = true;
+                  setSelectedModelKey(e.target.value);
+                }}
                 className={`max-w-[230px] rounded-lg px-2.5 py-1 text-[11px] border focus:outline-none truncate ${g.input}`}
                 title="Choose your available AI model or key"
               >
@@ -758,20 +1008,22 @@ export default function LiraAssistantWidget() {
               <div className="flex flex-wrap gap-1.5">
                 {pendingAttachments.map((att, aIdx) => (
                   <div
-                    key={`${att.url}-${aIdx}`}
+                    key={att.tempId || `${att.url}-${aIdx}`}
                     className={`flex items-center gap-1.5 pl-2 pr-1.5 py-1 rounded-lg border text-[10px] ${g.subtleSurface}`}
                   >
-                    {att.kind === "image" ? (
+                    {att.status === "uploading" ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-purple-400 shrink-0" />
+                    ) : att.kind === "image" && att.url ? (
                       <img src={att.url} alt={att.name} className="w-4 h-4 rounded object-cover" />
                     ) : (
                       <FileText className="w-3.5 h-3.5 text-sky-400 shrink-0" />
                     )}
-                    <span className="max-w-[130px] truncate font-medium">{att.name}</span>
+                    <span className="max-w-[130px] truncate font-medium">
+                      {att.status === "uploading" ? `Uploading ${att.name}...` : att.name}
+                    </span>
                     <button
                       type="button"
-                      onClick={() =>
-                        setPendingAttachments((prev) => prev.filter((_, idx) => idx !== aIdx))
-                      }
+                      onClick={() => handleRemovePendingAttachment(att)}
                       className="p-0.5 rounded hover:text-rose-400 cursor-pointer"
                       aria-label={`Remove ${att.name}`}
                     >
@@ -782,7 +1034,7 @@ export default function LiraAssistantWidget() {
               </div>
             )}
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-end gap-2">
               <input
                 ref={fileInputRef}
                 type="file"
@@ -795,7 +1047,7 @@ export default function LiraAssistantWidget() {
                 type="button"
                 disabled={uploadingFiles}
                 onClick={() => fileInputRef.current?.click()}
-                className={`p-2.5 rounded-xl border cursor-pointer disabled:opacity-40 ${g.btnSecondary}`}
+                className={`p-2.5 rounded-xl border cursor-pointer disabled:opacity-40 shrink-0 ${g.btnSecondary}`}
                 title="Attach images or documents (PNG, JPG, PDF, CSV, TXT, JSON)"
                 aria-label="Attach files to Lira Copilot"
               >
@@ -805,26 +1057,37 @@ export default function LiraAssistantWidget() {
                   <Paperclip className="w-3.5 h-3.5" />
                 )}
               </button>
-              <input
-                type="text"
+              <textarea
+                ref={textareaRef}
+                rows={1}
                 value={input}
-                onChange={(e) => setInput(e.target.value)}
+                onChange={(e) => {
+                  setInput(e.target.value);
+                  e.target.style.height = "auto";
+                  e.target.style.height = `${Math.min(132, Math.max(38, e.target.scrollHeight))}px`;
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    dispatchPrompt(input);
+                  }
+                }}
                 onPaste={handleClipboardPaste}
                 placeholder={
                   hasProcessing
                     ? "Send a new message to redirect, or click Stop..."
                     : mode === "auto"
-                    ? "Tell Lira what to create, chart, export, or open... (paste image/drop files)"
-                    : "Ask Lira to prepare tasks, charts, or clarify... (paste image/drop files)"
+                    ? "Tell Lira what to create, chart, export, or open... (Shift+Enter newline)"
+                    : "Ask Lira to prepare actions across any screen... (Shift+Enter newline)"
                 }
-                className={`flex-1 rounded-xl px-3.5 py-2.5 text-xs border focus:outline-none ${g.input}`}
+                className={`flex-1 rounded-xl px-3.5 py-2.5 text-xs border focus:outline-none resize-none whitespace-pre-wrap break-words leading-relaxed min-h-[38px] max-h-[132px] overflow-y-auto ${g.input}`}
               />
               {hasProcessing && (
                 <button
                   type="button"
                   disabled={stopping}
                   onClick={handleStopGeneration}
-                  className="px-3 py-2.5 rounded-xl border border-rose-500/40 bg-rose-500/15 text-rose-300 text-xs font-bold flex items-center gap-1.5 hover:bg-rose-500/25 cursor-pointer disabled:opacity-50"
+                  className="px-3 py-2.5 rounded-xl border border-rose-500/40 bg-rose-500/15 text-rose-300 text-xs font-bold flex items-center gap-1.5 hover:bg-rose-500/25 cursor-pointer disabled:opacity-50 shrink-0"
                   title="Stop current generation (keeps prompt in context)"
                 >
                   <Square className="w-3 h-3 fill-current" />
@@ -833,11 +1096,11 @@ export default function LiraAssistantWidget() {
               )}
               <button
                 type="submit"
-                disabled={(!input.trim() && pendingAttachments.length === 0) || sending}
-                className={`px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-40 ${g.btnPrimary}`}
+                disabled={(!input.trim() && pendingAttachments.filter((a) => a.status !== "uploading").length === 0) || uploadingFiles || sending}
+                className={`px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-40 shrink-0 ${g.btnPrimary}`}
               >
-                {sending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                <span>Send</span>
+                {sending || uploadingFiles ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                <span>{uploadingFiles ? "Uploading..." : "Send"}</span>
               </button>
             </div>
           </form>
@@ -1002,7 +1265,7 @@ export default function LiraAssistantWidget() {
                     )}
                   </p>
 
-                  {msg.uiHtml && !msg.actionApplied && (
+                  {msg.uiHtml && (!msg.actionApplied || String(msg.uiHtml).includes("data-lira-submit-form") || msg.status === "clarify") && (
                     <SanitizedCopilotHtml
                       html={msg.uiHtml}
                       isDark={isDark}

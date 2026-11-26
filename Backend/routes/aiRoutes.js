@@ -47,6 +47,7 @@ const {
   getAssistantModels,
   postAssistantChat,
   uploadAssistantAttachments,
+  deleteAssistantAttachment,
   exportAssistantArtifact,
   executeAssistantCardStep,
   stopAssistantGeneration,
@@ -65,6 +66,7 @@ router.get("/my-access", protect("ai.use"), getMyAIAccess);
 router.get("/assistant/session", protect("ai.use"), getAssistantSession);
 router.get("/assistant/models", protect("ai.use"), getAssistantModels);
 router.post("/assistant/upload", protect("ai.use"), aiUpload.array("files", 5), uploadAssistantAttachments);
+router.delete("/assistant/upload", protect("ai.use"), deleteAssistantAttachment);
 router.post("/assistant/chat", protect("ai.use"), postAssistantChat);
 router.post("/assistant/stop", protect("ai.use"), stopAssistantGeneration);
 router.put("/assistant/mode", protect("ai.use"), setAssistantMode);

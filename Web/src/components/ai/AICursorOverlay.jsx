@@ -52,13 +52,14 @@ export default function AICursorOverlay() {
       const waitMs = elapsed;
       timers.push(
         setTimeout(() => {
-          setCoords(resolveTargetPos(step));
           if (step?.selector) {
-            const el = document.querySelector(step.selector);
-            if (el) {
-              el.focus?.({ preventScroll: true });
+            const targetEl = document.querySelector(step.selector);
+            if (targetEl) {
+              targetEl.scrollIntoView?.({ behavior: "smooth", block: "center" });
+              targetEl.focus?.({ preventScroll: true });
             }
           }
+          setTimeout(() => setCoords(resolveTargetPos(step)), 60);
         }, waitMs)
       );
       elapsed += Number(step?.delayMs || (idx === 0 ? 750 : 900));

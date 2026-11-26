@@ -381,6 +381,7 @@ export default function TaskDrawer({ taskKeyOrId, onClose, onTaskUpdated }) {
                 <div className={`h-4 w-px mx-1 ${isDark ? "bg-white/10" : "bg-slate-200"}`} />
 
                 <select
+                  data-ai-target="task-status-select"
                   value={task.status}
                   onChange={(e) => handleStatusChange(e.target.value)}
                   className={`text-xs font-semibold rounded-lg px-2.5 py-1 border cursor-pointer focus:outline-none ${
@@ -403,6 +404,7 @@ export default function TaskDrawer({ taskKeyOrId, onClose, onTaskUpdated }) {
                   task.status === "todo" ||
                   task.status === "redo_requested") && (
                   <button
+                    data-ai-target="task-submit-review-btn"
                     onClick={handleSubmitForReview}
                     className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors cursor-pointer ${
                       isDark
@@ -418,6 +420,7 @@ export default function TaskDrawer({ taskKeyOrId, onClose, onTaskUpdated }) {
                   hasPermission("tasks.delete") ||
                   task.reporter?._id === user?._id) && (
                   <button
+                    data-ai-target="task-delete-btn"
                     onClick={handleDeleteTask}
                     className={`p-1.5 rounded-lg transition-colors cursor-pointer ${mutedText} hover:text-rose-500`}
                     title="Delete Task"
@@ -509,12 +512,14 @@ export default function TaskDrawer({ taskKeyOrId, onClose, onTaskUpdated }) {
                     {(isSuperAdmin || hasPermission("tasks.approve")) && (
                       <div className="flex items-center gap-2">
                         <button
+                          data-ai-target="task-approve-btn"
                           onClick={handleApprove}
                           className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-semibold flex items-center gap-1 cursor-pointer"
                         >
                           <CheckCircle2 className="w-3 h-3" /> Approve
                         </button>
                         <button
+                          data-ai-target="task-redo-btn"
                           onClick={() => setShowRedoModal(true)}
                           className={`px-3 py-1 rounded-lg font-semibold border cursor-pointer ${
                             isDark
@@ -749,6 +754,7 @@ export default function TaskDrawer({ taskKeyOrId, onClose, onTaskUpdated }) {
                       <form onSubmit={handlePostComment} className="flex gap-2 pt-1">
                         <input
                           type="text"
+                          data-ai-target="task-comment-input"
                           placeholder="Write a comment or @mention..."
                           value={commentText}
                           onChange={handleCommentChange}

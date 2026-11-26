@@ -39,7 +39,19 @@ import SideDrawer from "../components/common/SideDrawer";
 
 export default function Team() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const { user, departments, roles, isSuperAdmin, hasPermission, refreshDepartments, refreshPendingJoinCount, theme, openDirectChat } = useApp();
+  const {
+    user,
+    departments,
+    roles,
+    isSuperAdmin,
+    hasPermission,
+    refreshDepartments,
+    refreshPendingJoinCount,
+    theme,
+    openDirectChat,
+    aiPrefillDraft,
+    setAiPrefillDraft,
+  } = useApp();
   const isDark = theme === "dark";
   const assignableRoles = (roles && roles.length > 0
     ? roles
@@ -118,6 +130,39 @@ export default function Team() {
       window.removeEventListener("lira:sidebar-opened", onOtherSidebar);
     };
   }, []);
+
+  useEffect(() => {
+    if (!aiPrefillDraft?.type) return;
+    const d = aiPrefillDraft.data || {};
+    if (aiPrefillDraft.type === "create_user") {
+      setActiveTab("directory");
+      if (d.fullname || d.name) setFullname(d.fullname || d.name);
+      if (d.email) setEmail(d.email);
+      if (d.jobTitle) setJobTitle(d.jobTitle);
+      if (d.role) setRole(d.role);
+      if (d.department || d.departmentId) setDepartmentId(d.department || d.departmentId);
+      setShowAddUserModal(true);
+      setAiPrefillDraft(null);
+    } else if (["update_user", "update_user_role"].includes(aiPrefillDraft.type)) {
+      setActiveTab("directory");
+      const target =
+        members.find((m) => String(m._id) === String(d.userId)) ||
+        members.find((m) => d.targetName && m.fullname?.toLowerCase().includes(String(d.targetName).toLowerCase())) ||
+        members[0];
+      if (target) {
+        openMemberDrawer(target);
+        if (d.role) setEditRole(d.role);
+        if (d.jobTitle) setEditJobTitle(d.jobTitle);
+        if (d.status) setEditStatus(d.status);
+        if (d.department) setEditDeptId(d.department);
+      }
+      setAiPrefillDraft(null);
+    } else if (["approve_join_request", "reject_join_request"].includes(aiPrefillDraft.type)) {
+      setActiveTab("join-requests");
+      setAiPrefillDraft(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aiPrefillDraft, setAiPrefillDraft, members]);
 
   const openMemberDrawer = (member) => {
     setSelectedMember(member);
@@ -359,6 +404,7 @@ export default function Team() {
 
           {(isSuperAdmin || hasPermission("team.create") || user?.role === "admin") && (
             <button
+              data-ai-target="add-member-btn"
               onClick={() => setShowAddUserModal(true)}
               className="flex items-center gap-1.5 text-xs font-semibold px-4 py-2 rounded-full lira-btn-primary cursor-pointer"
             >
@@ -504,6 +550,7 @@ export default function Team() {
 
                     <button
                       type="button"
+                      data-ai-target="join-approve-btn"
                       onClick={() => openApproveModal(candidate)}
                       disabled={actionId === candidate._id}
                       className="w-2/3 py-2 px-3 rounded-xl text-xs font-bold bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
@@ -986,6 +1033,7 @@ export default function Team() {
                 <div className="flex justify-end pt-2">
                   <button
                     type="submit"
+                    data-ai-target="save-member-btn"
                     disabled={savingEdit}
                     className={`px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer ${isDark ? "bg-white text-slate-950 hover:bg-slate-200" : "bg-slate-900 text-white hover:bg-slate-800"
                       }`}

@@ -70,10 +70,28 @@ function downloadSvgElementAsPng(svgEl, filename = "lira-visual") {
   img.src = url;
 }
 
+let domPurifyHookAttached = false;
+if (!domPurifyHookAttached && typeof window !== "undefined") {
+  DOMPurify.addHook("uponSanitizeElement", (node) => {
+    if (node?.tagName === "INPUT") {
+      const t = String(node.getAttribute?.("type") || "").toLowerCase();
+      if (t !== "checkbox" && t !== "radio") {
+        node.parentNode?.removeChild(node);
+      }
+    }
+  });
+  domPurifyHookAttached = true;
+}
+
 export function SanitizedCopilotHtml({ html, isDark, onStepClick, onReplyClick }) {
+  const containerRef = React.useRef(null);
+  const [submittingForm, setSubmittingForm] = React.useState(false);
+
   const cleanHtml = useMemo(() => {
     if (!html) return "";
     return DOMPurify.sanitize(html, {
+      ADD_TAGS: ["input", "label"],
+      ADD_ATTR: ["type", "name", "value", "checked"],
       FORBID_TAGS: ["script", "style", "iframe", "object", "embed", "form", "link", "meta", "base", "applet"],
       FORBID_ATTR: ["onerror", "onload", "onclick", "onmouseover", "onfocus", "onblur", "srcdoc", "formaction"],
       ALLOW_DATA_ATTR: true,
@@ -82,7 +100,43 @@ export function SanitizedCopilotHtml({ html, isDark, onStepClick, onReplyClick }
 
   if (!cleanHtml) return null;
 
-  const handleClick = (e) => {
+  const handleClick = async (e) => {
+    const submitFormTarget = e.target.closest("[data-lira-submit-form]");
+    if (submitFormTarget) {
+      e.preventDefault();
+      if (submittingForm) return;
+      const formType = submitFormTarget.getAttribute("data-lira-submit-form");
+      const scopeEl = submitFormTarget.closest("[data-lira-form]") || containerRef.current;
+      if (!formType || !scopeEl) return;
+
+      const modules = Array.from(
+        scopeEl.querySelectorAll('input[type="checkbox"][data-lira-checkbox-group="modules"]:checked')
+      ).map((el) => el.value);
+
+      const defaultBox = scopeEl.querySelector('input[type="checkbox"][data-lira-field="isDefault"]');
+      const roleId = submitFormTarget.getAttribute("data-lira-role-id") || "";
+      const roleName = submitFormTarget.getAttribute("data-lira-role-name") || "";
+
+      const stepPayload = {
+        type: formType,
+        label: `Configure ${roleName || "role"} (${modules.length} module${modules.length === 1 ? "" : "s"})`,
+        prefill: {
+          ...(roleId ? { roleId } : {}),
+          ...(roleName ? { name: roleName } : {}),
+          modules,
+          ...(defaultBox ? { isDefault: Boolean(defaultBox.checked) } : {}),
+        },
+      };
+
+      setSubmittingForm(true);
+      try {
+        await onStepClick?.(stepPayload);
+      } finally {
+        setSubmittingForm(false);
+      }
+      return;
+    }
+
     const stepTarget = e.target.closest("[data-lira-step]");
     if (stepTarget) {
       e.preventDefault();
@@ -102,9 +156,10 @@ export function SanitizedCopilotHtml({ html, isDark, onStepClick, onReplyClick }
 
   return (
     <div
+      ref={containerRef}
       style={getThemeCssVars(isDark)}
       onClick={handleClick}
-      className="w-full max-w-full overflow-x-auto space-y-2 [&>*]:max-w-full"
+      className={`w-full max-w-full overflow-x-auto space-y-2 [&>*]:max-w-full ${submittingForm ? "opacity-70 pointer-events-none" : ""}`}
       dangerouslySetInnerHTML={{ __html: cleanHtml }}
     />
   );

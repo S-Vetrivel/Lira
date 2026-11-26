@@ -27,6 +27,8 @@ const {
 } = require("../services/aiAssistantService");
 const {
   processUploadedAttachment,
+  deleteAttachmentFileSafe,
+  cleanupAttachmentFiles,
   generatePDFBuffer,
   generatePPTXBuffer,
   generateCSVString,
@@ -1150,6 +1152,16 @@ exports.uploadAssistantAttachments = async (req, res) => {
   }
 };
 
+exports.deleteAssistantAttachment = async (req, res) => {
+  try {
+    const target = req.body?.filePath || req.body?.filename || req.query?.filename || "";
+    const deleted = deleteAttachmentFileSafe(target);
+    res.status(200).json({ success: true, deleted });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 exports.postAssistantChat = async (req, res) => {
   try {
     const {
@@ -1289,6 +1301,8 @@ exports.confirmAssistantAction = async (req, res) => {
 exports.clearAssistantSession = async (req, res) => {
   try {
     const session = await getOrCreateSession(req.user._id);
+    const allAtts = (session.messages || []).flatMap((m) => m.attachments || []);
+    cleanupAttachmentFiles(allAtts);
     session.messages = [];
     session.activeJobId = "";
     await session.save();

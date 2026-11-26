@@ -96,6 +96,8 @@ export default function Profile() {
     refreshTeam,
     openDirectChat,
     openRoomChat,
+    aiPrefillDraft,
+    setAiPrefillDraft,
   } = useApp();
   const isDark = theme === "dark";
   const g = getGlassTokens(isDark);
@@ -133,6 +135,19 @@ export default function Profile() {
     loadPersonalAiSummary();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canUsePersonalAI]);
+
+  useEffect(() => {
+    if (aiPrefillDraft?.type === "update_profile" && aiPrefillDraft?.data) {
+      const d = aiPrefillDraft.data;
+      if (d.fullname) setFullname(d.fullname);
+      if (d.jobTitle) setJobTitle(d.jobTitle);
+      if (d.bio) setBio(d.bio);
+      if (d.status) setStatus(d.status);
+      setActiveTab("profile");
+      setAiPrefillDraft(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aiPrefillDraft]);
 
   // Personal Profile State
   const [fullname, setFullname] = useState(user?.fullname || "");
@@ -821,6 +836,7 @@ export default function Profile() {
             <div className="flex justify-end pt-2">
               <button
                 type="submit"
+                data-ai-target="save-profile-btn"
                 disabled={savingProfile}
                 className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer disabled:opacity-60 ${g.btnPrimary}`}
               >

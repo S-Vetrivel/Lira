@@ -51,6 +51,8 @@ export default function Roles() {
     departments,
     refreshDepartments,
     refreshRoles: syncContextRoles,
+    aiPrefillDraft,
+    setAiPrefillDraft,
   } = useApp();
   const isDark = theme === "dark";
 
@@ -101,6 +103,52 @@ export default function Roles() {
     if (rolesRes.success) setRoles(rolesRes.roles || []);
     setLoading(false);
   };
+
+  useEffect(() => {
+    if (!aiPrefillDraft?.type) return;
+    if (aiPrefillDraft.type === "create_role" && aiPrefillDraft.data) {
+      const d = aiPrefillDraft.data;
+      setActiveTab("roles");
+      setEditingRole(null);
+      setRoleDisplayName(d.displayName || d.name || "");
+      setRoleKey(d.name || "");
+      setRoleDescription(d.description || "");
+      setRoleIsDefault(Boolean(d.isDefault));
+      const mods = Array.isArray(d.modules) && d.modules.length > 0 ? d.modules : ["dashboard", "board", "tasks", "chat"];
+      const modSet = new Set(mods);
+      const permSet = new Set();
+      modulesCatalog.forEach((m) => {
+        if (modSet.has(m.key)) m.actions.forEach((a) => permSet.add(a.slug));
+      });
+      setSelectedModules(modSet);
+      setSelectedPerms(permSet);
+      setExpandedModules({ tasks: true });
+      setEditorOpen(true);
+      setAiPrefillDraft(null);
+    } else if (aiPrefillDraft.type === "update_role" && aiPrefillDraft.data) {
+      const d = aiPrefillDraft.data;
+      setActiveTab("roles");
+      const matched = roles.find(
+        (r) =>
+          (d.roleId && String(r._id) === String(d.roleId)) ||
+          (d.name && (r.name === String(d.name).toLowerCase() || r.displayName?.toLowerCase() === String(d.name).toLowerCase()))
+      );
+      if (matched) openEditRole(matched);
+      setAiPrefillDraft(null);
+    } else if (aiPrefillDraft.type === "create_department" && aiPrefillDraft.data) {
+      const d = aiPrefillDraft.data;
+      setActiveTab("departments");
+      setDeptName(d.name || "");
+      setDeptCode((d.code || String(d.name || "DEP").slice(0, 4)).toUpperCase());
+      setDeptDesc(d.description || "");
+      setDeptDrawerOpen(true);
+      setAiPrefillDraft(null);
+    } else if (["grant_ai_access", "revoke_ai_access", "update_ai_config"].includes(aiPrefillDraft.type)) {
+      setActiveTab("ai");
+      setAiPrefillDraft(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aiPrefillDraft, modulesCatalog, roles]);
 
   useEffect(() => {
     if (canViewRoles) {
@@ -322,6 +370,7 @@ export default function Roles() {
           {canManageRoles && activeTab === "roles" && (
             <button
               type="button"
+              data-ai-target="new-role-btn"
               onClick={openCreateRole}
               className="flex items-center gap-1.5 text-xs font-semibold px-4 py-2 rounded-full lira-btn-primary cursor-pointer"
             >
@@ -333,6 +382,7 @@ export default function Roles() {
           {(isSuperAdmin || hasPermission("departments.create")) && activeTab === "departments" && (
             <button
               type="button"
+              data-ai-target="new-dept-btn"
               onClick={() => setDeptDrawerOpen(true)}
               className="flex items-center gap-1.5 text-xs font-semibold px-4 py-2 rounded-full lira-btn-primary cursor-pointer"
             >
@@ -546,6 +596,7 @@ export default function Roles() {
 
       {/* Role & Module Mapping SideDrawer */}
       <SideDrawer
+        sidebarId="role-editor"
         isOpen={editorOpen}
         onClose={() => setEditorOpen(false)}
         title={editingRole ? `Configure Role: ${editingRole.displayName}` : "Create Dynamic Role"}
@@ -558,6 +609,7 @@ export default function Roles() {
               <label className="text-xs font-semibold block mb-1">Display Name</label>
               <input
                 type="text"
+                data-ai-target="role-name-input"
                 required
                 value={roleDisplayName}
                 onChange={(e) => setRoleDisplayName(e.target.value)}
@@ -655,7 +707,7 @@ export default function Roles() {
               </h4>
             </div>
 
-            <div className="space-y-2 max-h-[380px] overflow-y-auto pr-1">
+            <div data-ai-target="role-modules-box" className="space-y-2 max-h-[380px] overflow-y-auto pr-1">
               {modulesCatalog.map((mod) => {
                 const modActionSlugs = mod.actions.map((a) => a.slug);
                 const checkedCount = modActionSlugs.filter((s) => selectedPerms.has(s)).length;
@@ -754,6 +806,7 @@ export default function Roles() {
             </button>
             <button
               type="submit"
+              data-ai-target="save-role-btn"
               disabled={savingRole}
               className="px-4 py-2 rounded-xl text-xs font-bold lira-btn-primary cursor-pointer"
             >
@@ -765,6 +818,7 @@ export default function Roles() {
 
       {/* New Department SideDrawer */}
       <SideDrawer
+        sidebarId="role-dept-create"
         isOpen={deptDrawerOpen}
         onClose={() => setDeptDrawerOpen(false)}
         title="Setup New Department"

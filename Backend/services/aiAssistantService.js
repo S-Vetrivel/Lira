@@ -16,6 +16,7 @@ const {
   AI_PROVIDERS_CATALOG,
   getEnvKeyForProvider,
 } = require("../config/aiCatalog");
+const { MODULES_CATALOG } = require("../config/modulesCatalog");
 const {
   queryAI,
   recordAIUsageLog,
@@ -28,7 +29,36 @@ const {
   publishAIAbort,
 } = require("./queue");
 const { getIO } = require("../config/socket");
-const { hydrateAttachmentsForModel } = require("./aiExportService");
+const {
+  hydrateAttachmentsForModel,
+  cleanupAttachmentFiles,
+  startAIAttachmentCleanupScheduler,
+} = require("./aiExportService");
+
+startAIAttachmentCleanupScheduler();
+
+function expandModulesToPermissions(moduleKeys = []) {
+  const requested = new Set(
+    (Array.isArray(moduleKeys) ? moduleKeys : [])
+      .map((m) => String(m || "").trim().toLowerCase())
+      .filter(Boolean)
+  );
+  if (requested.has("roles")) requested.add("rbac");
+  if (requested.has("calendar") || requested.has("grid") || requested.has("table")) requested.add("board");
+
+  const validModules = [];
+  const expandedPerms = new Set();
+  for (const mod of MODULES_CATALOG) {
+    if (requested.has(mod.key) || requested.has(mod.name.toLowerCase())) {
+      validModules.push(mod.key);
+      mod.actions.forEach((a) => expandedPerms.add(a.slug));
+    }
+  }
+  return {
+    modules: validModules,
+    permissions: Array.from(expandedPerms),
+  };
+}
 
 const E2EE_DEFAULT_SECRET = "Lira-Office-E2EE-Default-Key";
 const getInternalApiBase = () => `http://127.0.0.1:${process.env.PORT || 4000}/v3`;
@@ -130,7 +160,7 @@ const ROUTE_MODULE_MAP = [
   { route: "/projects", moduleKey: "projects", perm: "projects.view", label: "Workspaces & Projects" },
   { route: "/team", moduleKey: "team", perm: "team.view", label: "Team Directory" },
   { route: "/profile?tab=ai", moduleKey: "ai", perm: "ai.use", label: "Personal AI Keys & Profile" },
-  { route: "/roles", moduleKey: "roles", perm: "roles.view", label: "Roles & Departments" },
+  { route: "/roles", moduleKey: "rbac", perm: "rbac.view", label: "Roles & Departments" },
   { route: "/roles?tab=ai", moduleKey: "ai", perm: "ai.manage", label: "AI Models & Vault" },
   { route: "/audit", moduleKey: "dashboard", perm: "dashboard.logs", label: "Audit Logs & Live Sessions" },
 ];
@@ -372,26 +402,56 @@ async function buildScopedWebsiteContext({ user, currentRoute = "/", activeProje
     ({ route, moduleKey, label }) => ({ route, moduleKey, label })
   );
 
-  const allowedActions = ["navigate"];
+  const allowedActions = ["navigate", "toggle_theme", "open_notifications", "mark_notifications_read", "update_profile"];
   if (hasPerm(user, "tasks.create")) allowedActions.push("create_task");
-  if (hasPerm(user, "tasks.edit")) allowedActions.push("update_task_status");
+  if (hasPerm(user, "tasks.edit")) {
+    allowedActions.push(
+      "update_task",
+      "update_task_status",
+      "add_subtask",
+      "toggle_subtask",
+      "add_task_comment",
+      "add_worklog",
+      "bulk_update_tasks"
+    );
+  }
+  if (hasPerm(user, "tasks.assign")) allowedActions.push("assign_task");
+  if (hasPerm(user, "tasks.review")) allowedActions.push("submit_task_review");
+  if (hasPerm(user, "tasks.approve")) allowedActions.push("approve_task", "redo_task");
   if (hasPerm(user, "tasks.delete")) allowedActions.push("delete_task");
   if (hasPerm(user, "tasks.view") || hasPerm(user, "board.view")) allowedActions.push("open_task");
-  if (hasPerm(user, "chat.send")) {
-    allowedActions.push("send_project_chat", "send_dm");
-  }
+  if (hasPerm(user, "chat.view")) allowedActions.push("open_chat");
+  if (hasPerm(user, "chat.send")) allowedActions.push("send_project_chat", "send_dm");
+  if (hasPerm(user, "chat.pin")) allowedActions.push("toggle_pin_chat_message");
   if (hasPerm(user, "requests.create")) allowedActions.push("create_request");
   if (hasPerm(user, "requests.approve")) allowedActions.push("approve_request", "reject_request");
   if (hasPerm(user, "projects.create")) allowedActions.push("create_project");
+  if (hasPerm(user, "projects.edit")) allowedActions.push("update_project");
+  if (hasPerm(user, "projects.members")) {
+    allowedActions.push(
+      "add_project_member",
+      "remove_project_member",
+      "invoke_project_department",
+      "remove_project_department"
+    );
+  }
+  if (hasPerm(user, "projects.urls")) allowedActions.push("add_project_url");
   if (hasPerm(user, "projects.delete")) allowedActions.push("delete_project");
   if (hasPerm(user, "departments.create")) allowedActions.push("create_department");
+  if (hasPerm(user, "departments.edit")) {
+    allowedActions.push("update_department", "add_department_member", "remove_department_member");
+  }
   if (hasPerm(user, "departments.delete")) allowedActions.push("delete_department");
-  if (hasPerm(user, "team.edit")) allowedActions.push("update_user_role");
+  if (hasPerm(user, "team.create")) allowedActions.push("create_user");
+  if (hasPerm(user, "team.edit")) allowedActions.push("update_user", "update_user_role");
   if (hasPerm(user, "team.delete")) allowedActions.push("delete_user");
-  if (hasPerm(user, "ai.manage")) allowedActions.push("grant_ai_access", "revoke_ai_access");
+  if (hasPerm(user, "team.join_requests")) allowedActions.push("approve_join_request", "reject_join_request");
+  if (hasPerm(user, "ai.manage")) {
+    allowedActions.push("grant_ai_access", "revoke_ai_access", "restore_ai_access", "delete_ai_grant", "update_ai_config");
+  }
   // Full administrative control strictly for Superadmin only
   if (isSuper) {
-    allowedActions.push("remove_non_superadmins", "create_role", "delete_role");
+    allowedActions.push("remove_non_superadmins", "create_role", "update_role", "delete_role");
   }
 
   const projectFilter =
@@ -442,8 +502,27 @@ async function buildScopedWebsiteContext({ user, currentRoute = "/", activeProje
   }
 
   let rolesSummary = [];
-  if (isSuper || hasPerm(user, "roles.view")) {
-    rolesSummary = await Role.find({}).select("name displayName description").limit(15).lean();
+  if (isSuper || hasPerm(user, "rbac.view")) {
+    rolesSummary = await Role.find({})
+      .select("_id name displayName description modules isDefault isSystem")
+      .limit(20)
+      .lean();
+  }
+
+  let pendingJoinRequests = [];
+  if (isSuper || hasPerm(user, "team.join_requests")) {
+    pendingJoinRequests = await User.find({ status: "pending_approval" })
+      .select("_id fullname email publicId requestedDepartment role")
+      .limit(15)
+      .lean();
+  }
+
+  let aiGrantsSummary = [];
+  if (isSuper || hasPerm(user, "ai.manage")) {
+    aiGrantsSummary = await AIGlobalGrant.find({})
+      .select("_id targetType targetId targetName provider isActive")
+      .limit(20)
+      .lean();
   }
 
   return {
@@ -459,6 +538,12 @@ async function buildScopedWebsiteContext({ user, currentRoute = "/", activeProje
     activeProjectId: activeProjectId || (accessibleProjects[0]?._id ? String(accessibleProjects[0]._id) : null),
     allowedRoutes,
     allowedActions,
+    modulesCatalog: MODULES_CATALOG.map((m) => ({
+      key: m.key,
+      name: m.name,
+      description: m.description,
+      route: m.route,
+    })),
     projects: accessibleProjects.map((p) => ({
       id: String(p._id),
       prefix: p.prefix,
@@ -494,7 +579,39 @@ async function buildScopedWebsiteContext({ user, currentRoute = "/", activeProje
       status: r.status,
       type: r.requestType,
     })),
-    ...(rolesSummary.length > 0 ? { roles: rolesSummary } : {}),
+    ...(rolesSummary.length > 0
+      ? {
+          roles: rolesSummary.map((r) => ({
+            id: String(r._id),
+            name: r.name,
+            displayName: r.displayName,
+            modules: r.modules || [],
+            isDefault: Boolean(r.isDefault),
+            isSystem: Boolean(r.isSystem),
+          })),
+        }
+      : {}),
+    ...(pendingJoinRequests.length > 0
+      ? {
+          pendingJoinRequests: pendingJoinRequests.map((jr) => ({
+            id: String(jr._id),
+            name: jr.fullname,
+            email: jr.email,
+            publicId: jr.publicId,
+          })),
+        }
+      : {}),
+    ...(aiGrantsSummary.length > 0
+      ? {
+          aiGrants: aiGrantsSummary.map((g) => ({
+            id: String(g._id),
+            targetName: g.targetName,
+            targetType: g.targetType,
+            provider: g.provider,
+            isActive: g.isActive,
+          })),
+        }
+      : {}),
   };
 }
 
@@ -791,6 +908,17 @@ async function executeSingleStep(step, user, chainState = {}) {
   }
 
   if (step.type === "create_role") {
+    const { modules: modList, permissions: permList } = expandModulesToPermissions(
+      Array.isArray(rawPrefill.modules) && rawPrefill.modules.length > 0
+        ? rawPrefill.modules
+        : ["dashboard"]
+    );
+    const finalPerms =
+      Array.isArray(rawPrefill.permissions) && rawPrefill.permissions.length > 0
+        ? rawPrefill.permissions
+        : permList.length > 0
+        ? permList
+        : ["dashboard.view"];
     const res = await callProtectedBackendAPI({
       user,
       method: "POST",
@@ -799,14 +927,62 @@ async function executeSingleStep(step, user, chainState = {}) {
         name: rawPrefill.name,
         displayName: rawPrefill.displayName || rawPrefill.name,
         description: rawPrefill.description || "Created via Lira Copilot",
-        modules: Array.isArray(rawPrefill.modules) ? rawPrefill.modules : ["dashboard"],
-        permissions: Array.isArray(rawPrefill.permissions) ? rawPrefill.permissions : ["dashboard.view"],
+        modules: modList.length > 0 ? modList : ["dashboard"],
+        permissions: finalPerms,
+        isDefault: Boolean(rawPrefill.isDefault),
       },
     });
+    if (res.role?._id) chainState.roleId = String(res.role._id);
+    if (res.role?.name) chainState.roleName = res.role.name;
     return {
       executed: true,
       actionType: "create_role",
-      summary: `Created role "${res.role?.displayName || rawPrefill.displayName || rawPrefill.name}"`,
+      role: res.role || null,
+      summary: `Created role "${res.role?.displayName || rawPrefill.displayName || rawPrefill.name}"${res.role?.isDefault ? " (default)" : ""}`,
+    };
+  }
+
+  if (step.type === "update_role") {
+    const cleanSlug = String(rawPrefill.name || rawPrefill.roleName || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9_]+/g, "_");
+    const targetRole = rawPrefill.roleId
+      ? await Role.findById(rawPrefill.roleId).select("_id displayName name modules").lean()
+      : await Role.findOne({
+          $or: [
+            { name: cleanSlug },
+            { name: String(rawPrefill.name || "").trim().toLowerCase() },
+            { displayName: new RegExp(`^${String(rawPrefill.name || "").trim()}$`, "i") },
+          ],
+        })
+          .select("_id displayName name modules")
+          .lean();
+    if (!targetRole) throw new Error(`Role "${rawPrefill.name || rawPrefill.roleId || "unknown"}" not found`);
+
+    const updatePayload = {};
+    if (rawPrefill.displayName) updatePayload.displayName = rawPrefill.displayName;
+    if (rawPrefill.description !== undefined) updatePayload.description = rawPrefill.description;
+    if (typeof rawPrefill.isDefault === "boolean") updatePayload.isDefault = rawPrefill.isDefault;
+    if (Array.isArray(rawPrefill.modules)) {
+      const { modules, permissions } = expandModulesToPermissions(rawPrefill.modules);
+      updatePayload.modules = modules;
+      updatePayload.permissions = Array.isArray(rawPrefill.permissions) && rawPrefill.permissions.length > 0
+        ? rawPrefill.permissions
+        : permissions;
+    }
+
+    const res = await callProtectedBackendAPI({
+      user,
+      method: "PUT",
+      path: `/roles/${targetRole._id}`,
+      data: updatePayload,
+    });
+    return {
+      executed: true,
+      actionType: "update_role",
+      role: res.role || null,
+      summary: `Updated role "${res.role?.displayName || targetRole.displayName}" (${(res.role?.modules || updatePayload.modules || []).length} modules)`,
     };
   }
 
@@ -859,6 +1035,261 @@ async function executeSingleStep(step, user, chainState = {}) {
       actionType: "remove_non_superadmins",
       summary: res.message || `Removed ${res.deletedCount || 0} non-Superadmin user accounts`,
     };
+  }
+
+  // Comprehensive Task, Project, Department, Team, Request, Chat, Notification & Profile step execution
+  const resolveTargetTask = async () => {
+    const keyOrId = rawPrefill.taskId || rawPrefill.taskKey || chainState.taskKey;
+    const t = rawPrefill.taskId
+      ? await Task.findById(rawPrefill.taskId).select("_id key title").lean()
+      : await Task.findOne({ key: String(keyOrId || "").toUpperCase() }).select("_id key title").lean();
+    if (!t) throw new Error(`Task ${keyOrId || ""} not found`);
+    return t;
+  };
+
+  if (step.type === "update_task" || step.type === "assign_task") {
+    const t = await resolveTargetTask();
+    const patch = {};
+    ["title", "description", "priority", "type", "status", "dueDate", "estimatedHours"].forEach((k) => {
+      if (rawPrefill[k] !== undefined && rawPrefill[k] !== "") patch[k] = rawPrefill[k];
+    });
+    if (Array.isArray(rawPrefill.assignees)) patch.assignees = rawPrefill.assignees;
+    if (Array.isArray(rawPrefill.assignedDepartments)) patch.assignedDepartments = rawPrefill.assignedDepartments;
+    await callProtectedBackendAPI({ user, method: "PUT", path: `/tasks/${t._id}`, data: patch });
+    return { executed: true, actionType: step.type, taskKey: t.key, taskId: String(t._id), summary: `Updated task ${t.key}` };
+  }
+
+  if (step.type === "submit_task_review") {
+    const t = await resolveTargetTask();
+    await callProtectedBackendAPI({ user, method: "POST", path: `/tasks/${t._id}/submit-for-review` });
+    return { executed: true, actionType: step.type, taskKey: t.key, taskId: String(t._id), summary: `Submitted ${t.key} for review` };
+  }
+
+  if (step.type === "approve_task") {
+    const t = await resolveTargetTask();
+    await callProtectedBackendAPI({ user, method: "POST", path: `/tasks/${t._id}/approve` });
+    return { executed: true, actionType: step.type, taskKey: t.key, taskId: String(t._id), summary: `Approved task ${t.key}` };
+  }
+
+  if (step.type === "redo_task") {
+    const t = await resolveTargetTask();
+    await callProtectedBackendAPI({
+      user,
+      method: "POST",
+      path: `/tasks/${t._id}/redo`,
+      data: { reason: rawPrefill.reason || rawPrefill.note || "Revision requested via Lira Copilot" },
+    });
+    return { executed: true, actionType: step.type, taskKey: t.key, taskId: String(t._id), summary: `Requested revision on ${t.key}` };
+  }
+
+  if (step.type === "add_subtask") {
+    const t = await resolveTargetTask();
+    await callProtectedBackendAPI({
+      user,
+      method: "POST",
+      path: `/tasks/${t._id}/subtasks`,
+      data: { title: rawPrefill.title || rawPrefill.subtaskTitle || "Action checklist item" },
+    });
+    return { executed: true, actionType: step.type, taskKey: t.key, taskId: String(t._id), summary: `Added subtask to ${t.key}` };
+  }
+
+  if (step.type === "toggle_subtask" && rawPrefill.subtaskId) {
+    const t = await resolveTargetTask();
+    await callProtectedBackendAPI({ user, method: "PATCH", path: `/tasks/${t._id}/subtasks/${rawPrefill.subtaskId}/toggle` });
+    return { executed: true, actionType: step.type, taskKey: t.key, taskId: String(t._id), summary: `Toggled subtask on ${t.key}` };
+  }
+
+  if (step.type === "add_task_comment") {
+    const t = await resolveTargetTask();
+    await callProtectedBackendAPI({
+      user,
+      method: "POST",
+      path: `/comments/${t._id}`,
+      data: { text: rawPrefill.text || rawPrefill.comment || rawPrefill.content || "Updated via Lira Copilot" },
+    });
+    return { executed: true, actionType: step.type, taskKey: t.key, taskId: String(t._id), summary: `Commented on ${t.key}` };
+  }
+
+  if (step.type === "add_worklog") {
+    const t = await resolveTargetTask();
+    await callProtectedBackendAPI({
+      user,
+      method: "POST",
+      path: `/tasks/${t._id}/worklog`,
+      data: { hours: Number(rawPrefill.hours || 1), note: rawPrefill.note || "Logged via Lira Copilot" },
+    });
+    return { executed: true, actionType: step.type, taskKey: t.key, taskId: String(t._id), summary: `Logged ${rawPrefill.hours || 1}h on ${t.key}` };
+  }
+
+  if (step.type === "bulk_update_tasks" && Array.isArray(rawPrefill.taskIds)) {
+    await callProtectedBackendAPI({
+      user,
+      method: "POST",
+      path: "/tasks/bulk-update",
+      data: { taskIds: rawPrefill.taskIds, status: rawPrefill.status, priority: rawPrefill.priority },
+    });
+    return { executed: true, actionType: step.type, summary: `Updated ${rawPrefill.taskIds.length} tasks` };
+  }
+
+  if (step.type === "update_project") {
+    const p = rawPrefill.projectId
+      ? await Project.findById(rawPrefill.projectId).select("_id name").lean()
+      : await Project.findOne({ $or: [{ prefix: String(rawPrefill.prefix || "").toUpperCase() }, { name: rawPrefill.name }] }).select("_id name").lean();
+    if (!p) throw new Error("Project not found");
+    const res = await callProtectedBackendAPI({
+      user,
+      method: "PUT",
+      path: `/projects/${p._id}`,
+      data: {
+        ...(rawPrefill.newName || rawPrefill.name ? { name: rawPrefill.newName || rawPrefill.name } : {}),
+        ...(rawPrefill.description !== undefined ? { description: rawPrefill.description } : {}),
+        ...(rawPrefill.status ? { status: rawPrefill.status } : {}),
+      },
+    });
+    return { executed: true, actionType: step.type, summary: `Updated project "${res.project?.name || p.name}"` };
+  }
+
+  if (step.type === "add_project_member" || step.type === "remove_project_member") {
+    const projId = rawPrefill.projectId || chainState.projectId;
+    const uid = rawPrefill.userId;
+    if (!projId || !uid) throw new Error("projectId and userId are required");
+    if (step.type === "add_project_member") {
+      await callProtectedBackendAPI({ user, method: "POST", path: `/projects/${projId}/members`, data: { userId: uid } });
+    } else {
+      await callProtectedBackendAPI({ user, method: "DELETE", path: `/projects/${projId}/members/${uid}` });
+    }
+    return { executed: true, actionType: step.type, summary: `${step.type === "add_project_member" ? "Added" : "Removed"} project member` };
+  }
+
+  if (step.type === "invoke_project_department" || step.type === "remove_project_department") {
+    const projId = rawPrefill.projectId || chainState.projectId;
+    const deptId = rawPrefill.departmentId;
+    if (!projId || !deptId) throw new Error("projectId and departmentId are required");
+    if (step.type === "invoke_project_department") {
+      await callProtectedBackendAPI({ user, method: "POST", path: `/projects/${projId}/departments`, data: { departmentId: deptId } });
+    } else {
+      await callProtectedBackendAPI({ user, method: "DELETE", path: `/projects/${projId}/departments/${deptId}` });
+    }
+    return { executed: true, actionType: step.type, summary: `Updated project departments` };
+  }
+
+  if (step.type === "add_project_url") {
+    const projId = rawPrefill.projectId || chainState.projectId;
+    if (!projId || !rawPrefill.url) throw new Error("projectId and url are required");
+    await callProtectedBackendAPI({
+      user,
+      method: "POST",
+      path: `/projects/${projId}/urls`,
+      data: { label: rawPrefill.label || rawPrefill.title || rawPrefill.url, url: rawPrefill.url },
+    });
+    return { executed: true, actionType: step.type, summary: `Added link to project` };
+  }
+
+  if (step.type === "update_department") {
+    const d = rawPrefill.departmentId
+      ? await Department.findById(rawPrefill.departmentId).select("_id name").lean()
+      : await Department.findOne({ name: rawPrefill.name }).select("_id name").lean();
+    if (!d) throw new Error("Department not found");
+    await callProtectedBackendAPI({ user, method: "PUT", path: `/departments/${d._id}`, data: rawPrefill });
+    return { executed: true, actionType: step.type, summary: `Updated department "${d.name}"` };
+  }
+
+  if (step.type === "add_department_member" || step.type === "remove_department_member") {
+    const dId = rawPrefill.departmentId;
+    const uId = rawPrefill.userId;
+    if (!dId || !uId) throw new Error("departmentId and userId required");
+    if (step.type === "add_department_member") {
+      await callProtectedBackendAPI({ user, method: "POST", path: `/departments/${dId}/members`, data: { userId: uId } });
+    } else {
+      await callProtectedBackendAPI({ user, method: "DELETE", path: `/departments/${dId}/members/${uId}` });
+    }
+    return { executed: true, actionType: step.type, summary: `Updated department team member` };
+  }
+
+  if (step.type === "create_user") {
+    const res = await callProtectedBackendAPI({
+      user,
+      method: "POST",
+      path: "/users",
+      data: {
+        fullname: rawPrefill.fullname || rawPrefill.name,
+        email: rawPrefill.email,
+        password: rawPrefill.password || crypto.randomBytes(6).toString("hex"),
+        role: rawPrefill.role || "employee",
+        jobTitle: rawPrefill.jobTitle || "",
+        department: rawPrefill.departmentId || rawPrefill.department || undefined,
+      },
+    });
+    return { executed: true, actionType: step.type, summary: `Created team member ${res.user?.fullname || rawPrefill.email}` };
+  }
+
+  if (step.type === "update_user" || step.type === "update_user_role") {
+    const uid = rawPrefill.userId;
+    if (!uid) throw new Error("userId required");
+    if (step.type === "update_user_role" && rawPrefill.role) {
+      await callProtectedBackendAPI({ user, method: "PUT", path: `/roles/assign/${uid}`, data: { role: rawPrefill.role } });
+      return { executed: true, actionType: step.type, summary: `Assigned role "${rawPrefill.role}"` };
+    }
+    await callProtectedBackendAPI({
+      user,
+      method: "PUT",
+      path: `/users/${uid}`,
+      data: {
+        ...(rawPrefill.role ? { role: rawPrefill.role } : {}),
+        ...(rawPrefill.jobTitle !== undefined ? { jobTitle: rawPrefill.jobTitle } : {}),
+        ...(rawPrefill.status ? { status: rawPrefill.status } : {}),
+        ...(rawPrefill.department ? { department: rawPrefill.department } : {}),
+      },
+    });
+    return { executed: true, actionType: step.type, summary: `Updated team member profile` };
+  }
+
+  if (step.type === "approve_join_request" || step.type === "reject_join_request") {
+    const rid = rawPrefill.requestId || rawPrefill.userId;
+    if (!rid) throw new Error("Join request ID required");
+    const ep = step.type === "approve_join_request" ? "approve" : "reject";
+    await callProtectedBackendAPI({ user, method: "PUT", path: `/users/join-requests/${rid}/${ep}`, data: rawPrefill });
+    return { executed: true, actionType: step.type, summary: `${ep === "approve" ? "Approved" : "Rejected"} join request` };
+  }
+
+  if (step.type === "restore_ai_access" && rawPrefill.grantId) {
+    await callProtectedBackendAPI({ user, method: "PUT", path: `/ai/grants/${rawPrefill.grantId}/restore` });
+    return { executed: true, actionType: step.type, summary: `Restored AI access grant` };
+  }
+
+  if (step.type === "delete_ai_grant" && rawPrefill.grantId) {
+    await callProtectedBackendAPI({ user, method: "DELETE", path: `/ai/grants/${rawPrefill.grantId}` });
+    return { executed: true, actionType: step.type, summary: `Deleted AI access grant` };
+  }
+
+  if (step.type === "update_ai_config" && rawPrefill.provider) {
+    await callProtectedBackendAPI({ user, method: "PUT", path: `/ai/config/${rawPrefill.provider}`, data: rawPrefill });
+    return { executed: true, actionType: step.type, summary: `Updated ${rawPrefill.provider} AI configuration` };
+  }
+
+  if (step.type === "toggle_pin_chat_message" && rawPrefill.messageId) {
+    await callProtectedBackendAPI({ user, method: "PATCH", path: `/chat/messages/${rawPrefill.messageId}/pin` });
+    return { executed: true, actionType: step.type, summary: `Toggled pinned chat message` };
+  }
+
+  if (step.type === "mark_notifications_read") {
+    await callProtectedBackendAPI({ user, method: "POST", path: "/notifications/read-all" });
+    return { executed: true, actionType: step.type, summary: `Marked all notifications read` };
+  }
+
+  if (step.type === "update_profile") {
+    await callProtectedBackendAPI({
+      user,
+      method: "PUT",
+      path: "/profile/info",
+      data: {
+        ...(rawPrefill.fullname ? { fullname: rawPrefill.fullname } : {}),
+        ...(rawPrefill.jobTitle !== undefined ? { jobTitle: rawPrefill.jobTitle } : {}),
+        ...(rawPrefill.status ? { status: rawPrefill.status } : {}),
+        ...(rawPrefill.bio !== undefined ? { bio: rawPrefill.bio } : {}),
+      },
+    });
+    return { executed: true, actionType: step.type, summary: `Updated profile settings` };
   }
 
   return { executed: false };
@@ -919,10 +1350,11 @@ function sanitizeCopilotHtmlServer(html = "") {
     .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "")
     .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, "")
     .replace(/<\/?(iframe|object|embed|form|link|meta|base|applet)\b[^>]*>/gi, "")
+    .replace(/<input\b(?![^>]*\btype\s*=\s*["']?(?:checkbox|radio)\b)[^>]*>/gi, "")
     .replace(/\s+on[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "")
     .replace(/(href|src|action|xlink:href)\s*=\s*(?:"\s*(?:javascript|vbscript|data:text\/html)[^"]*"|'\s*(?:javascript|vbscript|data:text\/html)[^']*')/gi, "")
     .trim()
-    .slice(0, 12000);
+    .slice(0, 16000);
 }
 
 function sanitizeArtifactsServer(rawArtifacts = []) {
@@ -989,6 +1421,49 @@ function buildUserDisambiguationCardHtml(users = [], actionType = "delete_user",
     .join("");
 
   return `<div class="space-y-2 w-full">${cards}</div>`;
+}
+
+function buildRoleModulesCheckboxHtml(roleObj = {}) {
+  const esc = (s) =>
+    String(s ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+
+  const assignedSet = new Set(Array.isArray(roleObj.modules) ? roleObj.modules : []);
+  const roleId = roleObj._id ? String(roleObj._id) : roleObj.id ? String(roleObj.id) : "";
+  const roleName = roleObj.name || "";
+  const displayName = roleObj.displayName || roleName || "Custom Role";
+
+  const checkboxes = MODULES_CATALOG.map((mod) => {
+    const isChecked = assignedSet.has(mod.key);
+    return `<label class="flex items-start gap-2.5 p-2 rounded-lg border cursor-pointer transition-colors" style="background: var(--lira-surface); border-color: var(--lira-border); color: var(--lira-text);">
+      <input type="checkbox" data-lira-checkbox-group="modules" value="${esc(mod.key)}"${isChecked ? " checked" : ""} class="mt-0.5 shrink-0 accent-purple-500 cursor-pointer" />
+      <div class="min-w-0">
+        <div class="text-[11px] font-bold leading-tight truncate" style="color: var(--lira-text);">${esc(mod.name)}</div>
+        <div class="text-[10px] leading-snug mt-0.5" style="color: var(--lira-muted);">${esc(mod.description)}</div>
+      </div>
+    </label>`;
+  }).join("");
+
+  return `<div data-lira-form="update_role" class="p-3.5 rounded-xl border space-y-3 w-full" style="background: var(--lira-card); border-color: var(--lira-border); color: var(--lira-text);">
+    <div class="flex items-center justify-between gap-2">
+      <div class="min-w-0">
+        <div class="text-xs font-bold truncate" style="color: var(--lira-text);">Configure Modules: ${esc(displayName)}</div>
+        <div class="text-[10px]" style="color: var(--lira-muted);">Check modules to assign to role <span class="font-mono">${esc(roleName)}</span></div>
+      </div>
+      ${roleObj.isDefault ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0" style="background: var(--lira-accent-bg); color: var(--lira-accent-text);">Default</span>` : ""}
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-60 overflow-y-auto pr-0.5">${checkboxes}</div>
+    <label class="flex items-center gap-2 pt-1 text-[11px] font-semibold cursor-pointer" style="color: var(--lira-text);">
+      <input type="checkbox" data-lira-field="isDefault"${roleObj.isDefault ? " checked" : ""} class="accent-purple-500 cursor-pointer" />
+      <span>Set as default role for new members</span>
+    </label>
+    <div class="flex justify-end pt-1">
+      <button type="button" data-lira-submit-form="update_role" data-lira-role-id="${esc(roleId)}" data-lira-role-name="${esc(roleName)}" class="px-3.5 py-2 rounded-lg text-[11px] font-bold cursor-pointer border" style="background: var(--lira-accent-bg); color: var(--lira-accent-text); border-color: var(--lira-border);">Save Selected Modules</button>
+    </div>
+  </div>`;
 }
 
 function runLocalCopilotFallback({ prompt, scopedCtx, history = [] }) {
@@ -1145,6 +1620,112 @@ function runLocalCopilotFallback({ prompt, scopedCtx, history = [] }) {
       artifacts,
       cursorGuide: false,
     };
+  }
+
+  // 0c. Dynamic Role Creation / Configuration + Module Selection (`create_role` / `update_role`)
+  if (/\brole\b/i.test(lower) && /\b(create|new|make|add|configure|update|edit|set|assign|list|choose|select)\b/i.test(lower)) {
+    const roleNameMatch =
+      text.match(/(?:role\s+(?:named|called|key)\s+)["']?([a-zA-Z0-9_-]{2,40})["']?/i) ||
+      text.match(/(?:create|make|add|configure|update)\s+(?:a\s+)?(?:new\s+)?(?:platform\s+)?role\s+(?:named\s+|called\s+)?["']?([a-zA-Z0-9_-]{2,40})["']?/i);
+    const ignoreNames = new Set(["a", "an", "new", "the", "this", "that", "default", "platform", "modules", "module"]);
+    const rawRoleCandidate = roleNameMatch?.[1]?.trim() || "";
+    const resolvedRoleName = rawRoleCandidate && !ignoreNames.has(rawRoleCandidate.toLowerCase()) ? rawRoleCandidate : "";
+    const existingRole =
+      (scopedCtx.roles || []).find(
+        (r) =>
+          (resolvedRoleName && (r.name === resolvedRoleName.toLowerCase().replace(/[^a-z0-9_]+/g, "_") || r.displayName?.toLowerCase() === resolvedRoleName.toLowerCase())) ||
+          lower.includes(String(r.name || "").toLowerCase())
+      ) || null;
+    const isDefault = /\b(set\s+.*default|as\s+default|default\s+role)\b/i.test(lower);
+    const explicitMods = [];
+    const MOD_WORD_MAP = {
+      dashboard: /\bdashboard|analytics|overview\b/i,
+      board: /\b(kanban|board|calendar|grid|table)\b/i,
+      tasks: /\btasks?\b/i,
+      requests: /\brequests?|approvals?\b/i,
+      projects: /\bprojects?|workspaces?\b/i,
+      departments: /\bdepartments?\b/i,
+      team: /\bteam|directory|join\b/i,
+      chat: /\bchat|messaging\b/i,
+      ai: /\b(ai|copilot)\b/i,
+      rbac: /\brbac|permissions?\b/i,
+      audit: /\baudit\b/i,
+    };
+    const isInteractiveSelectPrompt = /\b(list|show|choose|select|pick|checkbox|tick)\b.*\bmodules?\b/i.test(lower);
+    if (!isInteractiveSelectPrompt) {
+      for (const [k, rx] of Object.entries(MOD_WORD_MAP)) {
+        if (rx.test(lower)) explicitMods.push(k);
+      }
+    }
+
+    if (/\b(create|new|make|add)\b/i.test(lower) && !existingRole && resolvedRoleName && allowed.has("create_role")) {
+      steps.push({
+        type: "create_role",
+        label: `Create role "${resolvedRoleName}"${isDefault ? " (default)" : ""}`,
+        prefill: {
+          name: resolvedRoleName,
+          displayName: resolvedRoleName,
+          isDefault,
+          modules: explicitMods.length > 0 ? explicitMods : ["dashboard"],
+        },
+      });
+      navigateTo = "/roles";
+    } else if (existingRole && allowed.has("update_role")) {
+      steps.push({
+        type: "update_role",
+        label: `Configure modules for "${existingRole.displayName}"`,
+        prefill: {
+          roleId: existingRole.id,
+          name: existingRole.name,
+          ...(isDefault ? { isDefault: true } : {}),
+          ...(explicitMods.length > 0 ? { modules: explicitMods } : {}),
+        },
+      });
+      navigateTo = "/roles";
+    }
+  }
+
+  // 0d. Project & Department Creation (require direct object adjacency so contextual words like "on this workspace calendar" never misfire)
+  if (steps.length === 0 && /\b(create|new|make|setup|add)\s+(?:a\s+|an\s+|new\s+)?(?:project\s*workspace|workspace|project)\b/i.test(lower) && allowed.has("create_project")) {
+    const nm = text.match(/(?:named|called)\s+["']?([^"',.;]+?)(?:\s+with\s+prefix|\s*$)/i);
+    const pref = text.match(/\bprefix\s+["']?([a-zA-Z0-9]{2,8})["']?/i);
+    const projName = nm?.[1]?.trim() || "Workspace Project";
+    steps.push({
+      type: "create_project",
+      label: `Create project "${projName}"`,
+      prefill: { name: projName, prefix: (pref?.[1] || projName.slice(0, 4)).toUpperCase(), description: text },
+    });
+    navigateTo = "/projects";
+  }
+  if (steps.length === 0 && /\b(create|new|make|setup|add)\s+(?:a\s+|an\s+|new\s+)?department\b/i.test(lower) && allowed.has("create_department")) {
+    const dm = text.match(/(?:named|called)\s+["']?([^"',.;]+?)(?:\s+with\s+code|\s*$)/i);
+    const cd = text.match(/\bcode\s+["']?([a-zA-Z0-9]{2,6})["']?/i);
+    const deptName = dm?.[1]?.trim() || "New Department";
+    steps.push({
+      type: "create_department",
+      label: `Create department "${deptName}"`,
+      prefill: { name: deptName, code: (cd?.[1] || deptName.slice(0, 4)).toUpperCase(), description: text },
+    });
+    navigateTo = "/projects";
+  }
+
+  // 0e. Mark notifications read / Task Review & Approval
+  if (steps.length === 0 && /\bmark\b.*\bnotifications?\b.*\bread\b/i.test(lower) && allowed.has("mark_notifications_read")) {
+    steps.push({ type: "mark_notifications_read", label: "Mark all notifications read", prefill: {} });
+  }
+  const keyForTaskOps = text.match(/\b([A-Z0-9]{2,8}-\d+)\b/i);
+  if (steps.length === 0 && (keyForTaskOps || recentTaskKey)) {
+    const tk = keyForTaskOps ? keyForTaskOps[1].toUpperCase() : recentTaskKey;
+    if (/\bsubmit\b.*\breview\b/i.test(lower) && allowed.has("submit_task_review")) {
+      steps.push({ type: "submit_task_review", label: `Submit ${tk} for review`, prefill: { taskKey: tk } });
+      navigateTo = `/board?task=${tk}`;
+    } else if (/\bapprove\b/i.test(lower) && /\btask|ticket\b/i.test(lower) && allowed.has("approve_task")) {
+      steps.push({ type: "approve_task", label: `Approve ${tk}`, prefill: { taskKey: tk } });
+      navigateTo = `/board?task=${tk}`;
+    } else if (/\b(redo|revision)\b/i.test(lower) && allowed.has("redo_task")) {
+      steps.push({ type: "redo_task", label: `Request revision on ${tk}`, prefill: { taskKey: tk, reason: text } });
+      navigateTo = `/board?task=${tk}`;
+    }
   }
 
   // 1. Create / Schedule Task intent (also supports calendar scheduling + cursor demo!)
@@ -1410,16 +1991,20 @@ STRICT AUTHORIZATION & SECURITY RULES:
 CLARIFICATION, INTERACTIVE HTML CARDS & MULTI-STEP EXECUTION:
 - If a request is ambiguous (e.g., "remove user sanjay" when multiple Sanjays match, or unclear target task/project), return "status": "clarify", ask clearly in "reply", AND generate a safe, responsive, theme-matched "uiHtml" selection card grid + "choices" array!
 - STRICT "uiHtml" RULES:
-  - ONLY use structural tags (div, span, button, img, p, strong, table, thead, tbody, tr, th, td). NEVER include <script>, <style>, <iframe>, <form>, or on*= attributes.
+  - ONLY use safe tags (div, span, button, img, p, strong, table, thead, tbody, tr, th, td, label, input[type="checkbox"]). NEVER include <script>, <style>, <iframe>, <form>, text inputs, or on*= attributes.
   - Size responsively for a sidebar container: use "w-full", "flex", "flex-col", "gap-2", "min-w-0", "truncate".
   - Match BOTH Light & Dark Lira themes using CSS variables ONLY:
     var(--lira-card), var(--lira-surface), var(--lira-border), var(--lira-text), var(--lira-muted), var(--lira-accent-bg), var(--lira-accent-text), var(--lira-danger-bg), var(--lira-danger-text).
   - For clickable options, use: data-lira-step='{"type":"...","label":"...","prefill":{...}}' (or data-lira-reply="...").
+  - When creating/configuring a role and user wants to choose/list/tick modules interactively, include create_role/update_role step and set "status": "clarify" so interactive module checkboxes appear.
   - Include profile avatar <img>, Full Name, Job Title/Role, Public ID, and Department when disambiguating people!
+
+TWO EXECUTION MODES ("Execution Mode" in user prompt):
+- If Execution Mode is AUTO: plan exact backend steps ("steps" array) so the server executes them cleanly via authenticated APIs ("cursorGuide": false). Do NOT use frontend cursor in AUTO mode.
+- If Execution Mode is REVIEW: prepare exact "navigateTo" + "steps" + "cursorGuide": true so the frontend Copilot Cursor navigates to the target module screen and fills forms / highlights buttons for user confirmation.
 
 CALENDAR & CURSOR GUIDANCE:
 - When scheduling/adding to Calendar, set "dueDate": "${todayStr}" (or requested YYYY-MM-DD) inside create_task prefill and "navigateTo": "/calendar".
-- If user asks to "do with the cursor" or "watch", set "cursorGuide": true!
 
 DATA CHARTS, CSV, PDF, PPT & WORKSPACE DIAGRAMS ("artifacts" array):
 - Chart: { "type": "chart", "chartType": "bar"|"pie", "title": "...", "labels": [...], "values": [...] }
@@ -1432,7 +2017,7 @@ DATA CHARTS, CSV, PDF, PPT & WORKSPACE DIAGRAMS ("artifacts" array):
 MULTI-STEP WORKFLOWS, INTERRUPTED CONTEXT & HISTORY:
 - If PREVIOUS_UNDONE_REQUEST is provided, incorporate it cleanly unless explicitly cancelled.
 - Supported step types (ONLY if in SCOPED_CONTEXT.allowedActions):
-  "create_task", "update_task_status", "delete_task", "send_project_chat", "send_dm", "create_request", "approve_request", "reject_request", "create_project", "delete_project", "create_department", "delete_department", "create_role", "delete_role", "delete_user", "remove_non_superadmins", "grant_ai_access", "revoke_ai_access", "navigate", "open_task".
+  "create_task", "update_task", "update_task_status", "assign_task", "submit_task_review", "approve_task", "redo_task", "add_subtask", "toggle_subtask", "add_task_comment", "add_worklog", "bulk_update_tasks", "delete_task", "open_task", "send_project_chat", "send_dm", "toggle_pin_chat_message", "open_chat", "create_request", "approve_request", "reject_request", "create_project", "update_project", "delete_project", "add_project_member", "remove_project_member", "invoke_project_department", "remove_project_department", "add_project_url", "create_department", "update_department", "delete_department", "add_department_member", "remove_department_member", "create_user", "update_user", "update_user_role", "delete_user", "approve_join_request", "reject_join_request", "remove_non_superadmins", "create_role", "update_role", "delete_role", "grant_ai_access", "revoke_ai_access", "restore_ai_access", "delete_ai_grant", "update_ai_config", "mark_notifications_read", "update_profile", "toggle_theme", "open_notifications", "navigate".
 
 RESPONSE FORMAT — Valid JSON ONLY:
 {
@@ -1680,13 +2265,14 @@ async function processAssistantJob({
     const safeRoutesSet = new Set(scopedCtx.allowedRoutes.map((r) => r.route));
     let safeNav = parsed.navigateTo && safeRoutesSet.has(parsed.navigateTo) ? parsed.navigateTo : null;
 
-    const wantsCursorWalkthrough =
-      Boolean(parsed.cursorGuide) ||
-      /\b(with\s+(the\s+)?cursor|watch\s+it|how\s+to\s+add|walk\s*through)\b/i.test(prompt);
     const todayIso = new Date().toISOString().slice(0, 10);
     const isCalendarScheduledPrompt =
       String(scopedCtx.currentRoute || "").startsWith("/calendar") ||
       /\b(calendar|today|tonight|schedule|due\s*date)\b/i.test(prompt);
+    const wantsRoleModulePicker =
+      /\brole\b/i.test(prompt) &&
+      /\b(list|show|choose|select|pick|checkbox|tick)\b.*\bmodules?\b/i.test(prompt) &&
+      isSuperAdminUser(userDoc);
 
     const rawSteps =
       Array.isArray(parsed.steps) && parsed.steps.length > 0
@@ -1707,8 +2293,8 @@ async function processAssistantJob({
       } else if (s?.type) {
         if (s.type === "create_task") {
           const pf = { ...(s.prefill || {}) };
-          if (!pf.projectId && scopedCtx.activeProject?.id) {
-            pf.projectId = scopedCtx.activeProject.id;
+          if (!pf.projectId && scopedCtx.activeProjectId) {
+            pf.projectId = scopedCtx.activeProjectId;
           }
           if (!pf.dueDate && isCalendarScheduledPrompt) {
             pf.dueDate = todayIso;
@@ -1719,8 +2305,10 @@ async function processAssistantJob({
         }
       }
     }
+
+    const explicitCursorRequested = /\b(with\s+(the\s+)?cursor|watch\s+it|how\s+to\s+add|walk\s*through)\b/i.test(prompt);
     if (
-      wantsCursorWalkthrough &&
+      (mode === "review" || explicitCursorRequested) &&
       isCalendarScheduledPrompt &&
       scopedCtx.allowedActions.includes("create_task") &&
       !safeSteps.some((s) => s.type === "create_task")
@@ -1729,7 +2317,7 @@ async function processAssistantJob({
         type: "create_task",
         label: "Create Scheduled Task",
         prefill: {
-          projectId: scopedCtx.activeProject?.id || "",
+          projectId: scopedCtx.activeProjectId || "",
           title: "Calendar Scheduled Task",
           description: `Scheduled via Lira Copilot cursor walkthrough: ${prompt}`,
           priority: "medium",
@@ -1743,11 +2331,57 @@ async function processAssistantJob({
 
     let executedResult = null;
     let actionApplied = false;
-    const isClarifying = parsed.status === "clarify";
+    let finalStatus = parsed.status === "clarify" ? "clarify" : "completed";
+    let finalReply = parsed.reply || "Done.";
+    let finalUiHtml = sanitizeCopilotHtmlServer(parsed.uiHtml || "");
+    const isClarifying = finalStatus === "clarify";
 
-    if (
+    // Strict Two-Mode Rule:
+    // - REVIEW mode -> Never auto-execute mutations on backend; use frontend cursor walkthroughs across screens!
+    // - AUTO mode -> Execute mutations via authenticated Express backend requests (unless clarifying/checkbox picker); no UI cursor!
+    let wantsCursorWalkthrough = false;
+
+    if (wantsRoleModulePicker && mode === "auto") {
+      // Execute role creation first if requested, then deterministically render interactive module checkboxes
+      let targetRoleDoc = null;
+      const createRoleStep = safeSteps.find((s) => s.type === "create_role");
+      const updateRoleStep = safeSteps.find((s) => s.type === "update_role");
+
+      if (createRoleStep?.prefill?.name) {
+        const slug = String(createRoleStep.prefill.name).trim().toLowerCase().replace(/[^a-z0-9_]+/g, "_");
+        targetRoleDoc = await Role.findOne({ name: slug }).lean();
+        if (!targetRoleDoc) {
+          try {
+            executedResult = await executeAssistantWorkflow({ steps: [createRoleStep], intent: createRoleStep, user: userDoc });
+            actionApplied = Boolean(executedResult?.executed);
+            targetRoleDoc = await Role.findOne({ name: slug }).lean();
+          } catch (execErr) {
+            executedResult = { executed: false, error: execErr.message };
+          }
+        }
+      } else {
+        const extractedMatch =
+          prompt.match(/(?:role\s+(?:named|called|key)\s+|for\s+(?:role\s+)?)["']?([a-zA-Z0-9_-]{2,40})["']?/i);
+        const hintName = updateRoleStep?.prefill?.name || extractedMatch?.[1] || "";
+        const hintSlug = hintName.trim().toLowerCase().replace(/[^a-z0-9_]+/g, "_");
+        if (updateRoleStep?.prefill?.roleId) {
+          targetRoleDoc = await Role.findById(updateRoleStep.prefill.roleId).lean();
+        } else if (hintSlug) {
+          targetRoleDoc = await Role.findOne({ name: hintSlug }).lean();
+        }
+        if (!targetRoleDoc) {
+          targetRoleDoc = await Role.findOne({ isSystem: { $ne: true } }).sort({ createdAt: -1 }).lean();
+        }
+      }
+
+      if (targetRoleDoc) {
+        finalUiHtml = buildRoleModulesCheckboxHtml(targetRoleDoc);
+        safeNav = "/roles";
+        finalStatus = "clarify";
+        finalReply = `${executedResult?.summary ? `${executedResult.summary}. ` : ""}Check the modules you want to assign to "${targetRoleDoc.displayName}" below and click Save Selected Modules.`;
+      }
+    } else if (
       !isClarifying &&
-      !wantsCursorWalkthrough &&
       mode === "auto" &&
       safeSteps.some((s) => s.type !== "navigate" && s.type !== "open_task")
     ) {
@@ -1760,6 +2394,8 @@ async function processAssistantJob({
       } catch (execErr) {
         executedResult = { executed: false, error: execErr.message };
       }
+    } else if (mode === "review" && !isClarifying && (safeSteps.length > 0 || safeNav)) {
+      wantsCursorWalkthrough = true;
     }
 
     await AIAssistantSession.updateOne(
@@ -1769,12 +2405,12 @@ async function processAssistantJob({
           activeJobId: "",
           lastUndonePrompt: "",
           "messages.$.role": "assistant",
-          "messages.$.status": "completed",
-          "messages.$.content": parsed.reply || "Done.",
+          "messages.$.status": finalStatus,
+          "messages.$.content": finalReply,
           "messages.$.navigateTo": safeNav,
           "messages.$.intent": safeIntent,
           "messages.$.steps": safeSteps,
-          "messages.$.uiHtml": sanitizeCopilotHtmlServer(parsed.uiHtml || ""),
+          "messages.$.uiHtml": finalUiHtml,
           "messages.$.choices": Array.isArray(parsed.choices) ? parsed.choices : [],
           "messages.$.artifacts": sanitizeArtifactsServer(parsed.artifacts || []),
           "messages.$.cursorGuide": wantsCursorWalkthrough,
@@ -1787,7 +2423,7 @@ async function processAssistantJob({
         },
       }
     );
-    console.log(`[LIRA COPILOT] JOB_DONE user=${userDoc?.email} jobId=${jobId} model=${usedModel} steps=${safeSteps.length} applied=${actionApplied}`);
+    console.log(`[LIRA COPILOT] JOB_DONE user=${userDoc?.email} mode=${mode} cursor=${wantsCursorWalkthrough} jobId=${jobId} model=${usedModel} steps=${safeSteps.length} applied=${actionApplied}`);
     await emitUpdate();
   } catch (err) {
     if (controller.signal.aborted || err?.isAborted) {
@@ -1812,6 +2448,7 @@ async function processAssistantJob({
     await emitUpdate();
   } finally {
     activeControllers.delete(jobId);
+    cleanupAttachmentFiles(attachments);
   }
 }
 
@@ -2134,6 +2771,7 @@ async function executeDirectCardStep({ user, step, messageId = "" }) {
   if (messageId) {
     const msg = session.messages.id(messageId);
     if (msg) {
+      msg.status = "completed";
       msg.executedResult = executedResult;
       msg.actionApplied = true;
       msg.uiHtml = "";

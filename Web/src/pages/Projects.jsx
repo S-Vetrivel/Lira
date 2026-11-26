@@ -156,23 +156,32 @@ export default function Projects() {
   const [addingUrl, setAddingUrl] = useState(false);
 
   useEffect(() => {
-    if (aiPrefillDraft?.type === "create_project" && aiPrefillDraft?.data) {
-      const d = aiPrefillDraft.data;
+    if (!aiPrefillDraft?.type) return;
+    const d = aiPrefillDraft.data || {};
+    if (aiPrefillDraft.type === "create_project") {
       if (d.name) setProjName(d.name);
       if (d.prefix) setProjPrefix(String(d.prefix).toUpperCase());
       if (d.description) setProjDesc(d.description);
       if (d.department) setProjDept(d.department);
       setShowAddProjectDrawer(true);
       setAiPrefillDraft(null);
-    } else if (aiPrefillDraft?.type === "create_department" && aiPrefillDraft?.data) {
-      const d = aiPrefillDraft.data;
+    } else if (aiPrefillDraft.type === "create_department") {
       if (d.name) setDeptName(d.name);
       if (d.code) setDeptCode(String(d.code).toUpperCase());
       if (d.description) setDeptDesc(d.description);
       setShowAddDeptDrawer(true);
       setAiPrefillDraft(null);
+    } else if (["update_project", "add_project_member", "invoke_project_department", "add_project_url"].includes(aiPrefillDraft.type)) {
+      const targetProj =
+        projects.find(
+          (p) =>
+            (d.projectId && String(p._id) === String(d.projectId)) ||
+            (d.prefix && p.prefix === String(d.prefix).toUpperCase())
+        ) || projects[0];
+      if (targetProj) setSelectedProj(targetProj);
+      setAiPrefillDraft(null);
     }
-  }, [aiPrefillDraft, setAiPrefillDraft]);
+  }, [aiPrefillDraft, setAiPrefillDraft, projects]);
 
   const [projTasks, setProjTasks] = useState([]);
   const [loadingProjTasks, setLoadingProjTasks] = useState(false);
@@ -670,6 +679,7 @@ export default function Projects() {
           <div className="flex items-center gap-2.5">
             {canCreateDept && (
               <button
+                data-ai-target="add-dept-btn"
                 onClick={() => setShowAddDeptDrawer(true)}
                 className={`flex items-center gap-1.5 border text-xs font-semibold px-4 py-2 rounded-full transition-colors cursor-pointer ${g.btnSecondary}`}
               >
@@ -679,6 +689,7 @@ export default function Projects() {
             )}
             {canCreateProject && (
               <button
+                data-ai-target="add-project-btn"
                 onClick={() => setShowAddProjectDrawer(true)}
                 className={`flex items-center gap-1.5 text-xs font-semibold px-4 py-2 rounded-full cursor-pointer ${g.btnPrimary}`}
               >
@@ -2071,6 +2082,7 @@ export default function Projects() {
             </button>
             <button
               type="submit"
+              data-ai-target="save-project-btn"
               disabled={submittingProj}
               className={`px-5 py-2 text-xs font-semibold rounded-xl cursor-pointer ${isDark ? "bg-white text-slate-950 hover:bg-slate-200" : "bg-slate-900 text-white hover:bg-slate-800"
                 }`}
@@ -2190,6 +2202,7 @@ export default function Projects() {
             </button>
             <button
               type="submit"
+              data-ai-target="save-dept-btn"
               disabled={submittingDept}
               className={`px-5 py-2 text-xs font-semibold rounded-xl cursor-pointer ${isDark ? "bg-white text-slate-950 hover:bg-slate-200" : "bg-slate-900 text-white hover:bg-slate-800"
                 }`}

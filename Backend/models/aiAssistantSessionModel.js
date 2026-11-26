@@ -11,7 +11,7 @@ const AssistantMessageSchema = new mongoose.Schema(
     content: { type: String, default: "" },
     status: {
       type: String,
-      enum: ["processing", "completed", "blocked", "denied", "no_key", "stopped", "failed"],
+      enum: ["processing", "completed", "clarify", "blocked", "denied", "no_key", "stopped", "failed"],
       default: "completed",
     },
     mode: {

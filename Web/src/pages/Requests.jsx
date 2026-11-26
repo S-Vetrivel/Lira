@@ -65,7 +65,8 @@ export default function Requests() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (aiPrefillDraft?.type === "create_request" && aiPrefillDraft?.data) {
+    if (!aiPrefillDraft?.type) return;
+    if (aiPrefillDraft.type === "create_request" && aiPrefillDraft.data) {
       const d = aiPrefillDraft.data;
       if (d.title) setTitle(d.title);
       if (d.description) setDescription(d.description);
@@ -75,8 +76,21 @@ export default function Requests() {
       if (d.urgency || d.priority) setUrgency(d.urgency || d.priority);
       setShowCreateModal(true);
       setAiPrefillDraft(null);
+    } else if (["approve_request", "reject_request"].includes(aiPrefillDraft.type)) {
+      const d = aiPrefillDraft.data || {};
+      const matched =
+        requests.find(
+          (r) =>
+            (d.requestId && String(r._id) === String(d.requestId)) ||
+            (d.title && r.title?.toLowerCase().includes(String(d.title).toLowerCase()))
+        ) || requests.find((r) => r.status === "pending");
+      if (matched) {
+        setActionModal({ type: aiPrefillDraft.type === "approve_request" ? "approve" : "reject", request: matched });
+        setActionNotes(d.note || "");
+      }
+      setAiPrefillDraft(null);
     }
-  }, [aiPrefillDraft, setAiPrefillDraft]);
+  }, [aiPrefillDraft, setAiPrefillDraft, requests]);
 
   const loadData = async () => {
     setLoading(true);
@@ -213,6 +227,7 @@ export default function Requests() {
 
           {canCreateReq && (
             <button
+              data-ai-target="new-request-btn"
               onClick={() => setShowCreateModal(true)}
               className={`px-4 py-2 rounded-full font-semibold text-xs flex items-center gap-1.5 cursor-pointer ${g.btnPrimary}`}
             >
@@ -361,6 +376,7 @@ export default function Requests() {
               {isPending && canApproveReq && (
                 <div className="flex items-center gap-2 shrink-0">
                   <button
+                    data-ai-target="request-approve-btn"
                     onClick={() => {
                       setActionModal({ type: "approve", request: req });
                       setActionNotes("");
@@ -370,6 +386,7 @@ export default function Requests() {
                     <CheckCircle2 className="w-3.5 h-3.5" /> Approve Stage
                   </button>
                   <button
+                    data-ai-target="request-reject-btn"
                     onClick={() => {
                       setActionModal({ type: "reject", request: req });
                       setActionNotes("");
@@ -558,6 +575,7 @@ export default function Requests() {
             <button
               type="submit"
               disabled={submitting}
+              data-ai-target="save-request-btn"
               className={`px-5 py-2 rounded-xl font-semibold transition-colors cursor-pointer ${g.btnPrimary}`}
             >
               {submitting ? "Submitting..." : "Submit Request"}

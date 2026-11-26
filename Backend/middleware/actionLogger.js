@@ -50,7 +50,7 @@ function sanitizePayload(obj) {
  */
 function inferActionName(req) {
   const method = req.method.toUpperCase();
-  const path = req.path || req.originalUrl || "/";
+  const path = req.originalUrl || req.url || req.path || "/";
 
   // Auth actions
   if (path.includes("/auth/login")) return "AUTH_LOGIN";
@@ -129,7 +129,7 @@ function inferActionName(req) {
  * and passes enriched action data to the batched logger for timed disk and DB preservation.
  */
 function actionLoggerMiddleware(req, res, next) {
-  const pathUrl = req.path || req.originalUrl || "/";
+  const pathUrl = (req.originalUrl || req.url || req.path || "/").split("?")[0];
   // Skip high-frequency health/polling read endpoints to keep audit log high-signal
   if (
     pathUrl.endsWith("/ping") ||

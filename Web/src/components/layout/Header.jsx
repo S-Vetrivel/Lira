@@ -348,6 +348,7 @@ export default function Header() {
           {/* Theme Toggle */}
           <button
             type="button"
+            data-ai-target="theme-toggle-btn"
             onClick={toggleTheme}
             className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all cursor-pointer ${isDark
               ? "text-zinc-300 hover:text-white hover:bg-white/[0.09]"
@@ -367,6 +368,7 @@ export default function Header() {
           <div className="relative">
             <button
               type="button"
+              data-ai-target="notifications-bell-btn"
               onClick={() => {
                 setShowNotifications((prev) => !prev);
                 setShowProfileMenu(false);
@@ -433,6 +435,7 @@ export default function Header() {
                       {unreadCount > 0 && (
                         <button
                           type="button"
+                          data-ai-target="notifications-mark-read-btn"
                           onClick={handleMarkAllRead}
                           className={`text-[11px] font-semibold px-2 py-1 rounded-lg transition-colors cursor-pointer ${g.btnSecondary}`}
                         >
@@ -499,6 +502,7 @@ export default function Header() {
         {(isSuperAdmin || hasPermission("tasks.create")) && (
           <button
             type="button"
+            data-ai-target="header-new-task-btn"
             onClick={() => setIsCreateTaskModalOpen(true)}
             className={`h-10 flex items-center gap-1.5 text-xs px-3 xl:px-3.5 rounded-xl transition-all active:scale-95 cursor-pointer ${g.btnPrimary}`}
             title="Create New Task"

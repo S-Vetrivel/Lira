@@ -1193,6 +1193,17 @@ export async function uploadAIAssistantFilesAPI(files = []) {
   }
 }
 
+export async function deleteAIAssistantUploadAPI(filenameOrPath) {
+  try {
+    const res = await api.delete("/ai/assistant/upload", {
+      data: { filename: filenameOrPath },
+    });
+    return res.data;
+  } catch {
+    return { success: false };
+  }
+}
+
 export async function executeAIAssistantCardStepAPI({ step, messageId = "", replyText = "" }) {
   try {
     const res = await api.post("/ai/assistant/execute-step", { step, messageId, replyText });

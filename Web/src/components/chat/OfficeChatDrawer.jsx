@@ -73,6 +73,8 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
     chatTargetRoom,
     setChatTargetRoom,
     refreshChatUnread,
+    aiPrefillDraft,
+    setAiPrefillDraft,
   } = useApp();
   const isDark = theme === "dark";
   const g = getGlassTokens(isDark);
@@ -99,6 +101,13 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
   const messagesEndRef = useRef(null);
   const quickFileInputRef = useRef(null);
   const typingTimeoutRef = useRef(null);
+
+  useEffect(() => {
+    if (aiPrefillDraft?.type === "chat_draft" && aiPrefillDraft?.data?.text) {
+      setInputText(String(aiPrefillDraft.data.text));
+      setAiPrefillDraft(null);
+    }
+  }, [aiPrefillDraft, setAiPrefillDraft]);
 
   const pinnedMessages = useMemo(() => messages.filter((m) => m.isPinned), [messages]);
 
@@ -1179,6 +1188,7 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
 
                   <input
                     type="text"
+                    data-ai-target="chat-message-input"
                     value={inputText}
                     onChange={handleInputChange}
                     placeholder={`Message ${isDirect ? selectedRoom?.name : `#${selectedRoom?.name}`}...`}
@@ -1187,6 +1197,7 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
 
                   <button
                     type="submit"
+                    data-ai-target="chat-send-btn"
                     disabled={!inputText.trim() || sending}
                     className={`px-3.5 py-2 rounded-xl disabled:opacity-30 text-xs transition-all flex items-center gap-1.5 cursor-pointer ${g.btnPrimary}`}
                   >

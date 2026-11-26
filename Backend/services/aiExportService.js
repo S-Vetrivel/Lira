@@ -1,11 +1,103 @@
 const fs = require("fs");
 const path = require("path");
+const sharp = require("sharp");
 const PDFDocument = require("pdfkit");
 const PptxGenJS = require("pptxgenjs");
 const { PDFParse } = require("pdf-parse");
 
 const MAX_DOC_TEXT_CHARS = 12000;
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5MB inline multimodal threshold
+const AI_ATTACH_DIR = path.resolve(__dirname, "../uploads/ai-attachments");
+
+/**
+ * Generates a small inline preview data URL so message thumbnails stay visible
+ * even after temporary disk files are cleaned post-inference.
+ */
+async function buildCompactThumbDataUrl(filePath) {
+  try {
+    const thumbBuf = await sharp(filePath)
+      .rotate()
+      .resize({ width: 160, height: 160, fit: "inside", withoutEnlargement: true })
+      .webp({ quality: 72 })
+      .toBuffer();
+    if (thumbBuf.length > 0 && thumbBuf.length <= 28 * 1024) {
+      return `data:image/webp;base64,${thumbBuf.toString("base64")}`;
+    }
+  } catch {}
+  return "";
+}
+
+/**
+ * Safely deletes a single uploaded Copilot temporary attachment from uploads/ai-attachments.
+ */
+function deleteAttachmentFileSafe(filePathOrName) {
+  if (!filePathOrName || typeof filePathOrName !== "string") return false;
+  try {
+    const baseName = path.basename(filePathOrName.trim());
+    if (!baseName || baseName === "." || baseName === "..") return false;
+    const resolved = path.resolve(AI_ATTACH_DIR, baseName);
+    if (!resolved.startsWith(AI_ATTACH_DIR + path.sep)) return false;
+    if (fs.existsSync(resolved)) {
+      fs.unlinkSync(resolved);
+      return true;
+    }
+  } catch {}
+  return false;
+}
+
+/**
+ * Cleans up attachment files referenced by a completed Copilot message once inference finishes.
+ */
+function cleanupAttachmentFiles(attachments = []) {
+  let removed = 0;
+  for (const att of attachments || []) {
+    if (!att) continue;
+    const target = att.filePath || att.url || "";
+    if (target && deleteAttachmentFileSafe(target)) {
+      removed += 1;
+    }
+  }
+  if (removed > 0) {
+    console.log(`[LIRA COPILOT] ATTACH_CLEANUP removed=${removed} temporary file(s) after inference`);
+  }
+  return removed;
+}
+
+/**
+ * Periodic sweeper removing abandoned or orphaned AI attachments older than maxAgeMs.
+ */
+function purgeStaleAIAttachments(maxAgeMs = 20 * 60 * 1000) {
+  try {
+    if (!fs.existsSync(AI_ATTACH_DIR)) return 0;
+    const now = Date.now();
+    let purged = 0;
+    for (const entry of fs.readdirSync(AI_ATTACH_DIR)) {
+      const full = path.join(AI_ATTACH_DIR, entry);
+      try {
+        const stat = fs.statSync(full);
+        if (stat.isFile() && now - stat.mtimeMs > maxAgeMs) {
+          fs.unlinkSync(full);
+          purged += 1;
+        }
+      } catch {}
+    }
+    if (purged > 0) {
+      console.log(`[LIRA COPILOT] ATTACH_PERIODIC_PURGE removed=${purged} stale file(s)`);
+    }
+    return purged;
+  } catch {
+    return 0;
+  }
+}
+
+let cleanupTimerStarted = false;
+function startAIAttachmentCleanupScheduler() {
+  if (cleanupTimerStarted) return;
+  cleanupTimerStarted = true;
+  purgeStaleAIAttachments();
+  const timer = setInterval(() => purgeStaleAIAttachments(), 15 * 60 * 1000);
+  if (typeof timer.unref === "function") timer.unref();
+}
 
 /**
  * Extracts safe metadata & text content from uploaded Copilot attachments.
@@ -20,11 +112,15 @@ async function processUploadedAttachment(file) {
     mime.startsWith("image/") || [".png", ".jpg", ".jpeg", ".webp", ".gif"].includes(ext);
 
   if (isImage) {
+    const thumbDataUrl = await buildCompactThumbDataUrl(file.path);
     return {
       name: file.originalname,
+      filename: path.basename(file.path),
       mimeType: mime || "image/png",
       size: file.size || 0,
-      url: relUrl,
+      url: thumbDataUrl || relUrl,
+      previewUrl: relUrl,
+      thumbDataUrl,
       filePath: file.path,
       kind: "image",
       extractedText: "",
@@ -57,6 +153,7 @@ async function processUploadedAttachment(file) {
 
   return {
     name: file.originalname,
+    filename: path.basename(file.path),
     mimeType: mime || "application/octet-stream",
     size: file.size || 0,
     url: relUrl,
@@ -269,6 +366,10 @@ function generateCSVString({ headers = [], rows = [] }) {
 module.exports = {
   processUploadedAttachment,
   hydrateAttachmentsForModel,
+  deleteAttachmentFileSafe,
+  cleanupAttachmentFiles,
+  purgeStaleAIAttachments,
+  startAIAttachmentCleanupScheduler,
   generatePDFBuffer,
   generatePPTXBuffer,
   generateCSVString,
