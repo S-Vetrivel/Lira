@@ -64,6 +64,8 @@ const AIUsageLogSchema = new mongoose.Schema(
         "unauthorized_module",
         "audit_tampering",
         "destructive_wipe",
+        "privilege_escalation",
+        "credential_exfiltration",
       ],
       default: "",
     },

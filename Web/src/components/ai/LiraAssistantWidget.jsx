@@ -138,7 +138,9 @@ export default function LiraAssistantWidget() {
   const hasHydratedPrefsRef = useRef(false);
   const myTabJobsRef = useRef(new Set());
   const isOpenRef = useRef(isAIAssistantOpen);
-  isOpenRef.current = isAIAssistantOpen;
+  useEffect(() => {
+    isOpenRef.current = isAIAssistantOpen;
+  }, [isAIAssistantOpen]);
   const uploadingCount = useMemo(
     () => pendingAttachments.filter((a) => a.status === "uploading").length,
     [pendingAttachments]
@@ -741,6 +743,23 @@ export default function LiraAssistantWidget() {
     return prompts;
   }, [isSuperAdmin, hasPermission]);
 
+  const pebbleXY = useMemo(() => {
+    if (dragPos) return dragPos;
+    const maxX = Math.max(20, viewport.w - 76);
+    const maxY = Math.max(82, viewport.h - 76);
+    switch (corner) {
+      case "top-left":
+        return { x: 20, y: 82 };
+      case "top-right":
+        return { x: maxX, y: 82 };
+      case "bottom-left":
+        return { x: 20, y: maxY };
+      case "bottom-right":
+      default:
+        return { x: maxX, y: maxY };
+    }
+  }, [corner, dragPos, viewport]);
+
   if (!canUseAI) return null;
 
   const handleModeChange = async (nextMode) => {
@@ -825,23 +844,6 @@ export default function LiraAssistantWidget() {
     window.addEventListener("pointerup", onUp);
     window.addEventListener("pointercancel", onUp);
   };
-
-  const pebbleXY = useMemo(() => {
-    if (dragPos) return dragPos;
-    const maxX = Math.max(20, viewport.w - 76);
-    const maxY = Math.max(82, viewport.h - 76);
-    switch (corner) {
-      case "top-left":
-        return { x: 20, y: 82 };
-      case "top-right":
-        return { x: maxX, y: 82 };
-      case "bottom-left":
-        return { x: 20, y: maxY };
-      case "bottom-right":
-      default:
-        return { x: maxX, y: maxY };
-    }
-  }, [corner, dragPos, viewport]);
 
   const messages = session?.messages || [];
 
@@ -1218,16 +1220,33 @@ export default function LiraAssistantWidget() {
               }
 
               if (isWarning) {
+                const policyBadgeMap = {
+                  audit_tampering: "Audit Tampering",
+                  destructive_wipe: "Destructive Wipe",
+                  privilege_escalation: "Privilege Escalation",
+                  credential_exfiltration: "Credential Exfiltration",
+                  architecture_probe: "Architecture Probe",
+                  off_topic_code_or_image: "Unsafe / Off-Topic",
+                  unauthorized_module: "Access Denied",
+                };
+                const policyBadge = policyBadgeMap[msg.misuseCategory] || "";
                 return (
                   <div
                     key={msg._id || idx}
                     className="p-3.5 rounded-2xl border border-rose-500/35 bg-rose-500/10 space-y-1.5 text-xs text-rose-300"
                   >
-                    <div className="flex items-center gap-2 font-bold">
-                      <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0" />
-                      <span>
-                        {msg.status === "blocked" ? "Request Not Allowed" : "Access Unavailable"}
-                      </span>
+                    <div className="flex items-center justify-between gap-2 font-bold">
+                      <div className="flex items-center gap-2">
+                        <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0" />
+                        <span>
+                          {msg.status === "blocked" ? "Blocked by Security Policy" : "Access Unavailable"}
+                        </span>
+                      </div>
+                      {policyBadge && (
+                        <span className="px-2 py-0.5 rounded-full bg-rose-500/20 border border-rose-400/30 text-[10px] font-semibold uppercase tracking-wide">
+                          {policyBadge}
+                        </span>
+                      )}
                     </div>
                     <p className="leading-relaxed">{msg.warning || msg.content}</p>
                   </div>
@@ -1344,6 +1363,16 @@ export default function LiraAssistantWidget() {
                           Open {msg.executedResult.taskKey}
                         </button>
                       )}
+                    </div>
+                  )}
+
+                  {msg.executedResult?.error && (
+                    <div className="p-2.5 rounded-xl border border-amber-500/35 bg-amber-500/10 text-amber-300 flex items-start gap-2 text-[11px]">
+                      <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                      <span className="leading-relaxed">
+                        {msg.executedResult.executed ? "Partial failure: " : "Execution failed: "}
+                        {msg.executedResult.error}
+                      </span>
                     </div>
                   )}
 

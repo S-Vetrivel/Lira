@@ -25,6 +25,8 @@ const {
   executeDirectCardStep,
   clearAssistantSessionForUser,
   getUserAvailableModels,
+  classifyPromptSecurity,
+  recordMisuseAudit,
 } = require("../services/aiAssistantService");
 const {
   processUploadedAttachment,
@@ -68,6 +70,26 @@ exports.generateTaskBreakdown = async (req, res) => {
     const { title, description, provider, model } = req.body;
     if (!title) {
       return res.status(400).json({ success: false, message: "Task title is required" });
+    }
+
+    const secCheck = classifyPromptSecurity({
+      prompt: `${title}\n${description || ""}`,
+      user: req.user,
+    });
+    if (secCheck.blocked) {
+      await recordMisuseAudit({
+        user: req.user,
+        prompt: `${title} ${description || ""}`,
+        misuseCategory: secCheck.misuseCategory,
+        warning: secCheck.warning,
+        moduleKey: "tasks",
+      });
+      return res.status(403).json({
+        success: false,
+        blocked: true,
+        misuseCategory: secCheck.misuseCategory,
+        message: secCheck.warning,
+      });
     }
 
     const prompt = `You are an agile software engineering and office operations lead.
@@ -149,6 +171,26 @@ exports.executeModularQuery = async (req, res) => {
 
     if (!prompt || !prompt.trim()) {
       return res.status(400).json({ success: false, message: "Prompt is required" });
+    }
+
+    const secCheck = classifyPromptSecurity({
+      prompt: prompt.trim(),
+      user: req.user,
+    });
+    if (secCheck.blocked) {
+      await recordMisuseAudit({
+        user: req.user,
+        prompt: prompt.trim(),
+        misuseCategory: secCheck.misuseCategory,
+        warning: secCheck.warning,
+        moduleKey,
+      });
+      return res.status(403).json({
+        success: false,
+        blocked: true,
+        misuseCategory: secCheck.misuseCategory,
+        message: secCheck.warning,
+      });
     }
 
     const result = await queryAI({

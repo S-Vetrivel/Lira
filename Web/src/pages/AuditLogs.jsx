@@ -106,6 +106,8 @@ export default function AuditLogs() {
         "request:updated",
         "ai:config-updated",
         "ai:grants-updated",
+        "ai:usage-logged",
+        "ai:misuse-warning",
       ],
       () => {
         loadAudit();

@@ -610,6 +610,8 @@ export const AppProvider = ({ children }) => {
         "ai:config-updated",
         "ai:grants-updated",
         "ai:assistant-update",
+        "ai:usage-logged",
+        "ai:misuse-warning",
         "notification:new",
         "presence:update",
         "comment:new",
