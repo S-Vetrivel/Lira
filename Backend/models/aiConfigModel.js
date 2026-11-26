@@ -11,10 +11,28 @@ const EncryptedKeySchema = new Schema(
   { _id: false }
 );
 
+const KeyRingEntrySchema = new Schema(
+  {
+    label: { type: String, required: true, trim: true, default: "Primary Key" },
+    maskedKey: { type: String, default: "" },
+    encryptedKey: { type: EncryptedKeySchema, required: true, select: false },
+    addedBy: { type: Schema.Types.ObjectId, ref: "User" },
+    lastTestedAt: { type: Date },
+    lastTestResult: {
+      ok: Boolean,
+      message: String,
+      latencyMs: Number,
+    },
+    createdAt: { type: Date, default: Date.now },
+  },
+  { _id: true }
+);
+
 /**
  * Modular AI Configuration Vault:
- * - scope = "global": Superadmin-managed provider config; encrypted key may ONLY execute global tasks (`globalOnly: true`).
- * - scope = "user": Per-user encrypted BYOK slot scoped optionally to `moduleKey` for future module assistants.
+ * - scope = "global": Superadmin-managed provider config; supports multi-key ring (`keys[]`),
+ *   live `.env` switching, and enforces global-task-only execution (`globalOnly: true`).
+ * - scope = "user": Per-user encrypted BYOK key ring scoped by `moduleKey` for module assistants.
  */
 const AIConfigSchema = new Schema(
   {
@@ -66,6 +84,11 @@ const AIConfigSchema = new Schema(
       type: String,
       default: "",
     },
+    keys: [KeyRingEntrySchema],
+    activeKeyId: {
+      type: Schema.Types.ObjectId,
+      default: null,
+    },
     defaultModel: {
       type: String,
       required: true,
@@ -99,4 +122,3 @@ const AIConfigSchema = new Schema(
 AIConfigSchema.index({ scope: 1, provider: 1, owner: 1, moduleKey: 1 }, { unique: true });
 
 module.exports = mongoose.model("AIConfig", AIConfigSchema);
-

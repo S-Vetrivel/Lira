@@ -39,15 +39,20 @@ async function resolveExecutionCredentials({
       moduleKey: { $in: [moduleKey, "all", "global"] },
     };
     const userCfg = await AIConfig.findOne(userQuery)
-      .select("+encryptedKey")
+      .select("+encryptedKey +keys.encryptedKey")
       .sort({ updatedAt: -1 })
       .lean();
 
-    if (userCfg && userCfg.encryptedKey?.ciphertext) {
+    const activeUserEntry =
+      userCfg?.keys?.find((k) => String(k._id) === String(userCfg.activeKeyId)) ||
+      userCfg?.keys?.[0];
+    const userEnc = activeUserEntry?.encryptedKey || userCfg?.encryptedKey;
+
+    if (userCfg && userEnc?.ciphertext) {
       return {
         providerKey: userCfg.provider,
         model: targetModel || userCfg.defaultModel,
-        apiKey: decryptSecret(userCfg.encryptedKey),
+        apiKey: decryptSecret(userEnc),
         keySource: "user_byok",
         thinkingLevel: userCfg.thinkingLevel || "low",
       };
@@ -65,15 +70,15 @@ async function resolveExecutionCredentials({
   let globalCfg = null;
   if (targetProviderKey) {
     globalCfg = await AIConfig.findOne({ scope: "global", provider: targetProviderKey, owner: null })
-      .select("+encryptedKey")
+      .select("+encryptedKey +keys.encryptedKey")
       .lean();
   } else {
     globalCfg =
       (await AIConfig.findOne({ scope: "global", isGlobalDefault: true, enabled: true, owner: null })
-        .select("+encryptedKey")
+        .select("+encryptedKey +keys.encryptedKey")
         .lean()) ||
       (await AIConfig.findOne({ scope: "global", enabled: true, owner: null })
-        .select("+encryptedKey")
+        .select("+encryptedKey +keys.encryptedKey")
         .lean());
     if (globalCfg) {
       targetProviderKey = globalCfg.provider;
@@ -104,16 +109,17 @@ async function resolveExecutionCredentials({
     throw new Error(`Provider '${targetProviderKey}' is currently disabled by Superadmin`);
   }
 
+  const activeVaultEntry =
+    globalCfg?.keys?.find((k) => String(k._id) === String(globalCfg.activeKeyId)) ||
+    globalCfg?.keys?.[0];
+  const vaultEnc = activeVaultEntry?.encryptedKey || globalCfg?.encryptedKey;
+
   // Prefer Superadmin's encrypted key when explicitly invoked in Vault
-  if (
-    globalCfg &&
-    globalCfg.keySource === "superadmin_vault" &&
-    globalCfg.encryptedKey?.ciphertext
-  ) {
+  if (globalCfg && globalCfg.keySource === "superadmin_vault" && vaultEnc?.ciphertext) {
     return {
       providerKey: targetProviderKey,
       model: resolvedModel,
-      apiKey: decryptSecret(globalCfg.encryptedKey),
+      apiKey: decryptSecret(vaultEnc),
       keySource: "superadmin_vault",
       thinkingLevel,
     };
@@ -130,11 +136,11 @@ async function resolveExecutionCredentials({
     };
   }
 
-  if (globalCfg?.encryptedKey?.ciphertext) {
+  if (vaultEnc?.ciphertext) {
     return {
       providerKey: targetProviderKey,
       model: resolvedModel,
-      apiKey: decryptSecret(globalCfg.encryptedKey),
+      apiKey: decryptSecret(vaultEnc),
       keySource: "superadmin_vault",
       thinkingLevel,
     };
@@ -298,8 +304,44 @@ async function queryAI({
   };
 }
 
+/**
+ * Test a raw plaintext API key in memory BEFORE storing it into the encrypted vault.
+ */
+async function testRawAIKey({ provider, model, apiKey, thinkingLevel = "low" }) {
+  const catalogProvider = AI_PROVIDERS_CATALOG.find((p) => p.key === provider);
+  if (!catalogProvider) {
+    throw new Error(`Unsupported provider '${provider}'`);
+  }
+  if (!apiKey || typeof apiKey !== "string" || !apiKey.trim()) {
+    throw new Error("API key is required to test connection");
+  }
+
+  const adapter = PROVIDER_ADAPTERS[provider];
+  const resolvedModel = model || catalogProvider.defaultModel;
+  const startedAt = Date.now();
+
+  const res = await adapter({
+    apiKey: apiKey.trim(),
+    model: resolvedModel,
+    prompt: 'Reply strictly with JSON: {"status":"verified","ok":true}',
+    systemPrompt: "",
+    maxOutputTokens: 50,
+    thinkingLevel,
+  });
+
+  return {
+    ok: true,
+    provider,
+    model: resolvedModel,
+    latencyMs: Date.now() - startedAt,
+    message: `Verified ${catalogProvider.name} (${resolvedModel}) in ${Date.now() - startedAt}ms`,
+    sample: res.text,
+  };
+}
+
 module.exports = {
   resolveExecutionCredentials,
   queryAI,
+  testRawAIKey,
 };
 

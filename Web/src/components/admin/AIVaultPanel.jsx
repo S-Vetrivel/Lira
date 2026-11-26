@@ -17,8 +17,11 @@ import {
   updateAIAdminConfig,
   revokeAIAdminKey,
   testAIProviderConnection,
+  testRawAIKeyAPI,
+  activateAIKeyEntry,
 } from "../../services/api";
 import { getGlassTokens } from "../../styles/glassTheme";
+import AIKeyManagerModal from "../ai/AIKeyManagerModal";
 
 export default function AIVaultPanel({ isDark = true }) {
   const g = getGlassTokens(isDark);
@@ -30,6 +33,9 @@ export default function AIVaultPanel({ isDark = true }) {
   const [drafts, setDrafts] = useState({});
   const [savingProvider, setSavingProvider] = useState("");
   const [testingProvider, setTestingProvider] = useState("");
+  const [rawTestStatus, setRawTestStatus] = useState({});
+  const [keyModalOpen, setKeyModalOpen] = useState(false);
+  const [keyModalProvider, setKeyModalProvider] = useState("google");
 
   const loadConfig = async () => {
     setLoading(true);
@@ -94,9 +100,25 @@ export default function AIVaultPanel({ isDark = true }) {
   const handleTest = async (pKey) => {
     setTestingProvider(pKey);
     const d = drafts[pKey] || {};
+    if (d.apiKeyInput?.trim()) {
+      const res = await testRawAIKeyAPI({
+        provider: pKey,
+        model: d.defaultModel,
+        apiKey: d.apiKeyInput.trim(),
+        thinkingLevel: d.thinkingLevel,
+      });
+      setRawTestStatus((prev) => ({ ...prev, [pKey]: res }));
+      setTestingProvider("");
+      return;
+    }
     await testAIProviderConnection(pKey, { model: d.defaultModel });
     setTestingProvider("");
     await loadConfig();
+  };
+
+  const openKeysModal = (pKey = "google") => {
+    setKeyModalProvider(pKey);
+    setKeyModalOpen(true);
   };
 
   if (loading) {
@@ -130,14 +152,24 @@ export default function AIVaultPanel({ isDark = true }) {
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={loadConfig}
-          className={`px-3 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-1.5 cursor-pointer ${g.btnSecondary}`}
-        >
-          <RefreshCw className="w-3.5 h-3.5" />
-          <span>Sync Status</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => openKeysModal("google")}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer ${g.btnPrimary}`}
+          >
+            <KeyRound className="w-3.5 h-3.5" />
+            <span>Manage & Switch Keys</span>
+          </button>
+          <button
+            type="button"
+            onClick={loadConfig}
+            className={`px-3 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-1.5 cursor-pointer ${g.btnSecondary}`}
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span>Sync Status</span>
+          </button>
+        </div>
       </div>
 
       {/* Provider Cards Grid */}
@@ -173,7 +205,7 @@ export default function AIVaultPanel({ isDark = true }) {
 
                 {/* Env & Vault Detection Badges */}
                 <div className={`p-3 rounded-xl border space-y-2 text-xs ${g.subtleSurface}`}>
-                  <div className="flex items-center justify-between gap-2">
+                  <div className={`flex items-center justify-between gap-2 transition-opacity ${d.keySource === "env" ? "opacity-100" : "opacity-45"}`}>
                     <span className={g.muted}>.env ({p.envVar})</span>
                     {p.envConfigured ? (
                       <span className="inline-flex items-center gap-1 font-mono text-[10px] text-emerald-400 font-bold">
@@ -184,16 +216,53 @@ export default function AIVaultPanel({ isDark = true }) {
                     )}
                   </div>
 
-                  <div className="flex items-center justify-between gap-2">
-                    <span className={g.muted}>Superadmin Vault</span>
-                    {p.vaultConfigured ? (
-                      <span className="inline-flex items-center gap-1 font-mono text-[10px] text-purple-300 font-bold">
-                        <Lock className="w-3 h-3" /> {p.maskedKey}
-                      </span>
-                    ) : (
-                      <span className="text-[10px] font-mono opacity-60">No vault key stored</span>
-                    )}
+                  <div className={`flex items-center justify-between gap-2 transition-opacity ${d.keySource === "superadmin_vault" ? "opacity-100" : "opacity-45"}`}>
+                    <span className={g.muted}>
+                      Superadmin Vault ({p.keys?.length || 0} saved)
+                    </span>
+                    <div className="flex items-center gap-2">
+                      {p.vaultConfigured ? (
+                        <span className="inline-flex items-center gap-1 font-mono text-[10px] text-purple-300 font-bold">
+                          <Lock className="w-3 h-3" /> {p.maskedKey}
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-mono opacity-60">No vault key stored</span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => openKeysModal(p.key)}
+                        className="px-2 py-0.5 rounded-lg bg-purple-500/15 border border-purple-500/30 text-purple-300 text-[10px] font-bold hover:bg-purple-500/25 cursor-pointer"
+                      >
+                        Keys / Switch
+                      </button>
+                    </div>
                   </div>
+                  {p.keys?.length > 1 && p.configId && (
+                    <div className="flex flex-wrap gap-1 pt-1">
+                      {p.keys.map((k) => {
+                        const isActiveKey =
+                          d.keySource === "superadmin_vault" &&
+                          String(p.activeKeyId || "") === String(k._id);
+                        return (
+                          <button
+                            key={k._id}
+                            type="button"
+                            onClick={async () => {
+                              await activateAIKeyEntry(p.configId, k._id);
+                              await loadConfig();
+                            }}
+                            className={`px-2 py-0.5 rounded-md border text-[10px] font-semibold cursor-pointer ${
+                              isActiveKey
+                                ? "bg-emerald-500/15 border-emerald-500/35 text-emerald-300"
+                                : "border-white/10 opacity-45 hover:opacity-85"
+                            }`}
+                          >
+                            {k.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
 
                 {/* Key Source Selection */}
@@ -205,20 +274,34 @@ export default function AIVaultPanel({ isDark = true }) {
                     <button
                       type="button"
                       onClick={() => updateDraft(p.key, { keySource: "env" })}
-                      className={`px-2.5 py-1.5 rounded-xl border text-[11px] font-semibold cursor-pointer ${
-                        d.keySource === "env" ? g.selectedRow : g.btnSecondary
+                      className={`px-2.5 py-1.5 rounded-xl border text-[11px] font-semibold cursor-pointer transition-all flex items-center justify-center gap-1.5 ${
+                        d.keySource === "env"
+                          ? isDark
+                            ? "bg-emerald-500/15 border-emerald-500/45 text-emerald-300 shadow-[0_0_0_1px_rgba(16,185,129,0.2)]"
+                            : "bg-emerald-50 border-emerald-500 text-emerald-700"
+                          : isDark
+                          ? "opacity-40 hover:opacity-75 border-white/10 bg-transparent text-zinc-500"
+                          : "opacity-45 hover:opacity-80 border-slate-200 bg-slate-50/50 text-slate-400"
                       }`}
                     >
-                      Use .env Key
+                      <span className={`w-1.5 h-1.5 rounded-full ${d.keySource === "env" ? "bg-emerald-400" : "bg-current opacity-40"}`} />
+                      <span>Use .env Key</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => updateDraft(p.key, { keySource: "superadmin_vault" })}
-                      className={`px-2.5 py-1.5 rounded-xl border text-[11px] font-semibold cursor-pointer ${
-                        d.keySource === "superadmin_vault" ? g.selectedRow : g.btnSecondary
+                      className={`px-2.5 py-1.5 rounded-xl border text-[11px] font-semibold cursor-pointer transition-all flex items-center justify-center gap-1.5 ${
+                        d.keySource === "superadmin_vault"
+                          ? isDark
+                            ? "bg-purple-500/15 border-purple-500/45 text-purple-300 shadow-[0_0_0_1px_rgba(168,85,247,0.2)]"
+                            : "bg-purple-50 border-purple-500 text-purple-700"
+                          : isDark
+                          ? "opacity-40 hover:opacity-75 border-white/10 bg-transparent text-zinc-500"
+                          : "opacity-45 hover:opacity-80 border-slate-200 bg-slate-50/50 text-slate-400"
                       }`}
                     >
-                      Encrypted Vault Key
+                      <span className={`w-1.5 h-1.5 rounded-full ${d.keySource === "superadmin_vault" ? "bg-purple-400" : "bg-current opacity-40"}`} />
+                      <span>Encrypted Vault Key</span>
                     </button>
                   </div>
                 </div>
@@ -325,16 +408,24 @@ export default function AIVaultPanel({ isDark = true }) {
                 </div>
 
                 {/* Last Test Result */}
-                {p.lastTestResult?.message && (
+                {(rawTestStatus[p.key] || p.lastTestResult?.message) && (
                   <div
                     className={`p-2 rounded-xl border text-[10px] flex items-center gap-1.5 ${
-                      p.lastTestResult.ok
+                      (rawTestStatus[p.key] ? rawTestStatus[p.key].ok : p.lastTestResult.ok)
                         ? "bg-emerald-500/10 border-emerald-500/25 text-emerald-400"
                         : "bg-rose-500/10 border-rose-500/25 text-rose-400"
                     }`}
                   >
-                    {p.lastTestResult.ok ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> : <AlertCircle className="w-3.5 h-3.5 shrink-0" />}
-                    <span className="truncate">{p.lastTestResult.message}</span>
+                    {(rawTestStatus[p.key] ? rawTestStatus[p.key].ok : p.lastTestResult.ok) ? (
+                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                    ) : (
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    )}
+                    <span className="truncate">
+                      {rawTestStatus[p.key]
+                        ? rawTestStatus[p.key].message || rawTestStatus[p.key].error
+                        : p.lastTestResult.message}
+                    </span>
                   </div>
                 )}
               </div>
@@ -348,7 +439,13 @@ export default function AIVaultPanel({ isDark = true }) {
                   className={`px-3 py-2 rounded-xl border text-xs font-semibold flex items-center gap-1 cursor-pointer disabled:opacity-40 ${g.btnSecondary}`}
                 >
                   <Zap className="w-3.5 h-3.5 text-amber-400" />
-                  <span>{testingProvider === p.key ? "Testing..." : "Test"}</span>
+                  <span>
+                    {testingProvider === p.key
+                      ? "Testing..."
+                      : d.apiKeyInput?.trim()
+                      ? "Test Input Key"
+                      : "Test"}
+                  </span>
                 </button>
                 <button
                   type="button"
@@ -364,6 +461,15 @@ export default function AIVaultPanel({ isDark = true }) {
           );
         })}
       </div>
+
+      <AIKeyManagerModal
+        isOpen={keyModalOpen}
+        onClose={() => setKeyModalOpen(false)}
+        scope="global"
+        initialProvider={keyModalProvider}
+        onUpdated={loadConfig}
+        isDark={isDark}
+      />
     </div>
   );
 }

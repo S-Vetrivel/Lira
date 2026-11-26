@@ -984,6 +984,71 @@ export async function testAIProviderConnection(provider, payload = {}) {
   }
 }
 
+export async function testRawAIKeyAPI(payload) {
+  try {
+    const res = await api.post("/ai/test-raw", payload);
+    return res.data;
+  } catch (error) {
+    return {
+      success: false,
+      ok: false,
+      message: error.response?.data?.message || "Key verification failed",
+    };
+  }
+}
+
+export async function addEncryptedAIKey(payload) {
+  try {
+    const res = await api.post("/ai/keys", payload);
+    toast.success(res.data.message || "Encrypted key stored in vault");
+    return res.data;
+  } catch (error) {
+    toast.error(error.response?.data?.message || "Failed to store encrypted key");
+    return { success: false, message: error.response?.data?.message };
+  }
+}
+
+export async function activateAIKeyEntry(configId, keyId) {
+  try {
+    const res = await api.put(`/ai/keys/${configId}/${keyId}/activate`);
+    toast.success(res.data.message || "Switched active API key");
+    return res.data;
+  } catch (error) {
+    toast.error(error.response?.data?.message || "Failed to switch key");
+    return { success: false };
+  }
+}
+
+export async function testStoredAIKeyEntry(configId, keyId, payload = {}) {
+  try {
+    const res = await api.post(`/ai/keys/${configId}/${keyId}/test`, payload);
+    if (res.data.success) toast.success(res.data.message || "Key verified live");
+    else toast.error(res.data.message || "Key verification failed");
+    return res.data;
+  } catch (error) {
+    return { success: false, ok: false, message: error.response?.data?.message || "Test failed" };
+  }
+}
+
+export async function deleteStoredAIKeyEntry(configId, keyId) {
+  try {
+    const res = await api.delete(`/ai/keys/${configId}/${keyId}`);
+    toast.success(res.data.message || "Key removed");
+    return res.data;
+  } catch (error) {
+    return { success: false };
+  }
+}
+
+export async function getUserAIKeys() {
+  try {
+    const res = await api.get("/ai/user-keys");
+    return res.data;
+  } catch (error) {
+    return { success: false, configs: [] };
+  }
+}
+
 // ==========================================
 // SUPERADMIN AUDIT LOG & SYSTEM MONITOR APIs
 // ==========================================

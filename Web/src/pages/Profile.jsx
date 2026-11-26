@@ -12,9 +12,11 @@ import {
   approveJoinRequest,
   rejectJoinRequest,
   getActionLogs,
+  getUserAIKeys,
 } from "../services/api";
 import UserAvatar from "../components/common/UserAvatar";
 import SideDrawer from "../components/common/SideDrawer";
+import AIKeyManagerModal from "../components/ai/AIKeyManagerModal";
 import { formatDateIN, formatTimeIN, formatNumberIN } from "../utils/formatters";
 import {
   Camera,
@@ -47,6 +49,8 @@ import {
   UserX,
   Clock,
   Activity,
+  KeyRound,
+  Sparkles,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { getGlassTokens } from "../styles/glassTheme";
@@ -98,8 +102,28 @@ export default function Profile() {
   const isAdmin = isSuperAdmin || user?.role === "admin" || hasPermission("team.edit");
   const isManager = user?.role === "manager";
   const canManageUsers = isAdmin || isManager;
+  const canUsePersonalAI = isSuperAdmin || hasPermission("ai.use");
 
   const [activeTab, setActiveTab] = useState("profile"); // 'profile' | 'users' | 'audit'
+  const [aiKeyModalOpen, setAiKeyModalOpen] = useState(false);
+  const [personalKeyCount, setPersonalKeyCount] = useState(0);
+
+  const loadPersonalAiSummary = async () => {
+    if (!canUsePersonalAI) return;
+    const res = await getUserAIKeys();
+    if (res.success) {
+      const totalKeys = (res.keys || []).reduce(
+        (acc, c) => acc + (Array.isArray(c.keys) && c.keys.length ? c.keys.length : c.maskedKey ? 1 : 0),
+        0
+      );
+      setPersonalKeyCount(totalKeys);
+    }
+  };
+
+  useEffect(() => {
+    loadPersonalAiSummary();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canUsePersonalAI]);
 
   // Personal Profile State
   const [fullname, setFullname] = useState(user?.fullname || "");
@@ -761,8 +785,38 @@ export default function Profile() {
             </div>
           </form>
 
-          {/* Right Column: My Department & Assigned Projects */}
+          {/* Right Column: Personal AI Keys, My Department & Assigned Projects */}
           <div className="xl:col-span-5 space-y-6">
+            {canUsePersonalAI && (
+              <div className={`${cardClass} p-6 space-y-3`}>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className={`w-9 h-9 rounded-xl border flex items-center justify-center ${g.badge}`}>
+                      <KeyRound className="w-4 h-4 text-purple-400" />
+                    </div>
+                    <div>
+                      <h2 className="text-sm font-bold flex items-center gap-1.5">
+                        <span>Personal AI Keys (BYOK)</span>
+                      </h2>
+                      <p className={`text-[11px] ${g.muted}`}>
+                        {personalKeyCount > 0
+                          ? `${personalKeyCount} encrypted key${personalKeyCount > 1 ? "s" : ""} stored in your vault`
+                          : "Test, encrypt & switch between your own OpenAI, Claude, or Gemini keys"}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setAiKeyModalOpen(true)}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer shrink-0 ${g.btnPrimary}`}
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Manage Keys</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Department Card */}
             <div className={`${cardClass} p-6 space-y-4`}>
               <div className="flex items-center justify-between">
@@ -1731,6 +1785,14 @@ export default function Profile() {
           </div>
         )}
       </SideDrawer>
+
+      <AIKeyManagerModal
+        isOpen={aiKeyModalOpen}
+        onClose={() => setAiKeyModalOpen(false)}
+        scope="user"
+        onUpdated={loadPersonalAiSummary}
+        isDark={isDark}
+      />
     </div>
   );
 }
