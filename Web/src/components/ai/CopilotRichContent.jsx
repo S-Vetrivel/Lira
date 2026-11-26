@@ -109,24 +109,44 @@ export function SanitizedCopilotHtml({ html, isDark, onStepClick, onReplyClick }
       const scopeEl = submitFormTarget.closest("[data-lira-form]") || containerRef.current;
       if (!formType || !scopeEl) return;
 
-      const modules = Array.from(
-        scopeEl.querySelectorAll('input[type="checkbox"][data-lira-checkbox-group="modules"]:checked')
-      ).map((el) => el.value);
+      const allChecked = Array.from(scopeEl.querySelectorAll('input[type="checkbox"]:checked'));
+      const modules = allChecked
+        .filter((el) => el.getAttribute("data-lira-checkbox-group") === "modules")
+        .map((el) => el.value)
+        .filter(Boolean);
 
       const defaultBox = scopeEl.querySelector('input[type="checkbox"][data-lira-field="isDefault"]');
       const roleId = submitFormTarget.getAttribute("data-lira-role-id") || "";
       const roleName = submitFormTarget.getAttribute("data-lira-role-name") || "";
 
-      const stepPayload = {
-        type: formType,
-        label: `Configure ${roleName || "role"} (${modules.length} module${modules.length === 1 ? "" : "s"})`,
-        prefill: {
-          ...(roleId ? { roleId } : {}),
-          ...(roleName ? { name: roleName } : {}),
-          modules,
-          ...(defaultBox ? { isDefault: Boolean(defaultBox.checked) } : {}),
-        },
-      };
+      let stepPayload;
+      if (formType === "update_role" || formType === "create_role" || modules.length > 0 || defaultBox || roleId) {
+        stepPayload = {
+          type: formType,
+          label: `Configure ${roleName || "role"} (${modules.length} module${modules.length === 1 ? "" : "s"})`,
+          prefill: {
+            ...(roleId ? { roleId } : {}),
+            ...(roleName ? { name: roleName } : {}),
+            modules,
+            ...(defaultBox ? { isDefault: Boolean(defaultBox.checked) } : {}),
+          },
+        };
+      } else {
+        const selectedValues = allChecked.map((el) => el.value).filter(Boolean);
+        const pluralKeyMap = {
+          delete_user: "userIds",
+          delete_project: "projectIds",
+          delete_department: "departmentIds",
+          delete_task: "taskIds",
+          delete_role: "roleIds",
+        };
+        const targetKey = pluralKeyMap[formType] || "selectedIds";
+        stepPayload = {
+          type: formType,
+          label: `${formType.replace(/_/g, " ")} (${selectedValues.length} selected)`,
+          prefill: { [targetKey]: selectedValues },
+        };
+      }
 
       setSubmittingForm(true);
       try {
@@ -143,7 +163,9 @@ export function SanitizedCopilotHtml({ html, isDark, onStepClick, onReplyClick }
       try {
         const parsed = JSON.parse(stepTarget.getAttribute("data-lira-step") || "{}");
         if (parsed && parsed.type) onStepClick?.(parsed);
-      } catch { }
+      } catch {
+        // ignore malformed step payload
+      }
       return;
     }
     const replyTarget = e.target.closest("[data-lira-reply]");

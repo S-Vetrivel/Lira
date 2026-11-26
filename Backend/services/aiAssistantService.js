@@ -999,6 +999,25 @@ async function executeSingleStep(step, user, chainState = {}) {
   }
 
   if (step.type === "delete_task") {
+    const bulkIds = Array.isArray(rawPrefill.taskIds)
+      ? rawPrefill.taskIds
+      : Array.isArray(rawPrefill.selectedIds)
+      ? rawPrefill.selectedIds
+      : null;
+    if (bulkIds && bulkIds.length > 0) {
+      const deletedKeys = [];
+      for (const idOrKey of bulkIds) {
+        const t = /^[a-f0-9]{24}$/i.test(String(idOrKey))
+          ? await Task.findById(idOrKey).select("_id key").lean()
+          : await Task.findOne({ key: String(idOrKey).toUpperCase() }).select("_id key").lean();
+        if (t) {
+          await callProtectedBackendAPI({ user, method: "DELETE", path: `/tasks/${t._id}` });
+          deletedKeys.push(t.key);
+        }
+      }
+      if (deletedKeys.length === 0) throw new Error("No matching tasks found to delete");
+      return { executed: true, actionType: "delete_task", summary: `Deleted ${deletedKeys.length} task(s): ${deletedKeys.join(", ")}` };
+    }
     const keyOrId = rawPrefill.taskId || rawPrefill.taskKey;
     const t = rawPrefill.taskId
       ? await Task.findById(rawPrefill.taskId).select("_id key").lean()
@@ -1034,6 +1053,23 @@ async function executeSingleStep(step, user, chainState = {}) {
   }
 
   if (step.type === "delete_project") {
+    const bulkIds = Array.isArray(rawPrefill.projectIds)
+      ? rawPrefill.projectIds
+      : Array.isArray(rawPrefill.selectedIds)
+      ? rawPrefill.selectedIds
+      : null;
+    if (bulkIds && bulkIds.length > 0) {
+      const deletedNames = [];
+      for (const pid of bulkIds) {
+        const p = await Project.findById(pid).select("_id name").lean();
+        if (p) {
+          await callProtectedBackendAPI({ user, method: "DELETE", path: `/projects/${p._id}` });
+          deletedNames.push(p.name);
+        }
+      }
+      if (deletedNames.length === 0) throw new Error("No matching projects found to delete");
+      return { executed: true, actionType: "delete_project", summary: `Deleted ${deletedNames.length} workspace(s): ${deletedNames.join(", ")}` };
+    }
     const p = rawPrefill.projectId
       ? await Project.findById(rawPrefill.projectId).select("_id name").lean()
       : await Project.findOne({
@@ -1051,6 +1087,23 @@ async function executeSingleStep(step, user, chainState = {}) {
   }
 
   if (step.type === "delete_department") {
+    const bulkIds = Array.isArray(rawPrefill.departmentIds)
+      ? rawPrefill.departmentIds
+      : Array.isArray(rawPrefill.selectedIds)
+      ? rawPrefill.selectedIds
+      : null;
+    if (bulkIds && bulkIds.length > 0) {
+      const deletedNames = [];
+      for (const did of bulkIds) {
+        const d = await Department.findById(did).select("_id name").lean();
+        if (d) {
+          await callProtectedBackendAPI({ user, method: "DELETE", path: `/departments/${d._id}` });
+          deletedNames.push(d.name);
+        }
+      }
+      if (deletedNames.length === 0) throw new Error("No matching departments found to delete");
+      return { executed: true, actionType: "delete_department", summary: `Deleted ${deletedNames.length} department(s): ${deletedNames.join(", ")}` };
+    }
     const d = rawPrefill.departmentId
       ? await Department.findById(rawPrefill.departmentId).select("_id name").lean()
       : await Department.findOne({ name: rawPrefill.name }).select("_id name").lean();
@@ -1160,20 +1213,34 @@ async function executeSingleStep(step, user, chainState = {}) {
   }
 
   if (step.type === "delete_user") {
-    const targetId = rawPrefill.userId;
-    if (!targetId || String(targetId) === String(user._id)) {
+    const rawIds = Array.isArray(rawPrefill.userIds)
+      ? rawPrefill.userIds
+      : Array.isArray(rawPrefill.selectedIds)
+      ? rawPrefill.selectedIds
+      : rawPrefill.userId
+      ? [rawPrefill.userId]
+      : [];
+    const targetIds = rawIds.map(String).filter((id) => id && id !== String(user._id));
+    if (targetIds.length === 0) {
       throw new Error("Cannot remove self or missing userId");
     }
-    const targetU = await User.findById(targetId).select("fullname email").lean();
-    await callProtectedBackendAPI({
-      user,
-      method: "DELETE",
-      path: `/users/${targetId}`,
-    });
+    const removedNames = [];
+    for (const targetId of targetIds) {
+      const targetU = await User.findById(targetId).select("fullname email").lean();
+      await callProtectedBackendAPI({
+        user,
+        method: "DELETE",
+        path: `/users/${targetId}`,
+      });
+      removedNames.push(targetU?.fullname || targetU?.email || targetId);
+    }
     return {
       executed: true,
       actionType: "delete_user",
-      summary: `Removed user ${targetU?.fullname || targetU?.email || targetId}`,
+      summary:
+        removedNames.length === 1
+          ? `Removed user ${removedNames[0]}`
+          : `Removed ${removedNames.length} user(s): ${removedNames.join(", ")}`,
     };
   }
 
@@ -2711,7 +2778,7 @@ REASONING PROTOCOL (execute silently before answering):
 STRICT "uiHtml" & "artifacts" RULES:
 - uiHtml tags ONLY: div, span, button, img, p, strong, table, thead, tbody, tr, th, td, label, input[type="checkbox"]. No script/style/iframe/form/on*.
 - Use responsive utility classes ("w-full flex flex-col gap-2 min-w-0 truncate") and CSS vars ONLY (var(--lira-card), var(--lira-surface), var(--lira-border), var(--lira-text), var(--lira-muted), var(--lira-accent-bg), var(--lira-accent-text), var(--lira-danger-bg), var(--lira-danger-text)).
-- Clickables: data-lira-step='{"type":"...","label":"...","prefill":{...}}' or data-lira-reply="...".
+- Clickables: data-lira-step='{"type":"...","label":"...","prefill":{...}}' or data-lira-reply="...". For bulk checkbox forms, wrap in <div data-lira-form="delete_user|delete_project|delete_department|delete_task"> with <input type="checkbox" value="<real_id>" checked /> and <button data-lira-submit-form="delete_user">Confirm</button>.
 - Artifacts: chart ({type:"chart",chartType:"bar"|"pie",title,labels,values}), table, csv, pdf ({title,subtitle,sections,table}), ppt ({title,subtitle,slides}), image (SVG).
 
 RESPONSE FORMAT — Valid JSON ONLY:
