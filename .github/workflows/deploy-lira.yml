@@ -1,0 +1,37 @@
+name: "deploy:Lira"
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: deploy-to-vps
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy Lira app
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ops
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: 2222
+          script: |
+            set -e
+            cd /opt/apps/Lira
+
+            # Resolve potential git ownership issues
+            git config --global --add safe.directory /opt/apps/Lira
+
+            # Fetch and reset
+            git fetch origin main
+            git reset --hard origin/main
+
+            # Rebuild and start via Docker Compose
+            docker compose up --build -d --remove-orphans
+
+            # Prune dangling images to save space
+            docker builder prune -f
+
