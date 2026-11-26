@@ -343,7 +343,13 @@ export default function Roles() {
       >
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/15 text-purple-300 border border-purple-500/25">
+            <span
+              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                isDark
+                  ? "bg-purple-500/15 text-purple-300 border-purple-500/25"
+                  : "bg-purple-100 text-purple-800 border-purple-300"
+              }`}
+            >
               <ShieldCheck className="w-3 h-3" />
               {isSuperAdmin ? "Superadmin Control Plane" : "RBAC Viewer"}
             </span>
@@ -470,12 +476,24 @@ export default function Roles() {
                         <h3 className={`text-sm font-bold flex items-center gap-1.5 ${isDark ? "text-white" : "text-slate-900"}`}>
                           <span>{r.displayName || r.name}</span>
                           {isSystemSuper && (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 text-[9px] font-bold">
+                            <span
+                              className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border ${
+                                isDark
+                                  ? "bg-purple-500/20 text-purple-300 border-purple-500/25"
+                                  : "bg-purple-100 text-purple-800 border-purple-300"
+                              }`}
+                            >
                               <Lock className="w-2.5 h-2.5" /> SYSTEM ROOT
                             </span>
                           )}
                           {r.isDefault && (
-                            <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 text-[9px] font-bold">
+                            <span
+                              className={`px-1.5 py-0.5 rounded text-[9px] font-bold border ${
+                                isDark
+                                  ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/25"
+                                  : "bg-emerald-100 text-emerald-800 border-emerald-300"
+                              }`}
+                            >
                               DEFAULT JOINER
                             </span>
                           )}
@@ -499,7 +517,13 @@ export default function Roles() {
                   {/* Assigned Modules Pills */}
                   <div className="flex flex-wrap gap-1.5">
                     {isSystemSuper ? (
-                      <span className="px-2 py-0.5 rounded-md bg-purple-500/20 text-purple-200 text-[10px] font-semibold border border-purple-500/30">
+                      <span
+                        className={`px-2 py-0.5 rounded-md text-[10px] font-semibold border ${
+                          isDark
+                            ? "bg-purple-500/20 text-purple-200 border-purple-500/30"
+                            : "bg-purple-100 text-purple-800 border-purple-300"
+                        }`}
+                      >
                         * All Modules & Unconditional Access
                       </span>
                     ) : (
