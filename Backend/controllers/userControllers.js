@@ -8,6 +8,7 @@ const { isSuperAdminEmail, isSuperAdminUser, hasWildcardPermission } = require("
 const { enqueueWebSocketEvent, enqueueEmailJob } = require("../services/queue");
 const { sendPushToUser, sendPushToAdmins } = require("../services/pushService");
 const { createNotification, notifyAdmins } = require("../utils/notificationHelper");
+const { escapeRegex } = require("../utils/envSecrets");
 
 const ts = () => new Date().toISOString();
 
@@ -363,7 +364,7 @@ exports.submitJoinRequest = async (req, res) => {
 
     let deptId = null;
     if (departmentName) {
-      const dept = await Department.findOne({ name: new RegExp(`^${departmentName}$`, "i") });
+      const dept = await Department.findOne({ name: new RegExp(`^${escapeRegex(departmentName)}$`, "i") });
       if (dept) deptId = dept._id;
     }
 
@@ -473,7 +474,7 @@ exports.approveJoinRequest = async (req, res) => {
     let targetDeptName = departmentName || user.joinRequest?.requestedDepartmentName || user.departmentName || "Engineering";
 
     if (departmentName) {
-      const dept = await Department.findOne({ name: new RegExp(`^${departmentName}$`, "i") });
+      const dept = await Department.findOne({ name: new RegExp(`^${escapeRegex(departmentName)}$`, "i") });
       if (dept) {
         deptId = dept._id;
         targetDeptName = dept.name;

@@ -1,14 +1,11 @@
 const crypto = require("crypto");
+const { getJwtSecret } = require("./envSecrets");
 
 /**
  * Derive a deterministic 32-byte AES-256 master key from environment configuration.
  */
 function getMasterKeyBuffer() {
-  const seed =
-    process.env.AI_MASTER_KEY ||
-    process.env.JWT_SECRET ||
-    process.env.JWT_ACCESS_SECRET ||
-    "lira-default-vault-dev-seed";
+  const seed = process.env.AI_MASTER_KEY || getJwtSecret();
   return crypto.createHash("sha256").update(`lira-ai-vault-v1:${seed}`).digest();
 }
 

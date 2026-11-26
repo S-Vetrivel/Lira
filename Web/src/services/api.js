@@ -1172,6 +1172,17 @@ export async function confirmAIAssistantActionAPI(messageId) {
   }
 }
 
+export async function undoAIAssistantActionAPI(messageId) {
+  try {
+    const res = await api.post(`/ai/assistant/undo/${messageId}`);
+    if (res.data.success) toast.success(res.data.undoResult?.summary || "Action reverted");
+    return res.data;
+  } catch (error) {
+    toast.error(error.response?.data?.message || "Failed to undo action");
+    return { success: false, message: error.response?.data?.message };
+  }
+}
+
 export async function clearAIAssistantSessionAPI() {
   try {
     const res = await api.delete("/ai/assistant/session");

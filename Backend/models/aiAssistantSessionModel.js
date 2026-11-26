@@ -38,6 +38,7 @@ const AssistantMessageSchema = new mongoose.Schema(
     model: { type: String, default: "" },
     keySource: { type: String, default: "" },
     actionApplied: { type: Boolean, default: false },
+    undone: { type: Boolean, default: false },
     createdAt: { type: Date, default: Date.now },
     completedAt: { type: Date, default: null },
   },

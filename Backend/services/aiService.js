@@ -395,7 +395,44 @@ async function resolveExecutionCredentials({
   throw new Error(`No API key available for provider '${targetProviderKey}' (neither encrypted vault nor .env)`);
 }
 
-async function callOpenAIResponses({ apiKey, model, prompt, systemPrompt, maxOutputTokens, attachments = [], timeoutMs = 45000, signal }) {
+/**
+ * Read a Node HTTP SSE stream into accumulated full text and usage metadata, calling onChunk with partial text.
+ */
+function parseSSEStream(stream, extractDeltaFn, extractUsageFn, onChunk) {
+  return new Promise((resolve, reject) => {
+    let buffer = "";
+    let fullText = "";
+    let usage = null;
+
+    stream.on("data", (chunk) => {
+      buffer += chunk.toString("utf8");
+      let newlineIdx;
+      while ((newlineIdx = buffer.indexOf("\n")) !== -1) {
+        const line = buffer.slice(0, newlineIdx).trim();
+        buffer = buffer.slice(newlineIdx + 1);
+        if (!line.startsWith("data:")) continue;
+        const dataStr = line.slice(5).trim();
+        if (!dataStr || dataStr === "[DONE]") continue;
+        try {
+          const evt = JSON.parse(dataStr);
+          const delta = extractDeltaFn(evt);
+          if (delta) {
+            fullText += delta;
+            if (typeof onChunk === "function") onChunk(fullText, delta);
+          }
+          const u = extractUsageFn?.(evt);
+          if (u) usage = u;
+        } catch {
+          // ignore partial or non-JSON keepalive frame
+        }
+      }
+    });
+    stream.on("end", () => resolve({ text: fullText, usage }));
+    stream.on("error", (err) => reject(err));
+  });
+}
+
+async function callOpenAIResponses({ apiKey, model, prompt, systemPrompt, maxOutputTokens, attachments = [], timeoutMs = 45000, signal, onChunk }) {
   const userContent = [{ type: "input_text", text: prompt }];
   for (const att of attachments || []) {
     if (att.kind === "image" && att.base64) {
@@ -414,22 +451,34 @@ async function callOpenAIResponses({ apiKey, model, prompt, systemPrompt, maxOut
     ? [{ role: "user", content: userContent }]
     : prompt;
 
+  const isStreaming = typeof onChunk === "function";
   const res = await axios.post(
     "https://api.openai.com/v1/responses",
     {
       model,
       input,
       max_output_tokens: maxOutputTokens,
+      ...(isStreaming ? { stream: true } : {}),
     },
     {
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
+      responseType: isStreaming ? "stream" : "json",
       timeout: timeoutMs,
       ...(signal ? { signal } : {}),
     }
   );
+
+  if (isStreaming) {
+    return parseSSEStream(
+      res.data,
+      (evt) => (evt.type === "response.output_text.delta" ? evt.delta || "" : ""),
+      (evt) => evt.response?.usage || evt.usage || null,
+      onChunk
+    );
+  }
 
   let text = res.data?.output_text || "";
   if (!text && Array.isArray(res.data?.output)) {
@@ -442,7 +491,7 @@ async function callOpenAIResponses({ apiKey, model, prompt, systemPrompt, maxOut
   return { text, usage: res.data?.usage || null };
 }
 
-async function callAnthropicMessages({ apiKey, model, prompt, systemPrompt, maxOutputTokens, attachments = [], timeoutMs = 45000, signal }) {
+async function callAnthropicMessages({ apiKey, model, prompt, systemPrompt, maxOutputTokens, attachments = [], timeoutMs = 45000, signal, onChunk }) {
   const blocks = [];
   for (const att of attachments || []) {
     if (att.kind === "image" && att.base64) {
@@ -458,9 +507,11 @@ async function callAnthropicMessages({ apiKey, model, prompt, systemPrompt, maxO
   }
   blocks.push({ type: "text", text: prompt });
 
+  const isStreaming = typeof onChunk === "function";
   const body = {
     model,
     max_tokens: maxOutputTokens,
+    ...(isStreaming ? { stream: true } : {}),
     ...(systemPrompt ? { system: systemPrompt } : {}),
     messages: [{ role: "user", content: blocks.length > 1 ? blocks : prompt }],
   };
@@ -471,9 +522,19 @@ async function callAnthropicMessages({ apiKey, model, prompt, systemPrompt, maxO
       "anthropic-version": "2026-10-21",
       "Content-Type": "application/json",
     },
+    responseType: isStreaming ? "stream" : "json",
     timeout: timeoutMs,
     ...(signal ? { signal } : {}),
   });
+
+  if (isStreaming) {
+    return parseSSEStream(
+      res.data,
+      (evt) => (evt.type === "content_block_delta" ? evt.delta?.text || "" : ""),
+      (evt) => evt.usage || evt.message?.usage || null,
+      onChunk
+    );
+  }
 
   const text = Array.isArray(res.data?.content)
     ? res.data.content.map((c) => c.text || "").join("\n").trim()
@@ -492,6 +553,7 @@ async function callGoogleGemini({
   attachments = [],
   timeoutMs = 45000,
   signal,
+  onChunk,
 }) {
   const catalogMatch = findCatalogModel(model);
   const endpointVersion = catalogMatch?.model?.endpointMode?.startsWith("v1beta") ? "v1beta" : "v1";
@@ -523,7 +585,10 @@ async function callGoogleGemini({
       });
     }
   }
-  const url = `https://generativelanguage.googleapis.com/${endpointVersion}/models/${model}:generateContent`;
+  const isStreaming = typeof onChunk === "function";
+  const url = isStreaming
+    ? `https://generativelanguage.googleapis.com/${endpointVersion}/models/${model}:streamGenerateContent?alt=sse`
+    : `https://generativelanguage.googleapis.com/${endpointVersion}/models/${model}:generateContent`;
 
   const res = await axios.post(
     url,
@@ -536,10 +601,20 @@ async function callGoogleGemini({
         "Content-Type": "application/json",
         "x-goog-api-key": apiKey,
       },
+      responseType: isStreaming ? "stream" : "json",
       timeout: timeoutMs,
       ...(signal ? { signal } : {}),
     }
   );
+
+  if (isStreaming) {
+    return parseSSEStream(
+      res.data,
+      (evt) => evt.candidates?.[0]?.content?.parts?.[0]?.text || "",
+      (evt) => evt.usageMetadata || null,
+      onChunk
+    );
+  }
 
   const text = res.data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
   return { text, usage: res.data?.usageMetadata || null };
@@ -572,6 +647,7 @@ async function queryAI({
   attachments = [],
   timeoutMs = 35000,
   signal,
+  onChunk,
 }) {
   const startedAt = Date.now();
   let creds = null;
@@ -606,6 +682,7 @@ async function queryAI({
         attachments,
         timeoutMs,
         signal,
+        onChunk,
       });
     } catch (callErr) {
       if (signal?.aborted || callErr?.code === "ERR_CANCELED" || callErr?.name === "CanceledError") {
@@ -617,7 +694,7 @@ async function queryAI({
       const apiMsg = callErr?.response?.data?.error?.message || callErr?.message || "";
       const isTimeout = callErr?.code === "ECONNABORTED" || /timeout/i.test(apiMsg);
       if (
-        (isTimeout || status === 503 || status === 429 || status === 502 || status === 404 || (status === 400 && /thinking|model|not found/i.test(apiMsg))) &&
+        (isTimeout || status === 503 || status === 429 || status === 502 || status === 404 || (status === 400 && /thinking|model|not found|stream/i.test(apiMsg))) &&
         creds.providerKey === "google" &&
         usedModel !== "gemini-3.5-flash-lite"
       ) {

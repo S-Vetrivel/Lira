@@ -53,6 +53,7 @@ const {
   stopAssistantGeneration,
   setAssistantMode,
   confirmAssistantAction,
+  undoAssistantAction,
   clearAssistantSession,
 } = require("../controllers/aiController");
 
@@ -71,6 +72,7 @@ router.post("/assistant/chat", protect("ai.use"), postAssistantChat);
 router.post("/assistant/stop", protect("ai.use"), stopAssistantGeneration);
 router.put("/assistant/mode", protect("ai.use"), setAssistantMode);
 router.post("/assistant/confirm/:messageId", protect("ai.use"), confirmAssistantAction);
+router.post("/assistant/undo/:messageId", protect("ai.use"), undoAssistantAction);
 router.post("/assistant/execute-step", protect("ai.use"), executeAssistantCardStep);
 router.post("/assistant/export", protect("ai.use"), exportAssistantArtifact);
 router.delete("/assistant/session", protect("ai.use"), clearAssistantSession);

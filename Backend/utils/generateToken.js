@@ -1,8 +1,9 @@
 const jwt = require("jsonwebtoken");
+const { getJwtSecret } = require("./envSecrets");
 
 const generateTokenAndSetCookie = (res, userId) => {
   // 1. Generate Token
-  const token = jwt.sign({ id: userId }, process.env.JWT_SECRET || "default_jwt_secret_dev", {
+  const token = jwt.sign({ id: userId }, getJwtSecret(), {
     expiresIn: "7d",
   });
 

@@ -22,6 +22,7 @@ const {
   enqueueAssistantChat,
   stopAssistantJob,
   confirmAssistantMessageAction,
+  undoAssistantMessageAction,
   executeDirectCardStep,
   clearAssistantSessionForUser,
   getUserAvailableModels,
@@ -1316,10 +1317,13 @@ exports.exportAssistantArtifact = async (req, res) => {
 
 exports.setAssistantMode = async (req, res) => {
   try {
-    const { mode = "review" } = req.body;
-    const session = await getOrCreateSession(req.user._id);
-    session.mode = mode === "auto" ? "auto" : "review";
-    await session.save();
+    const AIAssistantSession = require("../models/aiAssistantSessionModel");
+    const nextMode = req.body?.mode === "auto" ? "auto" : "review";
+    const session = await AIAssistantSession.findOneAndUpdate(
+      { user: req.user._id },
+      { $set: { mode: nextMode }, $setOnInsert: { user: req.user._id, messages: [] } },
+      { upsert: true, new: true }
+    );
     res.status(200).json({ success: true, session });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -1344,6 +1348,19 @@ exports.confirmAssistantAction = async (req, res) => {
       messageId,
     });
     res.status(200).json({ success: true, session, executedResult });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+exports.undoAssistantAction = async (req, res) => {
+  try {
+    const { messageId } = req.params;
+    const { session, undoResult } = await undoAssistantMessageAction({
+      user: req.user,
+      messageId,
+    });
+    res.status(200).json({ success: true, session, undoResult });
   } catch (error) {
     res.status(400).json({ success: false, message: error.message });
   }

@@ -1,5 +1,7 @@
 const path = require("path");
 require("dotenv").config({ path: path.resolve(__dirname, "../.env") });
+const { assertRequiredSecrets } = require("../utils/envSecrets");
+assertRequiredSecrets();
 const connectMongo = require("../config/connectMongo");
 const { connection } = require("../services/queue");
 

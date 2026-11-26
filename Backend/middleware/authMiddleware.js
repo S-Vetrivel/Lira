@@ -1,5 +1,7 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/userModel");
+const { getJwtSecret } = require("../utils/envSecrets");
+const { INTERNAL_USER_SYMBOL } = require("../services/internalExpressCaller");
 const {
   isSuperAdminUser,
   resolveUserAccess,
@@ -8,28 +10,26 @@ const {
 
 /**
  * Modular Authentication & Dynamic RBAC Guard Middleware.
- *
- * Accepts:
- * - No args (`protect()`): Requires authenticated, active workspace member.
- * - Permission slug string (`protect("tasks.create")`): Checks resolved user permissions + wildcard support.
- * - Array of roles and/or permission slugs (`protect(["tasks.approve", "admin"])`): Grants if user matches any.
- *
- * Hardcoded `superadmin` always bypasses all permission and role checks automatically.
+ * Supports HTTP JWT auth AND non-spoofable in-process internal Symbol execution.
  */
 const protect = (requiredAccess = []) => async (req, res, next) => {
   try {
-    let token = req.cookies?.token;
+    let user = req?.[INTERNAL_USER_SYMBOL] || null;
 
-    if (!token && req.headers.authorization && req.headers.authorization.startsWith("Bearer")) {
-      token = req.headers.authorization.split(" ")[1];
+    if (!user) {
+      let token = req.cookies?.token;
+
+      if (!token && req.headers.authorization && req.headers.authorization.startsWith("Bearer")) {
+        token = req.headers.authorization.split(" ")[1];
+      }
+
+      if (!token) {
+        return res.status(401).json({ success: false, message: "Not authorized, no token provided" });
+      }
+
+      const decoded = jwt.verify(token, getJwtSecret());
+      user = await User.findById(decoded.id).select("-password");
     }
-
-    if (!token) {
-      return res.status(401).json({ success: false, message: "Not authorized, no token provided" });
-    }
-
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || "default_jwt_secret_dev");
-    const user = await User.findById(decoded.id).select("-password");
 
     if (!user) {
       return res.status(401).json({ success: false, message: "User not found or account removed" });

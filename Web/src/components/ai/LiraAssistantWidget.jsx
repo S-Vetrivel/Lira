@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
-  Sparkles,
   Send,
   ShieldAlert,
   Navigation,
@@ -18,6 +17,7 @@ import {
   Paperclip,
   X,
   FileText,
+  RotateCcw,
 } from "lucide-react";
 import { useApp } from "../../context/Appcontext";
 import {
@@ -29,9 +29,10 @@ import {
   stopAIAssistantAPI,
   setAIAssistantModeAPI,
   confirmAIAssistantActionAPI,
+  undoAIAssistantActionAPI,
   clearAIAssistantSessionAPI,
 } from "../../services/api";
-import { getSocket, initSocketClient, subscribeRealtimeEvents, emitLocalRealtimeEvent } from "../../services/socket";
+import { initSocketClient, subscribeRealtimeEvents, emitLocalRealtimeEvent } from "../../services/socket";
 import SideDrawer from "../common/SideDrawer";
 import LiraLogo, { LiraLogoMark } from "../common/LiraLogo";
 import { SanitizedCopilotHtml, CopilotArtifactsList } from "./CopilotRichContent";
@@ -131,6 +132,8 @@ export default function LiraAssistantWidget() {
   const [sending, setSending] = useState(false);
   const [stopping, setStopping] = useState(false);
   const [confirmingMsgId, setConfirmingMsgId] = useState("");
+  const [undoingMsgId, setUndoingMsgId] = useState("");
+  const [streamingChunks, setStreamingChunks] = useState({});
   const fileInputRef = useRef(null);
   const textareaRef = useRef(null);
   const dragCounterRef = useRef(0);
@@ -481,18 +484,34 @@ export default function LiraAssistantWidget() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canUseAI, user?._id]);
 
-  // Listen to real-time AI job updates via Socket.IO & AppProvider relay
+  // Listen to real-time AI job updates & token chunks via Socket.IO
   useEffect(() => {
     if (!canUseAI || !user?._id) return;
     initSocketClient(user._id);
-    return subscribeRealtimeEvents(["ai:assistant-update"], ({ session: updatedSession, jobId }) => {
+    const unsubUpdate = subscribeRealtimeEvents(["ai:assistant-update"], ({ session: updatedSession, jobId }) => {
       if (!updatedSession) return;
       setSession(updatedSession);
+      if (jobId) {
+        setStreamingChunks((prev) => {
+          if (!prev[jobId]) return prev;
+          const next = { ...prev };
+          delete next[jobId];
+          return next;
+        });
+      }
       const targetMsg = (updatedSession.messages || []).find((m) => m.jobId === jobId);
       if (targetMsg && targetMsg.status === "completed") {
         applyCompletedMessageEffects(targetMsg, targetMsg.mode || updatedSession.mode);
       }
     });
+    const unsubChunk = subscribeRealtimeEvents(["ai:assistant-chunk"], ({ jobId, chunkText }) => {
+      if (!jobId || !chunkText) return;
+      setStreamingChunks((prev) => ({ ...prev, [jobId]: chunkText }));
+    });
+    return () => {
+      unsubUpdate?.();
+      unsubChunk?.();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canUseAI, user?._id]);
 
@@ -803,6 +822,16 @@ export default function LiraAssistantWidget() {
     }
   };
 
+  const handleUndoExecutedAction = async (msg) => {
+    setUndoingMsgId(msg._id);
+    const res = await undoAIAssistantActionAPI(msg._id);
+    setUndoingMsgId("");
+    if (res.success) {
+      if (res.session) setSession(res.session);
+      refreshAllWorkspaceStores();
+    }
+  };
+
   const handlePebblePointerDown = (e) => {
     if (e.button !== 0 && e.pointerType === "mouse") return;
     const rect = pebbleRef.current?.getBoundingClientRect();
@@ -882,29 +911,29 @@ export default function LiraAssistantWidget() {
           className="fixed top-0 left-0 z-30 w-14 h-14 rounded-full flex items-center justify-center cursor-grab active:cursor-grabbing backdrop-blur-2xl border select-none touch-none transition-shadow overflow-hidden"
           style={{
             background: isDark
-              ? "radial-gradient(135% 135% at 28% 18%, rgba(255,255,255,0.28) 0%, rgba(139,92,246,0.45) 42%, rgba(17,19,28,0.92) 100%)"
-              : "radial-gradient(135% 135% at 28% 18%, rgba(255,255,255,0.98) 0%, rgba(221,214,254,0.88) 48%, rgba(167,139,250,0.48) 100%)",
-            borderColor: isDark ? "rgba(255,255,255,0.28)" : "rgba(109,40,217,0.28)",
+              ? "radial-gradient(135% 135% at 28% 18%, rgba(255,255,255,0.22) 0%, rgba(161,161,170,0.16) 44%, rgba(14,16,21,0.95) 100%)"
+              : "radial-gradient(135% 135% at 28% 18%, rgba(255,255,255,0.98) 0%, rgba(228,228,231,0.92) 52%, rgba(212,212,216,0.78) 100%)",
+            borderColor: isDark ? "rgba(255,255,255,0.24)" : "rgba(24,24,27,0.18)",
             boxShadow: isDark
-              ? "inset 0 2px 4px rgba(255,255,255,0.42), inset 0 -6px 14px rgba(0,0,0,0.6), 0 14px 34px rgba(0,0,0,0.55), 0 0 24px rgba(168,85,247,0.32)"
-              : "inset 0 2px 4px rgba(255,255,255,0.98), inset 0 -6px 14px rgba(109,40,217,0.18), 0 14px 30px rgba(15,23,42,0.18)",
+              ? "inset 0 2px 4px rgba(255,255,255,0.34), inset 0 -6px 14px rgba(0,0,0,0.65), 0 14px 34px rgba(0,0,0,0.58)"
+              : "inset 0 2px 4px rgba(255,255,255,0.98), inset 0 -6px 14px rgba(24,24,27,0.12), 0 14px 28px rgba(15,23,42,0.16)",
           }}
         >
           {/* Specular top glass glint */}
           <span
             aria-hidden="true"
-            className="pointer-events-none absolute top-1.5 left-3 right-3 h-3.5 rounded-full opacity-65"
+            className="pointer-events-none absolute top-1.5 left-3 right-3 h-3.5 rounded-full opacity-60"
             style={{
               background:
-                "linear-gradient(180deg, rgba(255,255,255,0.72) 0%, rgba(255,255,255,0) 100%)",
+                "linear-gradient(180deg, rgba(255,255,255,0.65) 0%, rgba(255,255,255,0) 100%)",
             }}
           />
           <LiraLogoMark
-            className="w-11 h-11 relative z-10 pointer-events-none"
-            primaryColor={isDark ? "#ffffff" : "#1e1b4b"}
-            secondaryColor={isDark ? "#e9d5ff" : "#7c3aed"}
-            dotColor={isDark ? "#ffffff" : "#5b21b6"}
-            strokeWidth={2.5}
+            className="w-8 h-8 relative z-10 pointer-events-none"
+            primaryColor={isDark ? "#fafafa" : "#18181b"}
+            secondaryColor={isDark ? "#a1a1aa" : "#71717a"}
+            dotColor={isDark ? "#ffffff" : "#18181b"}
+            strokeWidth={2.4}
           />
           {hasProcessing && (
             <span className="absolute top-0.5 right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-400 border-2 border-[#0e1017] animate-pulse" />
@@ -1321,10 +1350,12 @@ export default function LiraAssistantWidget() {
                   </div>
 
                   <p className="leading-relaxed whitespace-pre-wrap">
-                    {formatPlainCopilotText(
-                      msg.content,
-                      idx > 0 ? messages[idx - 1]?.content : ""
-                    )}
+                    {msg.status === "processing" && msg.jobId && streamingChunks[msg.jobId]
+                      ? streamingChunks[msg.jobId]
+                      : formatPlainCopilotText(
+                          msg.content,
+                          idx > 0 ? messages[idx - 1]?.content : ""
+                        )}
                   </p>
 
                   {msg.uiHtml && (!msg.actionApplied || String(msg.uiHtml).includes("data-lira-submit-form") || msg.status === "clarify") && (
@@ -1414,7 +1445,7 @@ export default function LiraAssistantWidget() {
                     </div>
                   )}
 
-                  {msg.status === "completed" && (msg.navigateTo || msg.intent || hasSteps) && (
+                  {msg.status === "completed" && (msg.navigateTo || msg.intent || hasSteps || (msg.executedResult?.undoSteps?.length > 0 && !msg.undone)) && (
                     <div className="flex flex-wrap items-center gap-2 pt-1">
                       {msg.navigateTo && (
                         <button
@@ -1428,6 +1459,23 @@ export default function LiraAssistantWidget() {
                         >
                           <Navigation className="w-3 h-3 text-sky-400" />
                           <span>Open Page</span>
+                        </button>
+                      )}
+
+                      {msg.executedResult?.undoSteps?.length > 0 && !msg.undone && (
+                        <button
+                          type="button"
+                          disabled={undoingMsgId === msg._id}
+                          onClick={() => handleUndoExecutedAction(msg)}
+                          className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-semibold flex items-center gap-1 cursor-pointer disabled:opacity-50 ${g.btnSecondary}`}
+                          title="Revert this executed workspace action"
+                        >
+                          {undoingMsgId === msg._id ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            <RotateCcw className="w-3 h-3 text-zinc-400" />
+                          )}
+                          <span>Undo</span>
                         </button>
                       )}
 

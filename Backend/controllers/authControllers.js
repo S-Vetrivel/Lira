@@ -6,6 +6,7 @@ const { isSuperAdminEmail, resolveUserAccess } = require("../utils/roles");
 const { enqueueWebSocketEvent } = require("../services/queue");
 const { sendPushToAdmins } = require("../services/pushService");
 const { createNotification, notifyAdmins } = require("../utils/notificationHelper");
+const { escapeRegex } = require("../utils/envSecrets");
 
 // ==============================================
 // 1. SIGNUP
@@ -58,7 +59,7 @@ exports.Signup = async (req, res) => {
     // Resolve department ObjectId if matching departmentName
     let departmentId = null;
     if (departmentName) {
-      const dept = await Department.findOne({ name: new RegExp(`^${departmentName}$`, "i") });
+      const dept = await Department.findOne({ name: new RegExp(`^${escapeRegex(departmentName)}$`, "i") });
       if (dept) departmentId = dept._id;
     }
 

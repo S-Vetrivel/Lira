@@ -1,21 +1,21 @@
 import React, { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Sparkles } from "lucide-react";
 import { useApp } from "../../context/Appcontext";
+import { LiraLogoMark } from "../common/LiraLogo";
 
 /**
  * Animated Copilot Cursor Overlay:
- * Supports both single-target focus and multi-step sequential cursor playback so users can watch
- * Lira Copilot move smoothly between workspace buttons and form fields without blocking interaction.
+ * Supports both single-target focus and multi-step sequential cursor playback using
+ * the minimal monochrome Lira monogram badge without blocking page interaction.
  */
 export default function AICursorOverlay() {
-  const { aiCursorTarget } = useApp();
+  const { aiCursorTarget, theme } = useApp();
+  const isDark = theme === "dark";
   const [coords, setCoords] = useState(null);
 
   useEffect(() => {
     if (!aiCursorTarget) {
-      setCoords(null);
-      return;
+      return undefined;
     }
 
     const timers = [];
@@ -43,9 +43,10 @@ export default function AICursorOverlay() {
       };
     };
 
-    const steps = Array.isArray(aiCursorTarget.sequence) && aiCursorTarget.sequence.length > 0
-      ? aiCursorTarget.sequence
-      : [aiCursorTarget];
+    const steps =
+      Array.isArray(aiCursorTarget.sequence) && aiCursorTarget.sequence.length > 0
+        ? aiCursorTarget.sequence
+        : [aiCursorTarget];
 
     let elapsed = 80;
     steps.forEach((step, idx) => {
@@ -72,7 +73,7 @@ export default function AICursorOverlay() {
 
   return (
     <AnimatePresence>
-      {coords && (
+      {aiCursorTarget && coords && (
         <motion.div
           initial={{ opacity: 0, x: window.innerWidth - 96, y: window.innerHeight - 96, scale: 0.85 }}
           animate={{ opacity: 1, x: coords.x, y: coords.y, scale: 1 }}
@@ -80,10 +81,28 @@ export default function AICursorOverlay() {
           transition={{ type: "spring", damping: 24, stiffness: 220 }}
           className="fixed top-0 left-0 z-[90] pointer-events-none select-none flex items-center gap-1.5"
         >
-          <span className="relative flex items-center justify-center w-6 h-6 rounded-full bg-purple-600/95 text-white shadow-[0_0_24px_rgba(168,85,247,0.85)] ring-2 ring-white/60">
-            <Sparkles className="w-3.5 h-3.5" />
+          <span
+            className={`relative flex items-center justify-center w-7 h-7 rounded-full border shadow-lg ${
+              isDark
+                ? "bg-gradient-to-b from-zinc-100 to-zinc-300 text-zinc-950 border-white/40 shadow-black/50"
+                : "bg-gradient-to-b from-zinc-800 to-zinc-950 text-white border-zinc-900/25 shadow-zinc-900/25"
+            }`}
+          >
+            <LiraLogoMark
+              className="w-4 h-4"
+              primaryColor="currentColor"
+              secondaryColor={isDark ? "#52525b" : "#a1a1aa"}
+              dotColor={isDark ? "#18181b" : "#e4e4e7"}
+              strokeWidth={2.4}
+            />
           </span>
-          <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-[#14151c]/92 text-purple-200 border border-purple-400/45 shadow-xl backdrop-blur-md whitespace-nowrap">
+          <span
+            className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border shadow-xl backdrop-blur-md whitespace-nowrap ${
+              isDark
+                ? "bg-[#121318]/92 text-zinc-100 border-white/15"
+                : "bg-white/95 text-slate-900 border-slate-900/15"
+            }`}
+          >
             {coords.label}
           </span>
         </motion.div>
