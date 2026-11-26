@@ -103,8 +103,20 @@ export default function Team() {
       setDeclineCandidate(null);
       setShowAddUserModal(false);
     };
+    const onOtherSidebar = (e) => {
+      const id = e?.detail?.id;
+      if (!id) return;
+      if (id !== "team-member") setSelectedMember(null);
+      if (id !== "team-approve") setReviewCandidate(null);
+      if (id !== "team-decline") setDeclineCandidate(null);
+      if (id !== "team-add") setShowAddUserModal(false);
+    };
     window.addEventListener("lira:close-all-sidebars", onCloseAll);
-    return () => window.removeEventListener("lira:close-all-sidebars", onCloseAll);
+    window.addEventListener("lira:sidebar-opened", onOtherSidebar);
+    return () => {
+      window.removeEventListener("lira:close-all-sidebars", onCloseAll);
+      window.removeEventListener("lira:sidebar-opened", onOtherSidebar);
+    };
   }, []);
 
   const openMemberDrawer = (member) => {

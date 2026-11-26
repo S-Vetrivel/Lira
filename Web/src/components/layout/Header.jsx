@@ -87,11 +87,18 @@ export default function Header() {
       setShowNotificationsSidebar(false);
       setShowProfileMenu(false);
     };
+    const onSidebarOpened = (e) => {
+      if (e?.detail?.id && e.detail.id !== "notifications") {
+        setShowNotificationsSidebar(false);
+      }
+    };
     document.addEventListener("mousedown", handleOutside);
     window.addEventListener("lira:close-all-sidebars", onCloseAll);
+    window.addEventListener("lira:sidebar-opened", onSidebarOpened);
     return () => {
       document.removeEventListener("mousedown", handleOutside);
       window.removeEventListener("lira:close-all-sidebars", onCloseAll);
+      window.removeEventListener("lira:sidebar-opened", onSidebarOpened);
     };
   }, []);
 
@@ -629,121 +636,7 @@ export default function Header() {
       </div>
 
       <SideDrawer
-        isOpen={showNotificationsSidebar}
-        onClose={() => setShowNotificationsSidebar(false)}
-        title={`Notifications (${unreadCount} unread)`}
-        subtitle="Real-time WebSocket & Push notifications across your workspaces."
-        icon={Bell}
-        widthClass="max-w-lg"
-      >
-        <div className="space-y-4">
-          <div className={`flex flex-wrap items-center justify-between gap-2 pb-3 border-b ${g.border}`}>
-            <div className="flex items-center gap-1.5">
-              {[
-                { key: "all", label: `All (${notifications.length})` },
-                { key: "unread", label: `Unread (${unreadCount})` },
-              ].map((tab) => (
-                <button
-                  key={tab.key}
-                  type="button"
-                  onClick={() => setNotifFilter(tab.key)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold cursor-pointer transition-all ${
-                    notifFilter === tab.key ? g.pillActive : g.pillInactive
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-
-            <div className="flex items-center gap-2">
-              {pushPermission === "granted" ? (
-                <span className="px-2 py-1 rounded-lg text-[10px] font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">
-                  Push Active
-                </span>
-              ) : pushPermission === "default" ? (
-                <button
-                  type="button"
-                  onClick={async () => {
-                    if (typeof Notification !== "undefined") {
-                      const perm = await Notification.requestPermission();
-                      setPushPermission?.(perm);
-                    }
-                  }}
-                  className="px-2.5 py-1 rounded-lg text-[10px] font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/25 hover:bg-amber-500/25 cursor-pointer"
-                >
-                  Enable Push
-                </button>
-              ) : null}
-
-              {unreadCount > 0 && (
-                <button
-                  type="button"
-                  onClick={handleMarkAllRead}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1 cursor-pointer ${g.btnSecondary}`}
-                >
-                  <Check className="w-3.5 h-3.5" />
-                  <span>Mark all read</span>
-                </button>
-              )}
-            </div>
-          </div>
-
-          <div className="space-y-2.5">
-            {notifications
-              .filter((n) => (notifFilter === "unread" ? !n.isRead : true))
-              .map((n) => (
-                <div
-                  key={n._id}
-                  onClick={() => {
-                    setShowNotificationsSidebar(false);
-                    handleNotificationClick(n);
-                  }}
-                  className={`p-3.5 rounded-2xl text-xs transition-all cursor-pointer border ${
-                    n.isRead
-                      ? `${g.subtleSurface} opacity-75 hover:opacity-100`
-                      : `${g.selectedRow} font-medium`
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-2 mb-1.5">
-                    <div className="flex items-center gap-2 min-w-0">
-                      {!n.isRead && <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />}
-                      <span className={`text-xs font-bold truncate ${g.heading}`}>
-                        {n.title || "Workspace Activity"}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      {n.publicId && (
-                        <span className="px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-mono text-[10px] font-bold">
-                          {n.publicId}
-                        </span>
-                      )}
-                      <span className={`text-[10px] font-mono ${g.muted}`}>
-                        {new Date(n.createdAt).toLocaleString("en-IN", {
-                          month: "short",
-                          day: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </span>
-                    </div>
-                  </div>
-                  <p className="leading-relaxed text-xs">{n.message}</p>
-                </div>
-              ))}
-
-            {notifications.filter((n) => (notifFilter === "unread" ? !n.isRead : true)).length === 0 && (
-              <div className={`py-14 text-center text-xs italic ${g.muted}`}>
-                {notifFilter === "unread"
-                  ? "No unread notifications."
-                  : "You're all caught up — no notifications."}
-              </div>
-            )}
-          </div>
-        </div>
-      </SideDrawer>
-
-      <SideDrawer
+        sidebarId="notifications"
         isOpen={showNotificationsSidebar}
         onClose={() => setShowNotificationsSidebar(false)}
         title={`Notifications (${unreadCount} unread)`}

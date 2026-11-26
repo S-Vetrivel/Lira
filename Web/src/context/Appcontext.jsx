@@ -112,10 +112,24 @@ export const AppProvider = ({ children }) => {
     setIsChatOpen(false);
     setIsCommandPaletteOpen(false);
     setIsCreateTaskModalOpen(false);
-    if (except !== "task") {
+    if (except !== "task" && except !== "task-drawer") {
       setSelectedTaskKeyOrId(null);
     }
     window.dispatchEvent(new CustomEvent("lira:close-all-sidebars", { detail: { except } }));
+  }, []);
+
+  // Ensure only ONE sidebar/drawer stays open globally: keep latest opened, close others cleanly
+  useEffect(() => {
+    const onSidebarOpened = (e) => {
+      const openedId = e?.detail?.id;
+      if (!openedId) return;
+      if (openedId !== "copilot") setIsAIAssistantOpen(false);
+      if (openedId !== "chat") setIsChatOpen(false);
+      if (openedId !== "create-task") setIsCreateTaskModalOpen(false);
+      if (openedId !== "task-drawer") setSelectedTaskKeyOrId(null);
+    };
+    window.addEventListener("lira:sidebar-opened", onSidebarOpened);
+    return () => window.removeEventListener("lira:sidebar-opened", onSidebarOpened);
   }, []);
 
   const askLiraAI = useCallback((promptText) => {

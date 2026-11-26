@@ -1680,6 +1680,14 @@ async function processAssistantJob({
     const safeRoutesSet = new Set(scopedCtx.allowedRoutes.map((r) => r.route));
     let safeNav = parsed.navigateTo && safeRoutesSet.has(parsed.navigateTo) ? parsed.navigateTo : null;
 
+    const wantsCursorWalkthrough =
+      Boolean(parsed.cursorGuide) ||
+      /\b(with\s+(the\s+)?cursor|watch\s+it|how\s+to\s+add|walk\s*through)\b/i.test(prompt);
+    const todayIso = new Date().toISOString().slice(0, 10);
+    const isCalendarScheduledPrompt =
+      String(scopedCtx.currentRoute || "").startsWith("/calendar") ||
+      /\b(calendar|today|tonight|schedule|due\s*date)\b/i.test(prompt);
+
     const rawSteps =
       Array.isArray(parsed.steps) && parsed.steps.length > 0
         ? parsed.steps
@@ -1697,17 +1705,45 @@ async function processAssistantJob({
           moduleKey,
         });
       } else if (s?.type) {
-        safeSteps.push(s);
+        if (s.type === "create_task") {
+          const pf = { ...(s.prefill || {}) };
+          if (!pf.projectId && scopedCtx.activeProject?.id) {
+            pf.projectId = scopedCtx.activeProject.id;
+          }
+          if (!pf.dueDate && isCalendarScheduledPrompt) {
+            pf.dueDate = todayIso;
+          }
+          safeSteps.push({ ...s, prefill: pf });
+        } else {
+          safeSteps.push(s);
+        }
       }
+    }
+    if (
+      wantsCursorWalkthrough &&
+      isCalendarScheduledPrompt &&
+      scopedCtx.allowedActions.includes("create_task") &&
+      !safeSteps.some((s) => s.type === "create_task")
+    ) {
+      safeSteps.unshift({
+        type: "create_task",
+        label: "Create Scheduled Task",
+        prefill: {
+          projectId: scopedCtx.activeProject?.id || "",
+          title: "Calendar Scheduled Task",
+          description: `Scheduled via Lira Copilot cursor walkthrough: ${prompt}`,
+          priority: "medium",
+          type: "task",
+          dueDate: todayIso,
+        },
+      });
+      if (!safeNav && safeRoutesSet.has("/calendar")) safeNav = "/calendar";
     }
     const safeIntent = safeSteps[0] || null;
 
     let executedResult = null;
     let actionApplied = false;
     const isClarifying = parsed.status === "clarify";
-    const wantsCursorWalkthrough =
-      Boolean(parsed.cursorGuide) ||
-      /\b(with\s+(the\s+)?cursor|watch\s+it|how\s+to\s+add|walk\s*through)\b/i.test(prompt);
 
     if (
       !isClarifying &&

@@ -61,16 +61,27 @@ export default function CreateTaskModal({ isOpen, onClose, onCreated }) {
   }, [isOpen, activeProject?._id, prefilledByAI]);
 
   useEffect(() => {
+    const onOtherSidebar = (e) => {
+      if (isOpen && e?.detail?.id && e.detail.id !== "create-task") onClose?.();
+    };
+    const onCloseAll = () => onClose?.();
+    window.addEventListener("lira:sidebar-opened", onOtherSidebar);
+    window.addEventListener("lira:close-all-sidebars", onCloseAll);
+    return () => {
+      window.removeEventListener("lira:sidebar-opened", onOtherSidebar);
+      window.removeEventListener("lira:close-all-sidebars", onCloseAll);
+    };
+  }, [isOpen, onClose]);
+
+  useEffect(() => {
     if (!isOpen) return;
+    window.dispatchEvent(new CustomEvent("lira:sidebar-opened", { detail: { id: "create-task" } }));
     const onKey = (e) => {
       if (e.key === "Escape") onClose?.();
     };
-    const onCloseAll = () => onClose?.();
     window.addEventListener("keydown", onKey);
-    window.addEventListener("lira:close-all-sidebars", onCloseAll);
     return () => {
       window.removeEventListener("keydown", onKey);
-      window.removeEventListener("lira:close-all-sidebars", onCloseAll);
     };
   }, [isOpen, onClose]);
 
@@ -214,7 +225,7 @@ export default function CreateTaskModal({ isOpen, onClose, onCreated }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden flex justify-end">
+    <div className="fixed inset-0 z-[70] overflow-hidden flex justify-end">
       {/* Subtle Backdrop */}
       <div
         onClick={onClose}

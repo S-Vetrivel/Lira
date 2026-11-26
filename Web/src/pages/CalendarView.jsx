@@ -85,15 +85,26 @@ export default function CalendarView() {
     };
   }, [activeProject?._id]);
 
-  // Close all calendar drawers smoothly when Lira Assistant navigates via "Open" button
+  // Close calendar drawers when ANY other sidebar opens or Copilot navigates via "Open"
   useEffect(() => {
     const onCloseAll = (e) => {
-      if (e?.detail?.except !== "task") setActiveTaskKey(null);
+      if (e?.detail?.except !== "task" && e?.detail?.except !== "task-drawer") setActiveTaskKey(null);
       setSelectedDay(null);
       setShowUnscheduledDrawer(false);
     };
+    const onOtherSidebar = (e) => {
+      const id = e?.detail?.id;
+      if (!id) return;
+      if (id !== "task-drawer") setActiveTaskKey(null);
+      if (id !== "calendar-day") setSelectedDay(null);
+      if (id !== "calendar-unscheduled") setShowUnscheduledDrawer(false);
+    };
     window.addEventListener("lira:close-all-sidebars", onCloseAll);
-    return () => window.removeEventListener("lira:close-all-sidebars", onCloseAll);
+    window.addEventListener("lira:sidebar-opened", onOtherSidebar);
+    return () => {
+      window.removeEventListener("lira:close-all-sidebars", onCloseAll);
+      window.removeEventListener("lira:sidebar-opened", onOtherSidebar);
+    };
   }, []);
 
   // Calendar calculations
@@ -381,6 +392,7 @@ export default function CalendarView() {
 
       {/* Selected Calendar Day Schedule Sidebar */}
       <SideDrawer
+        sidebarId="calendar-day"
         isOpen={selectedDay !== null}
         onClose={() => setSelectedDay(null)}
         title={selectedDay ? `${monthNames[month]} ${selectedDay}, ${year}` : "Schedule"}
@@ -419,7 +431,10 @@ export default function CalendarView() {
               return (
                 <div
                   key={task._id}
-                  onClick={() => setActiveTaskKey(task.key || task._id)}
+                  onClick={() => {
+                    setSelectedDay(null);
+                    setActiveTaskKey(task.key || task._id);
+                  }}
                   className={`p-4 rounded-2xl border space-y-2.5 cursor-pointer transition-all ${g.card} ${g.rowHover}`}
                 >
                   <div className="flex items-start justify-between gap-2">
@@ -465,6 +480,7 @@ export default function CalendarView() {
 
       {/* Unscheduled Tasks Drawer */}
       <SideDrawer
+        sidebarId="calendar-unscheduled"
         isOpen={showUnscheduledDrawer}
         onClose={() => setShowUnscheduledDrawer(false)}
         title="Unscheduled Workspace Tasks"

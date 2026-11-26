@@ -119,7 +119,23 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
   };
 
   useEffect(() => {
+    const onOtherSidebar = (e) => {
+      if (isOpen && e?.detail?.id && e.detail.id !== "chat") onClose?.();
+    };
+    const onCloseAll = (e) => {
+      if (isOpen && e?.detail?.except !== "chat") onClose?.();
+    };
+    window.addEventListener("lira:sidebar-opened", onOtherSidebar);
+    window.addEventListener("lira:close-all-sidebars", onCloseAll);
+    return () => {
+      window.removeEventListener("lira:sidebar-opened", onOtherSidebar);
+      window.removeEventListener("lira:close-all-sidebars", onCloseAll);
+    };
+  }, [isOpen, onClose]);
+
+  useEffect(() => {
     if (!isOpen) return;
+    window.dispatchEvent(new CustomEvent("lira:sidebar-opened", { detail: { id: "chat" } }));
     const onKey = (e) => {
       if (e.key === "Escape") onClose?.();
     };
@@ -613,7 +629,7 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end">
+    <div className="fixed inset-0 z-[70] flex justify-end">
       {/* Backdrop */}
       <div
         onClick={onClose}

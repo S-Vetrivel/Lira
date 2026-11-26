@@ -103,15 +103,29 @@ export default function LiraAssistantWidget() {
   const [input, setInput] = useState("");
   const [pendingAttachments, setPendingAttachments] = useState([]);
   const [uploadingFiles, setUploadingFiles] = useState(false);
+  const [isDraggingFiles, setIsDraggingFiles] = useState(false);
   const [sending, setSending] = useState(false);
   const [stopping, setStopping] = useState(false);
   const [confirmingMsgId, setConfirmingMsgId] = useState("");
   const fileInputRef = useRef(null);
+  const dragCounterRef = useRef(0);
 
-  // 4-corner Glass Pebble position (resets cleanly to "bottom-right" on page reload)
+  // 4-corner Glass Pebble position (numeric pixel transform for slow silky pull & drop animation; resets to "bottom-right" on reload)
   const [corner, setCorner] = useState("bottom-right");
   const [dragPos, setDragPos] = useState(null);
+  const [isDraggingPebble, setIsDraggingPebble] = useState(false);
+  const [viewport, setViewport] = useState(() =>
+    typeof window !== "undefined"
+      ? { w: window.innerWidth, h: window.innerHeight }
+      : { w: 1280, h: 800 }
+  );
   const pebbleRef = useRef(null);
+
+  useEffect(() => {
+    const onResize = () => setViewport({ w: window.innerWidth, h: window.innerHeight });
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   const messagesEndRef = useRef(null);
 
@@ -137,6 +151,10 @@ export default function LiraAssistantWidget() {
     if (msg.navigateTo) navigate(msg.navigateTo);
 
     if (step0?.type === "create_task") {
+      const pf = { ...(step0.prefill || {}) };
+      if (!pf.dueDate && (window.location.pathname.startsWith("/calendar") || msg.navigateTo?.startsWith("/calendar"))) {
+        pf.dueDate = new Date().toISOString().slice(0, 10);
+      }
       setTimeout(() => {
         playAICursorSequence?.([
           {
@@ -148,7 +166,7 @@ export default function LiraAssistantWidget() {
         setTimeout(() => {
           setAiPrefillDraft({
             type: "create_task",
-            data: { ...(step0.prefill || {}), cursorWalkthrough: true },
+            data: { ...pf, cursorWalkthrough: true },
             nonce: Date.now(),
           });
           setIsCreateTaskModalOpen?.(true);
@@ -277,15 +295,81 @@ export default function LiraAssistantWidget() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canUseAI, isAIAssistantOpen]);
 
-  const handleAttachFiles = async (e) => {
-    const picked = Array.from(e.target.files || []);
-    if (fileInputRef.current) fileInputRef.current.value = "";
+  const uploadAndAttachFiles = async (fileList) => {
+    const picked = Array.from(fileList || []).filter(Boolean).slice(0, 5);
     if (picked.length === 0) return;
     setUploadingFiles(true);
     const res = await uploadAIAssistantFilesAPI(picked);
     setUploadingFiles(false);
     if (res.success && Array.isArray(res.attachments)) {
       setPendingAttachments((prev) => [...prev, ...res.attachments].slice(0, 5));
+    }
+  };
+
+  const handleAttachFiles = async (e) => {
+    const picked = Array.from(e.target.files || []);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    await uploadAndAttachFiles(picked);
+  };
+
+  const handleClipboardPaste = async (e) => {
+    const cd = e.clipboardData;
+    if (!cd) return;
+    const files = [];
+    if (cd.files && cd.files.length > 0) {
+      files.push(...Array.from(cd.files));
+    } else if (cd.items) {
+      for (const item of Array.from(cd.items)) {
+        if (item.kind === "file") {
+          const blob = item.getAsFile();
+          if (blob) {
+            const ext = (blob.type || "image/png").split("/")[1] || "png";
+            const named =
+              blob.name && blob.name !== "image.png"
+                ? blob
+                : new File([blob], `clipboard-${Date.now()}.${ext}`, {
+                    type: blob.type || "image/png",
+                  });
+            files.push(named);
+          }
+        }
+      }
+    }
+    if (files.length > 0) {
+      e.preventDefault();
+      await uploadAndAttachFiles(files);
+    }
+  };
+
+  const handleDrawerDragEnter = (e) => {
+    if (e.dataTransfer?.types?.includes("Files")) {
+      e.preventDefault();
+      dragCounterRef.current += 1;
+      setIsDraggingFiles(true);
+    }
+  };
+
+  const handleDrawerDragOver = (e) => {
+    if (e.dataTransfer?.types?.includes("Files")) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "copy";
+    }
+  };
+
+  const handleDrawerDragLeave = () => {
+    dragCounterRef.current = Math.max(0, dragCounterRef.current - 1);
+    if (dragCounterRef.current === 0) {
+      setIsDraggingFiles(false);
+    }
+  };
+
+  const handleDrawerDrop = async (e) => {
+    e.preventDefault();
+    dragCounterRef.current = 0;
+    setIsDraggingFiles(false);
+    const files = e.dataTransfer?.files;
+    if (files && files.length > 0) {
+      await uploadAndAttachFiles(files);
     }
   };
 
@@ -452,8 +536,8 @@ export default function LiraAssistantWidget() {
     const rect = pebbleRef.current?.getBoundingClientRect();
     const startX = e.clientX;
     const startY = e.clientY;
-    const origLeft = rect ? rect.left : window.innerWidth - 76;
-    const origTop = rect ? rect.top : window.innerHeight - 76;
+    const origLeft = rect ? rect.left : viewport.w - 76;
+    const origTop = rect ? rect.top : viewport.h - 76;
     let moved = false;
     let latestPos = null;
 
@@ -462,6 +546,7 @@ export default function LiraAssistantWidget() {
       const dy = ev.clientY - startY;
       if (!moved && Math.hypot(dx, dy) > 7) {
         moved = true;
+        setIsDraggingPebble(true);
       }
       if (moved) {
         const clampedX = Math.max(12, Math.min(window.innerWidth - 68, origLeft + dx));
@@ -475,6 +560,7 @@ export default function LiraAssistantWidget() {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
       window.removeEventListener("pointercancel", onUp);
+      setIsDraggingPebble(false);
       if (moved && latestPos) {
         const cx = latestPos.x + 28;
         const cy = latestPos.y + 28;
@@ -493,42 +579,53 @@ export default function LiraAssistantWidget() {
     window.addEventListener("pointercancel", onUp);
   };
 
-  const cornerPosStyle = useMemo(() => {
-    if (dragPos) {
-      return { left: `${dragPos.x}px`, top: `${dragPos.y}px`, right: "auto", bottom: "auto" };
-    }
+  const pebbleXY = useMemo(() => {
+    if (dragPos) return dragPos;
+    const maxX = Math.max(20, viewport.w - 76);
+    const maxY = Math.max(82, viewport.h - 76);
     switch (corner) {
       case "top-left":
-        return { top: "82px", left: "20px", right: "auto", bottom: "auto" };
+        return { x: 20, y: 82 };
       case "top-right":
-        return { top: "82px", right: "20px", left: "auto", bottom: "auto" };
+        return { x: maxX, y: 82 };
       case "bottom-left":
-        return { bottom: "20px", left: "20px", top: "auto", right: "auto" };
+        return { x: 20, y: maxY };
       case "bottom-right":
       default:
-        return { bottom: "20px", right: "20px", top: "auto", left: "auto" };
+        return { x: maxX, y: maxY };
     }
-  }, [corner, dragPos]);
+  }, [corner, dragPos, viewport]);
 
   const messages = session?.messages || [];
 
   return (
     <>
-      {/* 4-Corner Draggable Glass Pebble Orb (Resets to bottom-right on reload; sits cleanly behind sidebars at z-30) */}
+      {/* 4-Corner Draggable Glass Pebble Orb with smooth slow spring physics (resets to bottom-right on reload; sits cleanly behind sidebars at z-30) */}
       {!isAIAssistantOpen && (
         <motion.button
           ref={pebbleRef}
           type="button"
           data-testid="lira-pebble-orb"
           data-corner={corner}
-          whileHover={dragPos ? undefined : { scale: 1.07, y: -2 }}
+          initial={{ x: pebbleXY.x, y: pebbleXY.y, opacity: 0, scale: 0.88 }}
+          animate={{
+            x: pebbleXY.x,
+            y: pebbleXY.y,
+            opacity: 1,
+            scale: isDraggingPebble ? 1.09 : 1,
+          }}
+          transition={
+            isDraggingPebble
+              ? { type: "spring", stiffness: 280, damping: 24, mass: 0.9 }
+              : { type: "spring", stiffness: 88, damping: 18, mass: 1.25 }
+          }
+          whileHover={isDraggingPebble ? undefined : { scale: 1.07 }}
           whileTap={{ scale: 0.94 }}
           onPointerDown={handlePebblePointerDown}
           title="Open Lira Assistant (Cmd+J) — drag to any corner"
           aria-label="Open Lira Workspace Assistant"
-          className="fixed z-30 w-14 h-14 rounded-full flex items-center justify-center cursor-grab active:cursor-grabbing backdrop-blur-2xl border select-none touch-none transition-shadow"
+          className="fixed top-0 left-0 z-30 w-14 h-14 rounded-full flex items-center justify-center cursor-grab active:cursor-grabbing backdrop-blur-2xl border select-none touch-none transition-shadow"
           style={{
-            ...cornerPosStyle,
             background: isDark
               ? "radial-gradient(135% 135% at 30% 20%, rgba(255,255,255,0.28) 0%, rgba(168,85,247,0.18) 38%, rgba(20,22,30,0.82) 100%)"
               : "radial-gradient(135% 135% at 30% 20%, rgba(255,255,255,0.95) 0%, rgba(226,232,240,0.8) 50%, rgba(148,163,184,0.45) 100%)",
@@ -555,12 +652,20 @@ export default function LiraAssistantWidget() {
       )}
 
       <SideDrawer
+        sidebarId="copilot"
         isOpen={isAIAssistantOpen}
         onClose={() => setIsAIAssistantOpen(false)}
         title="Lira Assistant"
         subtitle="Workspace copilot • tasks, calendar cursor guide, charts & exports"
         headerIcon={<LiraLogo size="sm" showWordmark={false} isDark={isDark} />}
         widthClass="max-w-xl"
+        drawerProps={{
+          onDragEnter: handleDrawerDragEnter,
+          onDragOver: handleDrawerDragOver,
+          onDragLeave: handleDrawerDragLeave,
+          onDrop: handleDrawerDrop,
+          onPaste: handleClipboardPaste,
+        }}
         headerActions={
           <div className="flex items-center gap-1.5">
             {messages.length > 0 && (
@@ -704,12 +809,13 @@ export default function LiraAssistantWidget() {
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
+                onPaste={handleClipboardPaste}
                 placeholder={
                   hasProcessing
                     ? "Send a new message to redirect, or click Stop..."
                     : mode === "auto"
-                    ? "Tell Lira what to create, chart, export, or open..."
-                    : "Ask Lira to prepare tasks, charts, or clarify..."
+                    ? "Tell Lira what to create, chart, export, or open... (paste image/drop files)"
+                    : "Ask Lira to prepare tasks, charts, or clarify... (paste image/drop files)"
                 }
                 className={`flex-1 rounded-xl px-3.5 py-2.5 text-xs border focus:outline-none ${g.input}`}
               />
@@ -737,7 +843,18 @@ export default function LiraAssistantWidget() {
           </form>
         }
       >
-        <div className="space-y-4">
+        <div className="space-y-4 relative min-h-full">
+          {isDraggingFiles && (
+            <div className="sticky top-2 z-20 p-5 rounded-2xl border-2 border-dashed border-purple-400/70 bg-purple-500/15 backdrop-blur-xl text-center space-y-1.5 shadow-xl pointer-events-none">
+              <Paperclip className="w-5 h-5 mx-auto text-purple-300" />
+              <p className={`text-xs font-bold ${g.heading}`}>
+                Drop image, screenshot, or document to attach
+              </p>
+              <p className={`text-[10px] ${g.muted}`}>
+                Supports PNG, JPG, WEBP, GIF, PDF, CSV, TXT, MD, JSON
+              </p>
+            </div>
+          )}
           {messages.length === 0 ? (
             <div className={`p-5 rounded-2xl border space-y-4 ${g.subtleSurface}`}>
               <div className="flex items-start gap-3">

@@ -255,7 +255,7 @@ export function CopilotArtifactsList({ artifacts = [], isDark }) {
                 </button>
               </div>
               {headers.length > 0 && (
-                <div className="overflow-x-auto max-h-44 rounded-lg border border-white/[0.06]">
+                <div className={`overflow-auto max-h-44 rounded-lg border ${g.border}`}>
                   <table className="w-full text-left border-collapse text-[10px]">
                     <thead className={isDark ? "bg-white/[0.06]" : "bg-slate-900/[0.06]"}>
                       <tr>

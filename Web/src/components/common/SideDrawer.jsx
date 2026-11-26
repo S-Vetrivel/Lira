@@ -6,6 +6,7 @@ import { useApp } from "../../context/Appcontext";
 import { getGlassTokens } from "../../styles/glassTheme";
 
 export default function SideDrawer({
+  sidebarId,
   isOpen,
   onClose,
   title,
@@ -18,14 +19,36 @@ export default function SideDrawer({
   headerActions,
   children,
   footer,
+  drawerProps = {},
 }) {
   const { theme } = useApp();
   const isDark = theme === "dark";
   const g = getGlassTokens(isDark);
   const resolvedWidth = widthClass || width || "max-w-xl";
+  const resolvedId = sidebarId || `drawer:${String(title || "default").toLowerCase().replace(/\W+/g, "-")}`;
+
+  useEffect(() => {
+    const onOtherSidebar = (e) => {
+      if (isOpen && e?.detail?.id && e.detail.id !== resolvedId) {
+        onClose?.();
+      }
+    };
+    const onCloseAll = (e) => {
+      if (isOpen && e?.detail?.except !== resolvedId) {
+        onClose?.();
+      }
+    };
+    window.addEventListener("lira:sidebar-opened", onOtherSidebar);
+    window.addEventListener("lira:close-all-sidebars", onCloseAll);
+    return () => {
+      window.removeEventListener("lira:sidebar-opened", onOtherSidebar);
+      window.removeEventListener("lira:close-all-sidebars", onCloseAll);
+    };
+  }, [isOpen, onClose, resolvedId]);
 
   useEffect(() => {
     if (!isOpen) return;
+    window.dispatchEvent(new CustomEvent("lira:sidebar-opened", { detail: { id: resolvedId } }));
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const onKey = (e) => {
@@ -36,29 +59,30 @@ export default function SideDrawer({
       document.body.style.overflow = prevOverflow;
       window.removeEventListener("keydown", onKey);
     };
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, resolvedId]);
 
   if (typeof document === "undefined") return null;
 
   return createPortal(
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-[70] overflow-hidden flex justify-end">
+        <div className="fixed inset-0 z-[70] overflow-hidden flex justify-end pointer-events-none">
           <motion.div
             initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.18, ease: "easeOut" }}
+            animate={{ opacity: 1, pointerEvents: "auto" }}
+            exit={{ opacity: 0, pointerEvents: "none" }}
+            transition={{ duration: 0.16, ease: "easeOut" }}
             onClick={onClose}
             className="fixed inset-0 bg-black/55 backdrop-blur-xs"
           />
 
           <motion.div
             initial={{ x: "100%" }}
-            animate={{ x: 0 }}
-            exit={{ x: "100%" }}
-            transition={{ type: "spring", damping: 32, stiffness: 340, mass: 0.9 }}
-            className={`relative w-full ${resolvedWidth} h-full flex flex-col z-10 border-l shadow-2xl ${g.drawer}`}
+            animate={{ x: 0, pointerEvents: "auto" }}
+            exit={{ x: "100%", pointerEvents: "none" }}
+            transition={{ type: "spring", damping: 32, stiffness: 390, mass: 0.8 }}
+            {...drawerProps}
+            className={`relative w-full ${resolvedWidth} h-full flex flex-col z-10 border-l shadow-2xl ${g.drawer} ${drawerProps.className || ""}`}
           >
             {/* Header */}
             <div

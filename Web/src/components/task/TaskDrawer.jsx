@@ -71,18 +71,24 @@ export default function TaskDrawer({ taskKeyOrId, onClose, onTaskUpdated }) {
       if (e.key === "Escape") onClose?.();
     };
     const onCloseAll = (e) => {
-      if (e?.detail?.except !== "task") onClose?.();
+      if (e?.detail?.except !== "task" && e?.detail?.except !== "task-drawer") onClose?.();
+    };
+    const onOtherSidebar = (e) => {
+      if (taskKeyOrId && e?.detail?.id && e.detail.id !== "task-drawer") onClose?.();
     };
     window.addEventListener("keydown", onEscape);
     window.addEventListener("lira:close-all-sidebars", onCloseAll);
+    window.addEventListener("lira:sidebar-opened", onOtherSidebar);
     return () => {
       window.removeEventListener("keydown", onEscape);
       window.removeEventListener("lira:close-all-sidebars", onCloseAll);
+      window.removeEventListener("lira:sidebar-opened", onOtherSidebar);
     };
-  }, [onClose]);
+  }, [onClose, taskKeyOrId]);
 
   useEffect(() => {
     if (!taskKeyOrId) return;
+    window.dispatchEvent(new CustomEvent("lira:sidebar-opened", { detail: { id: "task-drawer" } }));
     setLoading(true);
     const loadTask = async () => {
       const res = await getTaskDetails(taskKeyOrId);
@@ -321,7 +327,7 @@ export default function TaskDrawer({ taskKeyOrId, onClose, onTaskUpdated }) {
   const inputBase = `w-full text-xs font-medium rounded-lg px-2.5 py-1.5 border focus:outline-none transition-colors ${g.input}`;
 
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden flex justify-end">
+    <div className="fixed inset-0 z-[70] overflow-hidden flex justify-end">
       {/* Subtle Backdrop */}
       <div
         onClick={onClose}
