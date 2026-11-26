@@ -228,14 +228,19 @@ export default function JoinRequestStatus() {
 
   return (
     <div
-      className={`min-h-screen w-full px-6 sm:px-10 lg:px-16 py-8 lira-canvas-bg select-none ${
+      className={`min-h-dvh w-full px-3.5 sm:px-10 lg:px-16 py-5 sm:py-8 lira-canvas-bg select-none ${
         isDark ? "text-slate-100" : "text-slate-800"
       }`}
     >
-      <div className="w-full max-w-5xl mx-auto space-y-6">
+      <div className="w-full max-w-5xl mx-auto space-y-5 sm:space-y-6">
         {/* Header Branding */}
-        <div className="flex items-center justify-between">
-          <LiraLogo size="md" showBadge isDark={isDark} />
+        <div className="flex items-center justify-between gap-2">
+          <span className="sm:hidden inline-flex items-center">
+            <LiraLogo size="sm" showBadge={false} isDark={isDark} />
+          </span>
+          <span className="hidden sm:inline-flex items-center">
+            <LiraLogo size="md" showBadge isDark={isDark} />
+          </span>
 
           <button
             onClick={handleLogout}
@@ -247,7 +252,7 @@ export default function JoinRequestStatus() {
         </div>
 
         {/* Status Hero Card */}
-        <div className="rounded-3xl p-6 sm:p-8 lira-glass-glow space-y-6">
+        <div className="rounded-3xl p-4 sm:p-8 lira-glass-glow space-y-5 sm:space-y-6">
           {/* Top Banner Status */}
           <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b ${g.border}`}>
             <div className="space-y-1">
@@ -295,7 +300,7 @@ export default function JoinRequestStatus() {
           </div>
 
           {/* Candidate Profile Details */}
-          <div className={`flex items-center gap-4 p-4 rounded-2xl border ${g.subtleSurface}`}>
+          <div className={`flex flex-wrap items-center gap-3 sm:gap-4 p-3.5 sm:p-4 rounded-2xl border ${g.subtleSurface}`}>
             <UserAvatar
               user={user}
               className="w-12 h-12 rounded-2xl border border-white/15"

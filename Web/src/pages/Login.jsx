@@ -104,16 +104,40 @@ export default function Login() {
 
   return (
     <div
-      className={`min-h-screen w-full grid grid-cols-1 lg:grid-cols-12 relative overflow-x-hidden transition-colors duration-150 ${g.canvas}`}
+      className={`min-h-dvh w-full flex flex-col lg:grid lg:grid-cols-12 relative overflow-x-hidden transition-colors duration-150 ${g.canvas}`}
     >
-      {/* Left Full-Height Frosted Glass Panel */}
+      {/* Compact Mobile Top Bar */}
+      <div className={`lg:hidden flex items-center justify-between gap-2 px-4 py-3 border-b shrink-0 ${g.header}`}>
+        <Link to="/" className="inline-flex items-center">
+          <LiraLogo size="sm" isDark={isDark} />
+        </Link>
+        <div className="flex items-center gap-1.5">
+          <Link
+            to="/"
+            className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition-colors ${g.btnSecondary}`}
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Overview</span>
+          </Link>
+          <button
+            type="button"
+            onClick={toggleTheme}
+            aria-label="Toggle theme"
+            className={`p-2 rounded-lg transition-colors cursor-pointer ${g.iconBtn}`}
+          >
+            {isDark ? <Sun className="w-3.5 h-3.5 text-amber-400" /> : <Moon className="w-3.5 h-3.5 text-slate-700" />}
+          </button>
+        </div>
+      </div>
+
+      {/* Left Full-Height Frosted Glass Panel (below form on mobile, left on desktop) */}
       <div
-        className={`lg:col-span-7 flex flex-col justify-between p-6 sm:p-10 lg:p-14 border-b lg:border-b-0 lg:border-r backdrop-blur-2xl ${isDark
+        className={`order-2 lg:order-1 lg:col-span-7 flex flex-col justify-between p-4 sm:p-10 lg:p-14 border-t lg:border-t-0 lg:border-r backdrop-blur-2xl ${isDark
           ? "bg-white/[0.02] border-white/[0.08]"
           : "bg-white/45 border-slate-900/[0.08]"
           }`}
       >
-        <div className="flex items-center justify-between gap-4">
+        <div className="hidden lg:flex items-center justify-between gap-4">
           <Link to="/" className="inline-flex items-center">
             <LiraLogo size="md" showBadge isDark={isDark} />
           </Link>
@@ -137,7 +161,7 @@ export default function Login() {
           </div>
         </div>
 
-        <div className="py-10 lg:py-0 space-y-8 max-w-2xl">
+        <div className="py-4 sm:py-8 lg:py-0 space-y-6 lg:space-y-8 max-w-2xl">
           <div className="space-y-3">
             <p className={`text-[11px] font-bold uppercase tracking-widest ${g.muted}`}>
               Enterprise Team Operations
@@ -203,12 +227,12 @@ export default function Login() {
         </div>
       </div>
 
-      {/* Right Full-Height Sign-In Panel */}
+      {/* Right Full-Height Sign-In Panel (first on mobile portrait) */}
       <div
-        className={`lg:col-span-5 flex flex-col justify-center p-6 sm:p-10 lg:p-14 backdrop-blur-2xl ${isDark ? "bg-black/35" : "bg-white/60"
+        className={`order-1 lg:order-2 lg:col-span-5 flex flex-col justify-center p-4 sm:p-10 lg:p-14 backdrop-blur-2xl ${isDark ? "bg-black/35" : "bg-white/60"
           }`}
       >
-        <div className="w-full max-w-md mx-auto p-7 sm:p-8 rounded-3xl lira-glass-glow space-y-6">
+        <div className="w-full max-w-md mx-auto p-5 sm:p-8 rounded-3xl lira-glass-glow space-y-5 sm:space-y-6">
           <div className="space-y-1.5">
             <h2 className={`text-2xl font-bold tracking-tight ${g.heading}`}>
               Sign in to Lira

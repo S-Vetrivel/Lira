@@ -225,9 +225,9 @@ export default function Landing() {
       <main className="flex-1 w-full relative z-10">
         {/* Hero Band */}
         <section className={`w-full border-b ${g.border}`}>
-          <div className="w-full px-6 sm:px-10 lg:px-16 py-14 lg:py-20 grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-center">
+          <div className="w-full px-4 sm:px-10 lg:px-16 py-8 sm:py-14 lg:py-20 grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
             {/* Hero Copy */}
-            <div className="lg:col-span-6 space-y-6">
+            <div className="lg:col-span-6 space-y-5 sm:space-y-6">
               <div
                 className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border backdrop-blur-md text-[11px] font-semibold ${g.badge}`}
               >
@@ -236,7 +236,7 @@ export default function Landing() {
               </div>
 
               <h1
-                className={`text-4xl sm:text-5xl xl:text-6xl font-extrabold tracking-tight leading-[1.08] ${g.heading}`}
+                className={`text-3xl sm:text-5xl xl:text-6xl font-extrabold tracking-tight leading-[1.08] ${g.heading}`}
               >
                 Run teams, projects, and{" "}
                 <span className={`bg-gradient-to-r bg-clip-text text-transparent ${isDark ? "from-white via-zinc-300 to-zinc-500" : "from-zinc-950 via-zinc-600 to-zinc-400"}`}>
