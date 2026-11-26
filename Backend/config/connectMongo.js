@@ -22,7 +22,7 @@ const startLocalMongo = async () => {
 };
 
 const connectMongo = async () => {
-  const uri = process.env.MONGO_DB?.trim() || "mongodb://127.0.0.1:27017/sass";
+  const uri = process.env.MONGO_DB?.trim() || process.env.MONGO_URI?.trim() || "mongodb://127.0.0.1:27017/sass";
 
   const tryConnect = async (attempts = 3) => {
     for (let i = 0; i < attempts; i++) {

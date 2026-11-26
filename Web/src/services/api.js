@@ -1,8 +1,10 @@
 import axios from "axios";
 import toast from "react-hot-toast";
 
-// 1. API URL configuration
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4000/v3";
+// 1. API URL configuration (same-origin `/v3` in unified Nginx production, localhost:4000 in Vite dev)
+const API_URL =
+  import.meta.env.VITE_API_URL ||
+  (typeof window !== "undefined" && window.location.port !== "5173" ? "/v3" : "http://localhost:4000/v3");
 export const GOOGLE_AUTH_URL = `${API_URL}/auth/google`;
 
 // 2. Axios instance with credentials

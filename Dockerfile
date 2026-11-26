@@ -1,34 +1,32 @@
-# Stage 1: Build Frontend
+# Stage 1: Build Frontend (reads Web/.env during Vite build)
 FROM node:20-alpine AS frontend-builder
 WORKDIR /app/Web
 COPY Web/package*.json ./
-RUN npm install
+RUN npm ci
 COPY Web/ ./
-ARG VITE_API_URL=/api
-RUN VITE_API_URL=$VITE_API_URL npm run build
+RUN npm run build
 
-# Stage 2: Build Backend and Final Image
+# Stage 2: Build Backend & Unified Nginx + PM2 Runtime
 FROM node:20-alpine
 WORKDIR /app
 
-# Set default internal port
-ENV PORT=5000
+ENV NODE_ENV=production
+ENV PORT=4000
 
-# Install Nginx and PM2
-RUN apk add --no-cache nginx \
+RUN apk add --no-cache nginx wget \
     && npm install -g pm2
 
 # Setup Backend
 WORKDIR /app/Backend
 COPY Backend/package*.json ./
-RUN npm install --production
+RUN npm ci --omit=dev
 COPY Backend/ ./
 
 # Copy Frontend Build
 WORKDIR /app/Web
 COPY --from=frontend-builder /app/Web/dist ./dist
 
-# Copy Nginx Config
+# Copy Unified Nginx Reverse Proxy Config
 COPY nginx/nginx-unified.conf /etc/nginx/http.d/default.conf
 
 # Setup Entrypoint
@@ -36,6 +34,6 @@ WORKDIR /app
 COPY entrypoint.sh ./
 RUN chmod +x entrypoint.sh
 
-EXPOSE 3000
+EXPOSE 3010
 
 CMD ["./entrypoint.sh"]

@@ -1,6 +1,13 @@
 import { io } from "socket.io-client";
 
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:4000";
+const rawSocketUrl = import.meta.env.VITE_SOCKET_URL;
+const SOCKET_URL =
+  rawSocketUrl === "/"
+    ? undefined
+    : rawSocketUrl ||
+      (typeof window !== "undefined" && window.location.port !== "5173"
+        ? window.location.origin
+        : "http://localhost:4000");
 
 let socket = null;
 
