@@ -673,6 +673,12 @@ export default function LiraAssistantWidget() {
   };
 
   const handleCardStepClick = async (step, msgId) => {
+    if (step?.type === "navigate" && step?.prefill?.route) {
+      closeAllSidebars?.();
+      navigate(step.prefill.route);
+      triggerAICursor?.({ label: `Opened ${step.prefill.route}` });
+      return;
+    }
     const res = await executeAIAssistantCardStepAPI({ step, messageId: msgId });
     if (res.success) {
       if (res.session) setSession(res.session);
@@ -1249,6 +1255,36 @@ export default function LiraAssistantWidget() {
                       )}
                     </div>
                     <p className="leading-relaxed">{msg.warning || msg.content}</p>
+                    {msg.uiHtml && (
+                      <SanitizedCopilotHtml
+                        html={msg.uiHtml}
+                        isDark={isDark}
+                        onStepClick={(step) => handleCardStepClick(step, msg._id)}
+                        onReplyClick={(txt) => dispatchPrompt(txt)}
+                      />
+                    )}
+                    {!msg.uiHtml && Array.isArray(msg.choices) && msg.choices.length > 0 && (
+                      <div className="space-y-1.5 pt-1 w-full">
+                        {msg.choices.map((ch, cIdx) => (
+                          <button
+                            key={cIdx}
+                            type="button"
+                            onClick={() =>
+                              ch.step
+                                ? handleCardStepClick(ch.step, msg._id)
+                                : ch.replyText && dispatchPrompt(ch.replyText)
+                            }
+                            className={`w-full p-2.5 rounded-xl border flex items-center justify-between gap-3 text-left cursor-pointer ${g.subtleSurface} ${g.rowHover}`}
+                          >
+                            <div className="min-w-0">
+                              <div className={`font-bold text-[11px] truncate ${g.heading}`}>{ch.label}</div>
+                              {ch.sublabel && <div className={`text-[10px] truncate ${g.muted}`}>{ch.sublabel}</div>}
+                            </div>
+                            <ArrowRight className="w-3.5 h-3.5 shrink-0 text-rose-400" />
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 );
               }
