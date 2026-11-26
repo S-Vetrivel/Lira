@@ -17,6 +17,13 @@ const {
   recordAIUsageLog,
   getUserGlobalGrantsSummary,
 } = require("../services/aiService");
+const {
+  getOrCreateSession,
+  enqueueAssistantChat,
+  stopAssistantJob,
+  confirmAssistantMessageAction,
+  getUserAvailableModels,
+} = require("../services/aiAssistantService");
 const { enqueueWebSocketEvent } = require("../services/queue");
 
 const sanitizeKeysArray = (cfg) => {
@@ -1074,10 +1081,15 @@ exports.getAIUsageLogs = async (req, res) => {
       page: pg,
       limit: lim,
       stats: {
-        totalCalls: (byStatus.success || 0) + (byStatus.failed || 0) + (byStatus.denied || 0),
+        totalCalls:
+          (byStatus.success || 0) +
+          (byStatus.failed || 0) +
+          (byStatus.denied || 0) +
+          (byStatus.misuse || 0),
         successCalls: byStatus.success || 0,
         failedCalls: byStatus.failed || 0,
         deniedCalls: byStatus.denied || 0,
+        misuseCalls: byStatus.misuse || 0,
         globalVaultCalls: byScope.global_vault || 0,
         globalEnvCalls: byScope.global_env || 0,
         userByokCalls: byScope.user_byok || 0,
@@ -1087,6 +1099,113 @@ exports.getAIUsageLogs = async (req, res) => {
         avgLatencyMs: Math.round(totals.avgLatencyMs || 0),
       },
     });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// =========================================================================
+// LIRA PERSISTENT AI ASSISTANT / COPILOT (RELOAD-RESILIENT)
+// =========================================================================
+
+exports.getAssistantSession = async (req, res) => {
+  try {
+    const [session, modelInfo] = await Promise.all([
+      getOrCreateSession(req.user._id),
+      getUserAvailableModels(req.user),
+    ]);
+    res.status(200).json({ success: true, session, ...modelInfo });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+exports.getAssistantModels = async (req, res) => {
+  try {
+    const info = await getUserAvailableModels(req.user);
+    res.status(200).json({ success: true, ...info });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+exports.postAssistantChat = async (req, res) => {
+  try {
+    const {
+      prompt,
+      mode = "review",
+      moduleKey = "dashboard",
+      selectedModelKey = "auto",
+      currentRoute = "/",
+      activeProjectId = null,
+    } = req.body;
+
+    if (!prompt || !String(prompt).trim()) {
+      return res.status(400).json({ success: false, message: "Message is required" });
+    }
+
+    const { session, jobId } = await enqueueAssistantChat({
+      user: req.user,
+      prompt: String(prompt).trim(),
+      mode,
+      moduleKey,
+      selectedModelKey,
+      currentRoute,
+      activeProjectId,
+    });
+
+    res.status(202).json({
+      success: true,
+      jobId,
+      session,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+exports.setAssistantMode = async (req, res) => {
+  try {
+    const { mode = "review" } = req.body;
+    const session = await getOrCreateSession(req.user._id);
+    session.mode = mode === "auto" ? "auto" : "review";
+    await session.save();
+    res.status(200).json({ success: true, session });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+exports.stopAssistantGeneration = async (req, res) => {
+  try {
+    const { jobId = "" } = req.body || {};
+    const result = await stopAssistantJob({ userId: req.user._id, jobId });
+    res.status(200).json({ success: true, ...result });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+exports.confirmAssistantAction = async (req, res) => {
+  try {
+    const { messageId } = req.params;
+    const { session, executedResult } = await confirmAssistantMessageAction({
+      user: req.user,
+      messageId,
+    });
+    res.status(200).json({ success: true, session, executedResult });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+exports.clearAssistantSession = async (req, res) => {
+  try {
+    const session = await getOrCreateSession(req.user._id);
+    session.messages = [];
+    session.activeJobId = "";
+    await session.save();
+    res.status(200).json({ success: true, session });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

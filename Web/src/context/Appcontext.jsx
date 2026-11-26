@@ -93,6 +93,20 @@ export const AppProvider = ({ children }) => {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatTargetUser, setChatTargetUser] = useState(null);
   const [chatTargetRoom, setChatTargetRoom] = useState(null);
+  const [isAIAssistantOpen, setIsAIAssistantOpen] = useState(() => localStorage.getItem("lira_ai_open") === "1");
+  const [aiPrefillDraft, setAiPrefillDraft] = useState(null);
+  const [aiExternalPrompt, setAiExternalPrompt] = useState(null);
+
+  const askLiraAI = useCallback((promptText) => {
+    setIsAIAssistantOpen(true);
+    if (promptText && String(promptText).trim()) {
+      setAiExternalPrompt({ text: String(promptText).trim(), nonce: Date.now() });
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem("lira_ai_open", isAIAssistantOpen ? "1" : "0");
+  }, [isAIAssistantOpen]);
 
   const openDirectChat = useCallback((colleague) => {
     setChatTargetRoom(null);
@@ -112,6 +126,10 @@ export const AppProvider = ({ children }) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         setIsCommandPaletteOpen((prev) => !prev);
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "j") {
+        e.preventDefault();
+        setIsAIAssistantOpen((prev) => !prev);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -515,6 +533,13 @@ export const AppProvider = ({ children }) => {
         });
       };
 
+      const handleAIMisuseWarning = ({ warning }) => {
+        toast.error(warning || "AI Security Policy Warning: request blocked and logged.", {
+          duration: 6000,
+          id: "ai-misuse-alert",
+        });
+      };
+
       socket.on("notification:new", handleNotification);
       socket.on("join-request:new", handleNewJoinRequest);
       socket.on("join-request:updated", handleUpdatedJoinRequest);
@@ -530,6 +555,7 @@ export const AppProvider = ({ children }) => {
       socket.on("presence:update", handlePresenceUpdate);
       socket.on("rbac:updated", handleRbacUpdated);
       socket.on("rbac:user-updated", handleRbacUserUpdated);
+      socket.on("ai:misuse-warning", handleAIMisuseWarning);
 
       return () => {
         socket.off("notification:new", handleNotification);
@@ -543,6 +569,8 @@ export const AppProvider = ({ children }) => {
         socket.off("chat:notification", handleChatNotification);
         socket.off("presence:update", handlePresenceUpdate);
         socket.off("rbac:updated", handleRbacUpdated);
+        socket.off("rbac:user-updated", handleRbacUserUpdated);
+        socket.off("ai:misuse-warning", handleAIMisuseWarning);
         socket.off("rbac:user-updated", handleRbacUserUpdated);
       };
     }
@@ -610,6 +638,13 @@ export const AppProvider = ({ children }) => {
       setChatTargetUser,
       chatTargetRoom,
       setChatTargetRoom,
+      isAIAssistantOpen,
+      setIsAIAssistantOpen,
+      aiPrefillDraft,
+      setAiPrefillDraft,
+      aiExternalPrompt,
+      setAiExternalPrompt,
+      askLiraAI,
       openDirectChat,
       openRoomChat,
       refreshProjects,
@@ -653,6 +688,10 @@ export const AppProvider = ({ children }) => {
       isChatOpen,
       chatTargetUser,
       chatTargetRoom,
+      isAIAssistantOpen,
+      aiPrefillDraft,
+      aiExternalPrompt,
+      askLiraAI,
       openDirectChat,
       openRoomChat,
       refreshProjects,

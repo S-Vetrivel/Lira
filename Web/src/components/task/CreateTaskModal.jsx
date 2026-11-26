@@ -29,6 +29,8 @@ export default function CreateTaskModal({ isOpen, onClose, onCreated }) {
     departments,
     isSuperAdmin,
     hasPermission,
+    aiPrefillDraft,
+    setAiPrefillDraft,
     theme,
   } = useApp();
   const isDark = theme === "dark";
@@ -49,12 +51,32 @@ export default function CreateTaskModal({ isOpen, onClose, onCreated }) {
 
   const [loadingAI, setLoadingAI] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [prefilledByAI, setPrefilledByAI] = useState(false);
 
   useEffect(() => {
-    if (isOpen && activeProject?._id) {
+    if (!isOpen) setPrefilledByAI(false);
+    else if (activeProject?._id && !prefilledByAI) {
       setProjectId(activeProject._id);
     }
-  }, [isOpen, activeProject?._id]);
+  }, [isOpen, activeProject?._id, prefilledByAI]);
+
+  useEffect(() => {
+    if (aiPrefillDraft?.type === "create_task" && aiPrefillDraft?.data) {
+      const d = aiPrefillDraft.data;
+      if (d.projectId) setProjectId(d.projectId);
+      if (d.title) setTitle(d.title);
+      if (d.description) setDescription(d.description);
+      if (d.type) setType(d.type);
+      if (d.priority) setPriority(d.priority);
+      if (Array.isArray(d.assignees)) setAssignees(d.assignees);
+      if (Array.isArray(d.assignedDepartments)) setAssignedDepartments(d.assignedDepartments);
+      if (Array.isArray(d.subtasks)) {
+        setSubtasks(d.subtasks.map((s) => ({ title: typeof s === "string" ? s : s.title || "" })).filter((s) => s.title));
+      }
+      setPrefilledByAI(true);
+      setAiPrefillDraft(null);
+    }
+  }, [aiPrefillDraft, setAiPrefillDraft]);
 
   if (!isOpen) return null;
 
@@ -197,6 +219,12 @@ export default function CreateTaskModal({ isOpen, onClose, onCreated }) {
 
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4.5">
+          {prefilledByAI && (
+            <div className="p-3 rounded-xl border border-purple-500/35 bg-purple-500/10 text-purple-300 text-xs flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-purple-400 shrink-0" />
+              <span>Pre-filled by <strong>Lira AI</strong> (Review Mode) — verify fields and submit when ready.</span>
+            </div>
+          )}
           {/* Project & Task Type row */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             <div>

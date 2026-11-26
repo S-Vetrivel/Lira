@@ -24,6 +24,13 @@ const {
   deleteGlobalGrant,
   getMyAIAccess,
   getAIUsageLogs,
+  getAssistantSession,
+  getAssistantModels,
+  postAssistantChat,
+  stopAssistantGeneration,
+  setAssistantMode,
+  confirmAssistantAction,
+  clearAssistantSession,
 } = require("../controllers/aiController");
 
 // Global AI assistant routes (`ai.use`)
@@ -31,6 +38,15 @@ router.post("/breakdown", protect("ai.use"), generateTaskBreakdown);
 router.post("/query", protect("ai.use"), executeModularQuery);
 router.get("/models", protect("ai.use"), getAIModelsSummary);
 router.get("/my-access", protect("ai.use"), getMyAIAccess);
+
+// Reload-Resilient Lira AI Copilot Routes (`ai.use`)
+router.get("/assistant/session", protect("ai.use"), getAssistantSession);
+router.get("/assistant/models", protect("ai.use"), getAssistantModels);
+router.post("/assistant/chat", protect("ai.use"), postAssistantChat);
+router.post("/assistant/stop", protect("ai.use"), stopAssistantGeneration);
+router.put("/assistant/mode", protect("ai.use"), setAssistantMode);
+router.post("/assistant/confirm/:messageId", protect("ai.use"), confirmAssistantAction);
+router.delete("/assistant/session", protect("ai.use"), clearAssistantSession);
 
 // Test Before Storing + Multi-Key Vault Ring CRUD & Switching (Superadmin global OR User BYOK)
 router.post("/test-raw", protect("ai.use"), testRawKeyEndpoint);

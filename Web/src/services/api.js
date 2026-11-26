@@ -1120,6 +1120,66 @@ export async function getAIUsageLogsAPI(params = {}) {
 }
 
 // ==========================================
+// LIRA PERSISTENT AI ASSISTANT / COPILOT APIs
+// ==========================================
+export async function getAIAssistantSessionAPI() {
+  try {
+    const res = await api.get("/ai/assistant/session");
+    return res.data;
+  } catch (error) {
+    return { success: false, session: null };
+  }
+}
+
+export async function sendAIAssistantChatAPI(payload) {
+  try {
+    const res = await api.post("/ai/assistant/chat", payload);
+    return res.data;
+  } catch (error) {
+    toast.error(error.response?.data?.message || "Failed to dispatch AI request");
+    return { success: false, message: error.response?.data?.message };
+  }
+}
+
+export async function setAIAssistantModeAPI(mode) {
+  try {
+    const res = await api.put("/ai/assistant/mode", { mode });
+    return res.data;
+  } catch (error) {
+    return { success: false };
+  }
+}
+
+export async function stopAIAssistantAPI(jobId = "") {
+  try {
+    const res = await api.post("/ai/assistant/stop", { jobId });
+    return res.data;
+  } catch (error) {
+    return { success: false };
+  }
+}
+
+export async function confirmAIAssistantActionAPI(messageId) {
+  try {
+    const res = await api.post(`/ai/assistant/confirm/${messageId}`);
+    if (res.data.success) toast.success(res.data.executedResult?.summary || "Action executed");
+    return res.data;
+  } catch (error) {
+    toast.error(error.response?.data?.message || "Failed to execute action");
+    return { success: false, message: error.response?.data?.message };
+  }
+}
+
+export async function clearAIAssistantSessionAPI() {
+  try {
+    const res = await api.delete("/ai/assistant/session");
+    return res.data;
+  } catch (error) {
+    return { success: false };
+  }
+}
+
+// ==========================================
 // SUPERADMIN AUDIT LOG & SYSTEM MONITOR APIs
 // ==========================================
 export async function getAuditOverview(params = {}) {

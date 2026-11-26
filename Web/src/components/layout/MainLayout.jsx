@@ -7,6 +7,7 @@ import TaskDrawer from "../task/TaskDrawer";
 import CreateTaskModal from "../task/CreateTaskModal";
 import CommandPalette from "../search/CommandPalette";
 import OfficeChatDrawer from "../chat/OfficeChatDrawer";
+import LiraAssistantWidget from "../ai/LiraAssistantWidget";
 import JoinRequestStatus from "../../pages/JoinRequestStatus";
 import { AuthLoadingScreen, isPendingOrRestricted } from "../auth/AuthGuards";
 
@@ -108,6 +109,9 @@ export function MainLayout({ children }) {
 
       {/* Slide-over E2EE Office Chat & File Sharing Drawer (Top-level stacking context) */}
       <OfficeChatDrawer isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
+
+      {/* Persistent Reload-Resilient Lira AI Assistant Copilot */}
+      <LiraAssistantWidget />
     </div>
   );
 }

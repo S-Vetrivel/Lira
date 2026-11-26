@@ -33,6 +33,8 @@ export default function Requests() {
     teamMembers,
     isSuperAdmin,
     hasPermission,
+    aiPrefillDraft,
+    setAiPrefillDraft,
     theme,
   } = useApp();
   const isDark = theme === "dark";
@@ -61,6 +63,20 @@ export default function Requests() {
   const [amount, setAmount] = useState("");
   const [urgency, setUrgency] = useState("medium");
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (aiPrefillDraft?.type === "create_request" && aiPrefillDraft?.data) {
+      const d = aiPrefillDraft.data;
+      if (d.title) setTitle(d.title);
+      if (d.description) setDescription(d.description);
+      if (d.requestType) setRequestType(d.requestType);
+      if (d.targetDepartment) setTargetDepartment(d.targetDepartment);
+      if (d.amount) setAmount(String(d.amount));
+      if (d.urgency || d.priority) setUrgency(d.urgency || d.priority);
+      setShowCreateModal(true);
+      setAiPrefillDraft(null);
+    }
+  }, [aiPrefillDraft, setAiPrefillDraft]);
 
   const loadData = async () => {
     setLoading(true);

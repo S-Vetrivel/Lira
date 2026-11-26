@@ -33,9 +33,13 @@ export default function CommandPalette({ isOpen, onClose }) {
     activeProject,
     setActiveProject,
     teamMembers,
+    isSuperAdmin,
+    hasPermission,
     setIsCreateTaskModalOpen,
     setSelectedTaskKeyOrId,
+    askLiraAI,
   } = useApp();
+  const canUseAI = isSuperAdmin || hasPermission("ai.use");
 
   const isDark = theme === "dark";
   const g = getGlassTokens(isDark);
@@ -303,12 +307,30 @@ export default function CommandPalette({ isOpen, onClose }) {
             }`}
           />
           {query ? (
-            <button
-              onClick={() => setQuery("")}
-              className={`p-1 rounded-lg ${g.muted} hover:text-current`}
-            >
-              <X className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-1.5 shrink-0">
+              {canUseAI && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const q = query.trim();
+                    onClose();
+                    askLiraAI?.(q);
+                  }}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 cursor-pointer ${g.btnPrimary}`}
+                  title="Send query to Lira AI"
+                >
+                  <Sparkles className="w-3 h-3" />
+                  <span>Ask AI</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setQuery("")}
+                className={`p-1 rounded-lg cursor-pointer ${g.muted} hover:text-current`}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
           ) : (
             <div className="flex items-center gap-1.5 shrink-0">
               <span
@@ -347,6 +369,32 @@ export default function CommandPalette({ isOpen, onClose }) {
 
         {/* Results List */}
         <div ref={listRef} className="flex-1 overflow-y-auto p-2.5 space-y-1 min-h-[180px]">
+          {query.trim() && canUseAI && (
+            <button
+              type="button"
+              onClick={() => {
+                const q = query.trim();
+                onClose();
+                askLiraAI?.(q);
+              }}
+              className={`w-full flex items-center justify-between p-3 rounded-2xl border cursor-pointer transition-all text-left mb-1 ${
+                isDark
+                  ? "border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/15 text-purple-200"
+                  : "border-purple-200 bg-purple-50 hover:bg-purple-100 text-purple-900"
+              }`}
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-purple-500/20 border border-purple-500/35 flex items-center justify-center shrink-0">
+                  <Sparkles className="w-4 h-4 text-purple-400" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold truncate">Ask Lira AI: "{query.trim()}"</p>
+                  <p className="text-[10px] opacity-75 truncate">Let Lira navigate, create tasks, or answer using your workspace access</p>
+                </div>
+              </div>
+              <ArrowRight className="w-4 h-4 shrink-0 text-purple-400" />
+            </button>
+          )}
           {filteredItems.map((item, idx) => {
             const isSelected = idx === selectedIndex;
             const Icon = item.icon || FileText;

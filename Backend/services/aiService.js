@@ -44,6 +44,8 @@ async function recordAIUsageLog({
   projectId = null,
   departmentId = null,
   status = "success",
+  misuseCategory = "",
+  promptSnippet = "",
   latencyMs = 0,
   usage = null,
   errorMessage = "",
@@ -78,12 +80,17 @@ async function recordAIUsageLog({
       projectId: projectId || null,
       departmentId: departmentId || snap?.department?._id || snap?.department || null,
       status,
+      misuseCategory: misuseCategory || "",
+      promptSnippet: promptSnippet ? String(promptSnippet).slice(0, 240) : "",
       latencyMs: Number(latencyMs || 0),
       promptTokens: tokens.promptTokens,
       completionTokens: tokens.completionTokens,
       totalTokens: tokens.totalTokens,
       errorMessage: errorMessage ? String(errorMessage).slice(0, 500) : "",
     });
+    console.log(
+      `[AI USAGE] status=${String(status).toUpperCase()} user=${snap?.email || snap?.fullname || "system"} module=${moduleKey} scope=${credentialScope} provider=${provider} model=${model || "-"} tokens=${tokens.totalTokens} latency=${Number(latencyMs || 0)}ms${misuseCategory ? ` misuse=${misuseCategory}` : ""}`
+    );
   } catch (err) {
     console.warn("[AIUsageLog] Failed to record usage:", err.message);
   }
@@ -216,33 +223,53 @@ async function resolveExecutionCredentials({
     }
   }
 
-  // Pick global default provider if caller omitted providerKey
+  // Pick global provider (if caller omitted providerKey, prefer isGlobalDefault, or a provider matching user's active grant & configured credentials)
   let globalCfg = null;
   if (targetProviderKey) {
     globalCfg = await AIConfig.findOne({ scope: "global", provider: targetProviderKey, owner: null })
       .select("+encryptedKey +keys.encryptedKey")
       .lean();
   } else {
-    globalCfg =
-      (await AIConfig.findOne({ scope: "global", isGlobalDefault: true, enabled: true, owner: null })
-        .select("+encryptedKey +keys.encryptedKey")
-        .lean()) ||
-      (await AIConfig.findOne({ scope: "global", enabled: true, owner: null })
-        .select("+encryptedKey +keys.encryptedKey")
-        .lean());
-    if (globalCfg) {
-      targetProviderKey = globalCfg.provider;
-    }
-  }
+    const allGlobalCfgs = await AIConfig.find({ scope: "global", enabled: true, owner: null })
+      .select("+encryptedKey +keys.encryptedKey")
+      .lean();
 
-  // If no DB config exists yet, fall back to whichever provider has an .env key
-  if (!targetProviderKey) {
-    const preferredOrder = ["google", "openai", "anthropic"];
-    for (const pKey of preferredOrder) {
-      if (getEnvKeyForProvider(pKey)) {
-        targetProviderKey = pKey;
-        break;
+    const cfgHasUsableKey = (c) => {
+      if (!c) return false;
+      const entry = c.keys?.find((k) => String(k._id) === String(c.activeKeyId)) || c.keys?.[0];
+      const hasVault = Boolean((entry?.encryptedKey || c.encryptedKey)?.ciphertext);
+      const hasEnv = Boolean(getEnvKeyForProvider(c.provider)?.rawKey);
+      return c.keySource === "superadmin_vault" ? hasVault : hasEnv || hasVault;
+    };
+
+    const candidateProviders = [];
+    const defaultCfg = allGlobalCfgs.find((c) => c.isGlobalDefault && cfgHasUsableKey(c));
+    if (defaultCfg) candidateProviders.push(defaultCfg.provider);
+    ["google", "openai", "anthropic"].forEach((p) => {
+      const cfg = allGlobalCfgs.find((c) => c.provider === p);
+      if (getEnvKeyForProvider(p)?.rawKey || cfgHasUsableKey(cfg)) {
+        if (!candidateProviders.includes(p)) candidateProviders.push(p);
       }
+    });
+
+    if (userCtx && !userCtx.isSuperAdmin) {
+      for (const pKey of candidateProviders) {
+        const g = await findActiveGlobalGrant({
+          userCtx,
+          providerKey: pKey,
+          moduleKey,
+          projectId,
+          departmentId,
+        });
+        if (g) {
+          targetProviderKey = pKey;
+          globalCfg = allGlobalCfgs.find((c) => c.provider === pKey) || null;
+          break;
+        }
+      }
+    } else if (candidateProviders.length > 0) {
+      targetProviderKey = candidateProviders[0];
+      globalCfg = allGlobalCfgs.find((c) => c.provider === targetProviderKey) || null;
     }
   }
 
@@ -366,7 +393,7 @@ async function resolveExecutionCredentials({
   throw new Error(`No API key available for provider '${targetProviderKey}' (neither encrypted vault nor .env)`);
 }
 
-async function callOpenAIResponses({ apiKey, model, prompt, systemPrompt, maxOutputTokens }) {
+async function callOpenAIResponses({ apiKey, model, prompt, systemPrompt, maxOutputTokens, signal }) {
   const input = systemPrompt
     ? [
         { role: "system", content: systemPrompt },
@@ -386,7 +413,8 @@ async function callOpenAIResponses({ apiKey, model, prompt, systemPrompt, maxOut
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
-      timeout: 15000,
+      timeout: 45000,
+      ...(signal ? { signal } : {}),
     }
   );
 
@@ -401,7 +429,7 @@ async function callOpenAIResponses({ apiKey, model, prompt, systemPrompt, maxOut
   return { text, usage: res.data?.usage || null };
 }
 
-async function callAnthropicMessages({ apiKey, model, prompt, systemPrompt, maxOutputTokens }) {
+async function callAnthropicMessages({ apiKey, model, prompt, systemPrompt, maxOutputTokens, signal }) {
   const body = {
     model,
     max_tokens: maxOutputTokens,
@@ -415,7 +443,8 @@ async function callAnthropicMessages({ apiKey, model, prompt, systemPrompt, maxO
       "anthropic-version": "2026-10-21",
       "Content-Type": "application/json",
     },
-    timeout: 15000,
+    timeout: 45000,
+    ...(signal ? { signal } : {}),
   });
 
   const text = Array.isArray(res.data?.content)
@@ -431,15 +460,19 @@ async function callGoogleGemini({
   systemPrompt,
   maxOutputTokens,
   thinkingLevel = "low",
+  signal,
 }) {
   const catalogMatch = findCatalogModel(model);
   const endpointVersion = catalogMatch?.model?.endpointMode?.startsWith("v1beta") ? "v1beta" : "v1";
   const supportsThinking =
-    catalogMatch?.model?.supportsThinkingLevel || /^gemini-(3\.[6-9]|4)/.test(model);
+    (catalogMatch?.model?.supportsThinkingLevel || /^gemini-(3\.[6-9]|4)/.test(model)) &&
+    !model.includes("flash-lite");
 
   const generationConfig = { maxOutputTokens };
   if (supportsThinking) {
-    generationConfig.thinkingConfig = { thinkingLevel };
+    generationConfig.thinkingConfig = {
+      thinkingLevel: thinkingLevel === "minimal" ? "low" : thinkingLevel || "low",
+    };
   } else {
     generationConfig.temperature = 0.2;
   }
@@ -458,7 +491,8 @@ async function callGoogleGemini({
         "Content-Type": "application/json",
         "x-goog-api-key": apiKey,
       },
-      timeout: 15000,
+      timeout: 45000,
+      ...(signal ? { signal } : {}),
     }
   );
 
@@ -489,6 +523,7 @@ async function queryAI({
   preferGlobal = false,
   maxOutputTokens = 1000,
   thinkingLevel,
+  signal,
 }) {
   const startedAt = Date.now();
   let creds = null;
@@ -509,14 +544,49 @@ async function queryAI({
       throw new Error(`Unsupported AI provider adapter: ${creds.providerKey}`);
     }
 
-    const result = await adapter({
-      apiKey: creds.apiKey,
-      model: creds.model,
-      prompt,
-      systemPrompt,
-      maxOutputTokens,
-      thinkingLevel: thinkingLevel || creds.thinkingLevel || "low",
-    });
+    let result;
+    let usedModel = creds.model;
+    try {
+      result = await adapter({
+        apiKey: creds.apiKey,
+        model: usedModel,
+        prompt,
+        systemPrompt,
+        maxOutputTokens,
+        thinkingLevel: thinkingLevel || creds.thinkingLevel || "low",
+        signal,
+      });
+    } catch (callErr) {
+      if (signal?.aborted || callErr?.code === "ERR_CANCELED" || callErr?.name === "CanceledError") {
+        const abortErr = new Error("Request cancelled by user");
+        abortErr.isAborted = true;
+        throw abortErr;
+      }
+      const status = callErr?.response?.status;
+      const apiMsg = callErr?.response?.data?.error?.message || callErr?.message || "";
+      const isTimeout = callErr?.code === "ECONNABORTED" || /timeout/i.test(apiMsg);
+      if (
+        (isTimeout || status === 503 || status === 429 || status === 502 || status === 404 || (status === 400 && /thinking|model|not found/i.test(apiMsg))) &&
+        creds.providerKey === "google" &&
+        usedModel !== "gemini-3.5-flash-lite"
+      ) {
+        usedModel = "gemini-3.5-flash-lite";
+        result = await adapter({
+          apiKey: creds.apiKey,
+          model: usedModel,
+          prompt,
+          systemPrompt,
+          maxOutputTokens,
+          thinkingLevel: "low",
+          signal,
+        });
+      } else {
+        const cleanErr = new Error(apiMsg || "AI provider request failed");
+        cleanErr.statusCode = status || callErr?.statusCode;
+        throw cleanErr;
+      }
+    }
+    creds.model = usedModel;
 
     const latencyMs = Date.now() - startedAt;
     await recordAIUsageLog({
@@ -554,6 +624,9 @@ async function queryAI({
       latencyMs,
     };
   } catch (err) {
+    if (err?.isAborted) {
+      throw err;
+    }
     const latencyMs = Date.now() - startedAt;
     const isDenied = err.statusCode === 403 || Boolean(err.deniedMeta);
     await recordAIUsageLog({

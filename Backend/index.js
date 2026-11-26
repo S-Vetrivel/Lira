@@ -71,6 +71,7 @@ app.use("/uploads", express.static(uploadDir));
 const minioService = require("./services/minioService");
 const { getQueueHealth } = require("./services/queue");
 const { startWorkers } = require("./workers/index");
+const { resumePendingAssistantJobs } = require("./services/aiAssistantService");
 
 // -----------------
 // ROUTES
@@ -159,6 +160,7 @@ server.listen(port, "0.0.0.0", () => {
     await minioService.ensureBucket();
     if (!process.env.WORKER_ROLE) {
       await startWorkers();
+      await resumePendingAssistantJobs();
     }
   } catch (err) {
     console.error("❌ INITIALIZATION FAILED:", err.message);

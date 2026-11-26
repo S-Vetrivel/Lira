@@ -51,10 +51,16 @@ const AIUsageLogSchema = new mongoose.Schema(
 
     status: {
       type: String,
-      enum: ["success", "failed", "denied"],
+      enum: ["success", "failed", "denied", "misuse"],
       default: "success",
       index: true,
     },
+    misuseCategory: {
+      type: String,
+      enum: ["", "off_topic_code_or_image", "architecture_probe", "unauthorized_module"],
+      default: "",
+    },
+    promptSnippet: { type: String, default: "" },
     latencyMs: { type: Number, default: 0 },
     promptTokens: { type: Number, default: 0 },
     completionTokens: { type: Number, default: 0 },

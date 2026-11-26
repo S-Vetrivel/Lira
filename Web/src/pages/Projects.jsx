@@ -77,6 +77,8 @@ export default function Projects() {
     setSelectedTaskKeyOrId,
     openDirectChat,
     openRoomChat,
+    aiPrefillDraft,
+    setAiPrefillDraft,
     theme,
   } = useApp();
   const isDark = theme === "dark";
@@ -152,6 +154,25 @@ export default function Projects() {
   const [urlValue, setUrlValue] = useState("");
   const [urlCategory, setUrlCategory] = useState("Resource");
   const [addingUrl, setAddingUrl] = useState(false);
+
+  useEffect(() => {
+    if (aiPrefillDraft?.type === "create_project" && aiPrefillDraft?.data) {
+      const d = aiPrefillDraft.data;
+      if (d.name) setProjName(d.name);
+      if (d.prefix) setProjPrefix(String(d.prefix).toUpperCase());
+      if (d.description) setProjDesc(d.description);
+      if (d.department) setProjDept(d.department);
+      setShowAddProjectDrawer(true);
+      setAiPrefillDraft(null);
+    } else if (aiPrefillDraft?.type === "create_department" && aiPrefillDraft?.data) {
+      const d = aiPrefillDraft.data;
+      if (d.name) setDeptName(d.name);
+      if (d.code) setDeptCode(String(d.code).toUpperCase());
+      if (d.description) setDeptDesc(d.description);
+      setShowAddDeptDrawer(true);
+      setAiPrefillDraft(null);
+    }
+  }, [aiPrefillDraft, setAiPrefillDraft]);
 
   const [projTasks, setProjTasks] = useState([]);
   const [loadingProjTasks, setLoadingProjTasks] = useState(false);

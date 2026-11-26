@@ -515,7 +515,7 @@ export default function AuditLogs() {
               { label: "Global Vault", value: aiStats.globalVaultCalls ?? 0, cls: "text-purple-400" },
               { label: "Global .env", value: aiStats.globalEnvCalls ?? 0, cls: "text-emerald-400" },
               { label: "User BYOK", value: aiStats.userByokCalls ?? 0, cls: "text-sky-400" },
-              { label: "Denied / Failed", value: (aiStats.deniedCalls ?? 0) + (aiStats.failedCalls ?? 0), cls: "text-rose-400" },
+              { label: "Misuse / Denied", value: (aiStats.misuseCalls ?? 0) + (aiStats.deniedCalls ?? 0) + (aiStats.failedCalls ?? 0), cls: "text-rose-400" },
               { label: "Total Tokens", value: (aiStats.totalTokens ?? 0).toLocaleString(), cls: "text-amber-400" },
             ].map((kpi) => (
               <div key={kpi.label} className={`p-3 rounded-2xl border space-y-1 ${g.card}`}>
@@ -568,6 +568,7 @@ export default function AuditLogs() {
             >
               <option value="">All Statuses</option>
               <option value="success">Success</option>
+              <option value="misuse">Misuse Blocked</option>
               <option value="denied">Denied (No Grant)</option>
               <option value="failed">Failed</option>
             </select>
@@ -639,6 +640,8 @@ export default function AuditLogs() {
                           className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
                             log.status === "success"
                               ? "bg-emerald-500/15 text-emerald-400"
+                              : log.status === "misuse"
+                              ? "bg-rose-500/20 border border-rose-500/40 text-rose-300"
                               : log.status === "denied"
                               ? "bg-amber-500/15 text-amber-400"
                               : "bg-rose-500/15 text-rose-400"
@@ -646,6 +649,11 @@ export default function AuditLogs() {
                         >
                           {log.status}
                         </span>
+                        {log.misuseCategory && (
+                          <div className="text-[9px] font-mono text-rose-400 mt-0.5">
+                            {log.misuseCategory}
+                          </div>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -707,6 +715,12 @@ export default function AuditLogs() {
                 <span className="font-mono">{selectedAiLog.latencyMs}ms · {selectedAiLog.status}</span>
               </div>
             </div>
+            {selectedAiLog.promptSnippet && (
+              <div className="p-3 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-200 text-[11px] space-y-1">
+                <div className="font-bold uppercase text-[10px] tracking-wider">Logged Prompt Snippet ({selectedAiLog.misuseCategory || "flagged"})</div>
+                <p className="font-mono break-words">{selectedAiLog.promptSnippet}</p>
+              </div>
+            )}
             {selectedAiLog.errorMessage && (
               <div className="p-3 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-300 font-mono text-[11px]">
                 {selectedAiLog.errorMessage}
