@@ -147,9 +147,9 @@ export default function Header() {
   const displayName = getDisplayName(user, "Member");
 
   return (
-    <div ref={headerRef} className="w-full z-40 shrink-0 select-none">
+    <div ref={headerRef} className="w-full relative z-40 shrink-0 select-none">
     <header
-      className={`w-full h-14 md:h-[68px] border-b px-2.5 sm:px-5 xl:px-6 flex items-center justify-between gap-1.5 sm:gap-2 xl:gap-3 transition-colors duration-150 ${g.header}`}
+      className={`w-full relative z-50 h-14 md:h-[68px] border-b px-2.5 sm:px-5 xl:px-6 flex items-center justify-between gap-1.5 sm:gap-2 xl:gap-3 transition-colors duration-150 ${g.header}`}
     >
       {/* 1. Left: Mobile Menu + Brand + Modern Frosted Workspace Switcher Tray */}
       <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0 min-w-0">
@@ -214,7 +214,7 @@ export default function Header() {
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 4, scale: 0.98 }}
                   transition={{ duration: 0.14 }}
-                  className={`fixed left-2.5 right-2.5 top-[60px] sm:top-auto sm:right-auto sm:absolute sm:left-0 sm:mt-2.5 sm:w-72 rounded-2xl border p-2 z-50 ${g.dropdown}`}
+                  className={`fixed left-2.5 right-2.5 top-[60px] max-h-[calc(100dvh-76px)] overflow-y-auto sm:max-h-none sm:overflow-visible sm:top-auto sm:right-auto sm:absolute sm:left-0 sm:mt-2.5 sm:w-72 rounded-2xl border p-2 z-50 ${g.dropdown}`}
                 >
                   <div className={`px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-widest ${g.muted}`}>
                     Project Workspaces ({projects.length})
@@ -427,7 +427,7 @@ export default function Header() {
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 4, scale: 0.98 }}
                   transition={{ duration: 0.14 }}
-                  className={`fixed left-2.5 right-2.5 top-[60px] sm:top-auto sm:left-auto sm:absolute sm:right-0 sm:mt-3 sm:w-96 rounded-2xl border p-3.5 z-50 ${g.dropdown}`}
+                  className={`fixed left-2.5 right-2.5 top-[60px] max-h-[calc(100dvh-76px)] overflow-y-auto sm:max-h-none sm:overflow-visible sm:top-auto sm:left-auto sm:absolute sm:right-0 sm:mt-3 sm:w-96 rounded-2xl border p-3.5 z-50 ${g.dropdown}`}
                 >
                   <div className={`flex items-center justify-between pb-2.5 border-b mb-2.5 ${g.border}`}>
                     <div className="flex items-center gap-2">
@@ -581,7 +581,7 @@ export default function Header() {
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 4, scale: 0.98 }}
                 transition={{ duration: 0.14 }}
-                className={`fixed left-2.5 right-2.5 top-[60px] sm:top-auto sm:left-auto sm:absolute sm:right-0 sm:mt-2.5 sm:w-64 rounded-2xl border p-3.5 z-50 space-y-3 ${g.dropdown}`}
+                className={`fixed left-2.5 right-2.5 top-[60px] max-h-[calc(100dvh-76px)] overflow-y-auto sm:max-h-none sm:overflow-visible sm:top-auto sm:left-auto sm:absolute sm:right-0 sm:mt-2.5 sm:w-64 rounded-2xl border p-3.5 z-50 space-y-2.5 ${g.dropdown}`}
               >
                 <div className={`flex items-center gap-3 pb-3 border-b ${g.border}`}>
                   <UserAvatar
@@ -634,24 +634,15 @@ export default function Header() {
                   </Link>
                 )}
 
-                {/* Mobile Navigation Links */}
-                <div className={`md:hidden pt-2 border-t space-y-1 ${g.border}`}>
-                  {navItems.map((n) => {
-                    const NavIcon = n.icon;
-                    return (
-                      <Link
-                        key={n.path}
-                        to={n.path}
-                        onClick={() => setShowProfileMenu(false)}
-                        className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium ${g.rowHover} ${isDark ? "text-zinc-200" : "text-slate-700"
-                          }`}
-                      >
-                        <NavIcon className="w-3.5 h-3.5 opacity-70" />
-                        <span>{n.label}</span>
-                      </Link>
-                    );
-                  })}
-                </div>
+                {/* Mobile quick theme toggle inside Profile menu */}
+                <button
+                  type="button"
+                  onClick={toggleTheme}
+                  className={`sm:hidden w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${g.btnSecondary}`}
+                >
+                  {isDark ? <Sun className="w-4 h-4 text-amber-300" /> : <Moon className="w-4 h-4" />}
+                  <span>{isDark ? "Switch to Light Theme" : "Switch to Dark Theme"}</span>
+                </button>
 
                 <div className={`pt-2 border-t ${g.border}`}>
                   <button
@@ -790,7 +781,7 @@ export default function Header() {
     <nav
       aria-label="Mobile Navigation"
       data-testid="mobile-route-bar"
-      className={`md:hidden w-full border-b px-2.5 py-1.5 flex items-center gap-1 overflow-x-auto no-scrollbar ${g.header}`}
+      className={`md:hidden relative z-30 w-full border-b px-2.5 py-1.5 flex items-center gap-1 overflow-x-auto no-scrollbar ${g.header}`}
     >
       {navItems.map((item) => {
         const isActive =

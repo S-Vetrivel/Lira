@@ -53,6 +53,7 @@ export default function KanbanBoard({ onSelectTask }) {
   const [filterOverdue, setFilterOverdue] = useState(false);
   const [selectedAssignee, setSelectedAssignee] = useState("");
   const [selectedPriority, setSelectedPriority] = useState("");
+  const [mobileColumn, setMobileColumn] = useState("todo");
   const [selectedType, setSelectedType] = useState("");
 
   // Dragging state
@@ -224,7 +225,7 @@ export default function KanbanBoard({ onSelectTask }) {
     >
       {/* 1. Sub-Header Toolbar: Sprint Info & Quick Filter Pills */}
       <div
-        className={`w-full px-6 py-3 border-b flex flex-wrap items-center justify-between gap-3 shrink-0 select-none transition-colors duration-150 ${g.subHeader}`}
+        className={`w-full px-3.5 sm:px-6 py-2.5 sm:py-3 border-b flex flex-wrap items-center justify-between gap-2.5 sm:gap-3 shrink-0 select-none transition-colors duration-150 ${g.subHeader}`}
       >
         {/* Left: Project title & count */}
         <div className="flex items-center gap-3">
@@ -340,9 +341,35 @@ export default function KanbanBoard({ onSelectTask }) {
         </div>
       </div>
 
-      {/* 2. Full-Height 4-Column Kanban Grid (Stretches from top to bottom) */}
-      <div className="flex-1 w-full min-h-0 p-5 sm:p-6 overflow-x-auto overflow-y-hidden">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 min-w-[900px] h-full">
+      {/* Mobile Portrait Column Tabs (< md) */}
+      <div className={`md:hidden px-3 py-2 border-b flex items-center gap-1.5 overflow-x-auto no-scrollbar shrink-0 ${g.subtleSurface}`}>
+        {COLUMNS.map((col) => {
+          const count = filteredTasks.filter((t) => {
+            if (col.id === "in_progress") return t.status === "in_progress" || t.status === "redo_requested";
+            if (col.id === "review") return t.status === "review" || t.status === "submitted_for_review";
+            return t.status === col.id;
+          }).length;
+          const active = mobileColumn === col.id;
+          return (
+            <button
+              key={`mob-col-${col.id}`}
+              type="button"
+              onClick={() => setMobileColumn(col.id)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap shrink-0 transition-all cursor-pointer ${
+                active ? g.pillActive : g.pillInactive
+              }`}
+            >
+              <span className={`w-2 h-2 rounded-full ${col.dot}`} />
+              <span>{col.title}</span>
+              <span className="font-mono text-[10px] opacity-80">({count})</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* 2. Full-Height 4-Column Kanban Grid (Single active column on mobile portrait, multi-column on md+) */}
+      <div className="flex-1 w-full min-h-0 p-3 sm:p-5 md:p-6 overflow-hidden md:overflow-x-auto">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-5 h-full">
           {COLUMNS.map((column) => {
             const columnTasks = filteredTasks.filter((t) => {
               if (column.id === "in_progress") {
@@ -354,6 +381,7 @@ export default function KanbanBoard({ onSelectTask }) {
               return t.status === column.id;
             });
             const isTargeted = dragOverColumn === column.id;
+            const isMobileVisible = mobileColumn === column.id;
 
             return (
               <div
@@ -361,7 +389,7 @@ export default function KanbanBoard({ onSelectTask }) {
                 onDragOver={(e) => handleDragOver(e, column.id)}
                 onDragLeave={() => setDragOverColumn(null)}
                 onDrop={(e) => handleDrop(e, column.id)}
-                className={`flex flex-col h-full rounded-2xl transition-all duration-150 overflow-hidden ${
+                className={`${isMobileVisible ? "flex" : "hidden md:flex"} flex-col h-full min-h-0 rounded-2xl transition-all duration-150 overflow-hidden ${
                   isTargeted ? g.cardActive : g.card
                 }`}
               >

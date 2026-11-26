@@ -140,7 +140,7 @@ export default function MyWork() {
 
   return (
     <div
-      className={`flex-1 w-full h-full min-h-0 overflow-y-auto p-5 sm:p-7 space-y-6 transition-colors duration-150 ${g.heading}`}
+      className={`flex-1 w-full h-full min-h-0 overflow-y-auto p-3.5 sm:p-7 space-y-5 sm:space-y-6 transition-colors duration-150 ${g.heading}`}
     >
       {/* Header Banner */}
       <div className={`flex flex-wrap items-center justify-between gap-4 pb-4 border-b ${g.border}`}>

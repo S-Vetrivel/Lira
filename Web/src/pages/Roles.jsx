@@ -333,7 +333,7 @@ export default function Roles() {
 
   return (
     <div
-      className={`flex-1 w-full h-full min-h-0 overflow-y-auto p-5 sm:p-7 space-y-6 ${isDark ? "text-slate-100" : "text-slate-900"
+      className={`flex-1 w-full h-full min-h-0 overflow-y-auto p-3.5 sm:p-7 space-y-5 sm:space-y-6 ${isDark ? "text-slate-100" : "text-slate-900"
         }`}
     >
       {/* Page Header */}
