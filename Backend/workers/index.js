@@ -84,7 +84,15 @@ const startWorkers = async () => {
 };
 
 if (require.main === module) {
-  startWorkers();
+  (async () => {
+    await startWorkers();
+    try {
+      const { resumePendingAssistantJobs } = require("../services/aiAssistantService");
+      await resumePendingAssistantJobs();
+    } catch (err) {
+      console.warn("⚠️ [Worker Engine] Resume pending AI jobs skipped:", err.message);
+    }
+  })();
 }
 
 module.exports = { startWorkers };
