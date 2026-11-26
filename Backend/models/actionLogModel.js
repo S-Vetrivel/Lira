@@ -63,6 +63,12 @@ const ActionLogSchema = new Schema(
       type: String,
       default: "guest",
     },
+    actorType: {
+      type: String,
+      enum: ["user", "copilot"],
+      default: "user",
+      index: true,
+    },
     status: {
       type: String,
       enum: ["SUCCESS", "FAILURE", "WARNING"],

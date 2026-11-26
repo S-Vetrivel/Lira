@@ -11,6 +11,7 @@ export default function SideDrawer({
   title,
   subtitle,
   icon: Icon,
+  headerIcon,
   badge,
   widthClass,
   width,
@@ -64,13 +65,15 @@ export default function SideDrawer({
               className={`px-6 py-4 border-b flex items-center justify-between gap-3 shrink-0 ${g.subHeader}`}
             >
               <div className="flex items-center gap-3 min-w-0">
-                {Icon && (
+                {headerIcon ? (
+                  <div className="shrink-0">{headerIcon}</div>
+                ) : Icon ? (
                   <div
                     className={`w-9 h-9 rounded-xl border flex items-center justify-center shrink-0 ${g.badge}`}
                   >
                     <Icon className="w-4 h-4" />
                   </div>
-                )}
+                ) : null}
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <h2 className="text-sm sm:text-base font-bold tracking-tight truncate">

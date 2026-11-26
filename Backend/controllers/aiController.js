@@ -22,8 +22,15 @@ const {
   enqueueAssistantChat,
   stopAssistantJob,
   confirmAssistantMessageAction,
+  executeDirectCardStep,
   getUserAvailableModels,
 } = require("../services/aiAssistantService");
+const {
+  processUploadedAttachment,
+  generatePDFBuffer,
+  generatePPTXBuffer,
+  generateCSVString,
+} = require("../services/aiExportService");
 const { enqueueWebSocketEvent } = require("../services/queue");
 
 const sanitizeKeysArray = (cfg) => {
@@ -1129,6 +1136,20 @@ exports.getAssistantModels = async (req, res) => {
   }
 };
 
+exports.uploadAssistantAttachments = async (req, res) => {
+  try {
+    const files = Array.isArray(req.files) ? req.files : [];
+    const attachments = [];
+    for (const f of files) {
+      const processed = await processUploadedAttachment(f);
+      if (processed) attachments.push(processed);
+    }
+    res.status(201).json({ success: true, attachments });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 exports.postAssistantChat = async (req, res) => {
   try {
     const {
@@ -1138,20 +1159,22 @@ exports.postAssistantChat = async (req, res) => {
       selectedModelKey = "auto",
       currentRoute = "/",
       activeProjectId = null,
+      attachments = [],
     } = req.body;
 
-    if (!prompt || !String(prompt).trim()) {
-      return res.status(400).json({ success: false, message: "Message is required" });
+    if ((!prompt || !String(prompt).trim()) && (!Array.isArray(attachments) || attachments.length === 0)) {
+      return res.status(400).json({ success: false, message: "Message or attachment is required" });
     }
 
     const { session, jobId } = await enqueueAssistantChat({
       user: req.user,
-      prompt: String(prompt).trim(),
+      prompt: String(prompt || (attachments.length ? `Analyze attached file(s): ${attachments.map((a) => a.name).join(", ")}` : "")).trim(),
       mode,
       moduleKey,
       selectedModelKey,
       currentRoute,
       activeProjectId,
+      attachments: Array.isArray(attachments) ? attachments.slice(0, 5) : [],
     });
 
     res.status(202).json({
@@ -1159,6 +1182,70 @@ exports.postAssistantChat = async (req, res) => {
       jobId,
       session,
     });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+exports.executeAssistantCardStep = async (req, res) => {
+  try {
+    const { step, messageId = "", replyText = "" } = req.body || {};
+    if (!step || !step.type) {
+      return res.status(400).json({ success: false, message: "Valid action step is required" });
+    }
+    const { session, executedResult } = await executeDirectCardStep({
+      user: req.user,
+      step,
+      messageId,
+      replyText,
+    });
+    res.status(200).json({ success: true, session, executedResult });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+exports.exportAssistantArtifact = async (req, res) => {
+  try {
+    const { format = "pdf", artifact = {} } = req.body || {};
+    const safeTitle = String(artifact.title || "Lira-Workspace-Report").replace(/[^a-zA-Z0-9 _-]/g, "").slice(0, 64) || "Lira-Report";
+    const fmt = String(format).toLowerCase();
+
+    if (fmt === "csv") {
+      const csv = generateCSVString({
+        headers: artifact.headers || artifact.columns || [],
+        rows: artifact.rows || [],
+      });
+      res.setHeader("Content-Type", "text/csv; charset=utf-8");
+      res.setHeader("Content-Disposition", `attachment; filename="${safeTitle}.csv"`);
+      return res.status(200).send(csv);
+    }
+
+    if (fmt === "ppt" || fmt === "pptx") {
+      const buf = await generatePPTXBuffer({
+        title: artifact.title || safeTitle,
+        subtitle: artifact.subtitle || "Workspace Analytics & Status Deck",
+        slides: Array.isArray(artifact.slides) ? artifact.slides : [],
+        generatedBy: req.user?.fullname || req.user?.email || "Lira Copilot",
+      });
+      res.setHeader(
+        "Content-Type",
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+      );
+      res.setHeader("Content-Disposition", `attachment; filename="${safeTitle}.pptx"`);
+      return res.status(200).send(buf);
+    }
+
+    const pdfBuf = await generatePDFBuffer({
+      title: artifact.title || safeTitle,
+      subtitle: artifact.subtitle || "Workspace Document Export",
+      sections: Array.isArray(artifact.sections) ? artifact.sections : [],
+      table: artifact.table || (artifact.headers ? { headers: artifact.headers, rows: artifact.rows } : null),
+      generatedBy: req.user?.fullname || req.user?.email || "Lira Copilot",
+    });
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${safeTitle}.pdf"`);
+    return res.status(200).send(pdfBuf);
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

@@ -8,6 +8,7 @@ import CreateTaskModal from "../task/CreateTaskModal";
 import CommandPalette from "../search/CommandPalette";
 import OfficeChatDrawer from "../chat/OfficeChatDrawer";
 import LiraAssistantWidget from "../ai/LiraAssistantWidget";
+import AICursorOverlay from "../ai/AICursorOverlay";
 import JoinRequestStatus from "../../pages/JoinRequestStatus";
 import { AuthLoadingScreen, isPendingOrRestricted } from "../auth/AuthGuards";
 
@@ -112,6 +113,9 @@ export function MainLayout({ children }) {
 
       {/* Persistent Reload-Resilient Lira AI Assistant Copilot */}
       <LiraAssistantWidget />
+
+      {/* Animated Copilot Visual Cursor */}
+      <AICursorOverlay />
     </div>
   );
 }

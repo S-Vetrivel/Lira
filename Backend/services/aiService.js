@@ -393,12 +393,23 @@ async function resolveExecutionCredentials({
   throw new Error(`No API key available for provider '${targetProviderKey}' (neither encrypted vault nor .env)`);
 }
 
-async function callOpenAIResponses({ apiKey, model, prompt, systemPrompt, maxOutputTokens, signal }) {
+async function callOpenAIResponses({ apiKey, model, prompt, systemPrompt, maxOutputTokens, attachments = [], timeoutMs = 45000, signal }) {
+  const userContent = [{ type: "input_text", text: prompt }];
+  for (const att of attachments || []) {
+    if (att.kind === "image" && att.base64) {
+      userContent.push({
+        type: "input_image",
+        image_url: `data:${att.mimeType || "image/png"};base64,${att.base64}`,
+      });
+    }
+  }
   const input = systemPrompt
     ? [
         { role: "system", content: systemPrompt },
-        { role: "user", content: prompt },
+        { role: "user", content: userContent.length > 1 ? userContent : prompt },
       ]
+    : userContent.length > 1
+    ? [{ role: "user", content: userContent }]
     : prompt;
 
   const res = await axios.post(
@@ -413,7 +424,7 @@ async function callOpenAIResponses({ apiKey, model, prompt, systemPrompt, maxOut
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
-      timeout: 45000,
+      timeout: timeoutMs,
       ...(signal ? { signal } : {}),
     }
   );
@@ -429,12 +440,27 @@ async function callOpenAIResponses({ apiKey, model, prompt, systemPrompt, maxOut
   return { text, usage: res.data?.usage || null };
 }
 
-async function callAnthropicMessages({ apiKey, model, prompt, systemPrompt, maxOutputTokens, signal }) {
+async function callAnthropicMessages({ apiKey, model, prompt, systemPrompt, maxOutputTokens, attachments = [], timeoutMs = 45000, signal }) {
+  const blocks = [];
+  for (const att of attachments || []) {
+    if (att.kind === "image" && att.base64) {
+      blocks.push({
+        type: "image",
+        source: {
+          type: "base64",
+          media_type: att.mimeType || "image/png",
+          data: att.base64,
+        },
+      });
+    }
+  }
+  blocks.push({ type: "text", text: prompt });
+
   const body = {
     model,
     max_tokens: maxOutputTokens,
     ...(systemPrompt ? { system: systemPrompt } : {}),
-    messages: [{ role: "user", content: prompt }],
+    messages: [{ role: "user", content: blocks.length > 1 ? blocks : prompt }],
   };
 
   const res = await axios.post("https://api.anthropic.com/v1/messages", body, {
@@ -443,7 +469,7 @@ async function callAnthropicMessages({ apiKey, model, prompt, systemPrompt, maxO
       "anthropic-version": "2026-10-21",
       "Content-Type": "application/json",
     },
-    timeout: 45000,
+    timeout: timeoutMs,
     ...(signal ? { signal } : {}),
   });
 
@@ -460,6 +486,9 @@ async function callGoogleGemini({
   systemPrompt,
   maxOutputTokens,
   thinkingLevel = "low",
+  jsonMode = false,
+  attachments = [],
+  timeoutMs = 45000,
   signal,
 }) {
   const catalogMatch = findCatalogModel(model);
@@ -469,6 +498,9 @@ async function callGoogleGemini({
     !model.includes("flash-lite");
 
   const generationConfig = { maxOutputTokens };
+  if (jsonMode) {
+    generationConfig.responseMimeType = "application/json";
+  }
   if (supportsThinking) {
     generationConfig.thinkingConfig = {
       thinkingLevel: thinkingLevel === "minimal" ? "low" : thinkingLevel || "low",
@@ -478,12 +510,23 @@ async function callGoogleGemini({
   }
 
   const fullPrompt = systemPrompt ? `${systemPrompt}\n\n${prompt}` : prompt;
+  const parts = [{ text: fullPrompt }];
+  for (const att of attachments || []) {
+    if (att.kind === "image" && att.base64) {
+      parts.push({
+        inlineData: {
+          mimeType: att.mimeType || "image/png",
+          data: att.base64,
+        },
+      });
+    }
+  }
   const url = `https://generativelanguage.googleapis.com/${endpointVersion}/models/${model}:generateContent`;
 
   const res = await axios.post(
     url,
     {
-      contents: [{ parts: [{ text: fullPrompt }] }],
+      contents: [{ parts }],
       generationConfig,
     },
     {
@@ -491,7 +534,7 @@ async function callGoogleGemini({
         "Content-Type": "application/json",
         "x-goog-api-key": apiKey,
       },
-      timeout: 45000,
+      timeout: timeoutMs,
       ...(signal ? { signal } : {}),
     }
   );
@@ -523,6 +566,9 @@ async function queryAI({
   preferGlobal = false,
   maxOutputTokens = 1000,
   thinkingLevel,
+  jsonMode = false,
+  attachments = [],
+  timeoutMs = 35000,
   signal,
 }) {
   const startedAt = Date.now();
@@ -554,6 +600,9 @@ async function queryAI({
         systemPrompt,
         maxOutputTokens,
         thinkingLevel: thinkingLevel || creds.thinkingLevel || "low",
+        jsonMode,
+        attachments,
+        timeoutMs,
         signal,
       });
     } catch (callErr) {
@@ -578,6 +627,9 @@ async function queryAI({
           systemPrompt,
           maxOutputTokens,
           thinkingLevel: "low",
+          jsonMode,
+          attachments,
+          timeoutMs: Math.max(timeoutMs, 25000),
           signal,
         });
       } else {

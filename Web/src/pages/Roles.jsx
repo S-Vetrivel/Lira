@@ -18,6 +18,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useApp } from "../context/Appcontext";
+import { getSocket } from "../services/socket";
 import {
   getModulesCatalog,
   getRoles,
@@ -107,6 +108,17 @@ export default function Roles() {
     } else {
       setLoading(false);
     }
+    const socket = getSocket();
+    if (!socket) return;
+    const onRefresh = () => {
+      if (canViewRoles) loadData();
+    };
+    socket.on("rbac:updated", onRefresh);
+    socket.on("department:updated", onRefresh);
+    return () => {
+      socket.off("rbac:updated", onRefresh);
+      socket.off("department:updated", onRefresh);
+    };
   }, [canViewRoles]);
 
   const openCreateRole = () => {

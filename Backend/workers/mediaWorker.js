@@ -9,10 +9,7 @@ const minio = require("../config/minio");
 sharp.cache(false);
 
 // Models
-require("../models/galleryModel");
 require("../models/userModel");
-require("../models/productModel");
-require("../models/bannerModel");
 
 const BUCKET = process.env.MINIO_BUCKET_NAME;
 
@@ -68,13 +65,8 @@ const worker = new Worker(
 
       if (modelName === "User") {
         pipeline = pipeline.resize(500, 500, { fit: "cover" });
-      } else if (modelName === "Product") {
+      } else {
         pipeline = pipeline.resize(1200, 1200, {
-          fit: "inside",
-          withoutEnlargement: true,
-        });
-      } else if (modelName === "Gallery") {
-        pipeline = pipeline.resize(1920, 1080, {
           fit: "inside",
           withoutEnlargement: true,
         });
@@ -131,7 +123,6 @@ const worker = new Worker(
         }
 
         const update = { [fieldName]: storedPath };
-        if (modelName === "Gallery") update.status = "completed";
         await Model.findByIdAndUpdate(fileId, update);
       }
 

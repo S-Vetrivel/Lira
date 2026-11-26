@@ -1,11 +1,12 @@
 const express = require("express");
 const router = express.Router();
-const { protect } = require("../middleware/authMiddleware");
+const { protect, requireSuperAdmin } = require("../middleware/authMiddleware");
 const {
   getTeamMembers,
   createUser,
   updateUser,
   deleteUser,
+  bulkRemoveNonSuperadmins,
   getJoinRequestStatus,
   submitJoinRequest,
   getPendingJoinRequests,
@@ -16,6 +17,7 @@ const {
 // Team directory & user management
 router.get("/team", protect("team.view"), getTeamMembers);
 router.post("/", protect("team.create"), createUser);
+router.post("/bulk-remove-non-superadmins", requireSuperAdmin, bulkRemoveNonSuperadmins);
 router.put("/:id", protect("team.edit"), updateUser);
 router.delete("/:id", protect("team.delete"), deleteUser);
 

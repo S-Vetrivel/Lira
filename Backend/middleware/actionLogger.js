@@ -113,6 +113,7 @@ function inferActionName(req) {
   if (path.includes("/chat")) return `CHAT_${method}`;
 
   // Users & Admin
+  if (path.includes("/users/bulk-remove-non-superadmins")) return "USER_BULK_REMOVE_NON_SUPERADMINS";
   if (path.includes("/users/join-requests") && path.includes("/approve")) return "JOIN_REQUEST_APPROVE";
   if (path.includes("/users/join-requests") && path.includes("/reject")) return "JOIN_REQUEST_REJECT";
   if (path.includes("/users")) return `USER_${method}`;
@@ -165,12 +166,14 @@ function actionLoggerMiddleware(req, res, next) {
       const userName = req.user?.fullname || null;
       const userPublicId = req.user?.publicId || null;
       const userRole = req.user?.role || "guest";
+      const isCopilotActor = req.headers["x-copilot-actor"] === "true";
 
       const statusCode = res.statusCode;
       const status = statusCode >= 400 ? "FAILURE" : "SUCCESS";
 
       // Build clean sanitized details
       const details = {
+        ...(isCopilotActor ? { initiatedBy: "Lira Copilot", actorType: "copilot" } : {}),
         query: req.query && Object.keys(req.query).length > 0 ? req.query : undefined,
         params: req.params && Object.keys(req.params).length > 0 ? req.params : undefined,
         body: req.body && Object.keys(req.body).length > 0 ? sanitizePayload(req.body) : undefined,
@@ -185,12 +188,13 @@ function actionLoggerMiddleware(req, res, next) {
         statusCode,
         durationMs,
         ip: clientIp,
-        userAgent,
+        userAgent: isCopilotActor ? `Lira-Copilot (${userAgent})` : userAgent,
         user,
         userEmail,
         userName,
         userPublicId,
         userRole,
+        actorType: isCopilotActor ? "copilot" : "user",
         status,
         details,
         timestamp: new Date(),

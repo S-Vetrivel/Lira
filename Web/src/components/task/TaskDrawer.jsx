@@ -67,6 +67,21 @@ export default function TaskDrawer({ taskKeyOrId, onClose, onTaskUpdated }) {
   const fileInputRef = useRef(null);
 
   useEffect(() => {
+    const onEscape = (e) => {
+      if (e.key === "Escape") onClose?.();
+    };
+    const onCloseAll = (e) => {
+      if (e?.detail?.except !== "task") onClose?.();
+    };
+    window.addEventListener("keydown", onEscape);
+    window.addEventListener("lira:close-all-sidebars", onCloseAll);
+    return () => {
+      window.removeEventListener("keydown", onEscape);
+      window.removeEventListener("lira:close-all-sidebars", onCloseAll);
+    };
+  }, [onClose]);
+
+  useEffect(() => {
     if (!taskKeyOrId) return;
     setLoading(true);
     const loadTask = async () => {

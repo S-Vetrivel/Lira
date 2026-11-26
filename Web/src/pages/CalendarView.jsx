@@ -5,14 +5,45 @@ import {
   ChevronRight,
   RefreshCw,
   Plus,
+  Clock,
+  Inbox,
+  CheckCircle2,
+  ArrowUpRight,
 } from "lucide-react";
 import { useApp } from "../context/Appcontext";
+import { getSocket } from "../services/socket";
 import { getTasks } from "../services/api";
 import TaskDrawer from "../components/task/TaskDrawer";
+import SideDrawer from "../components/common/SideDrawer";
+import UserAvatar from "../components/common/UserAvatar";
 import { getGlassTokens } from "../styles/glassTheme";
+import { getDisplayName } from "../utils/formatters";
+
+function extractLocalYMD(dateVal) {
+  if (!dateVal) return null;
+  const s = String(dateVal).trim();
+  const isoPrefix = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (isoPrefix) {
+    return { year: Number(isoPrefix[1]), month: Number(isoPrefix[2]) - 1, day: Number(isoPrefix[3]) };
+  }
+  const d = new Date(dateVal);
+  if (Number.isNaN(d.getTime())) return null;
+  return { year: d.getFullYear(), month: d.getMonth(), day: d.getDate() };
+}
+
+function toYMD(year, monthIndex, day) {
+  const mm = String(monthIndex + 1).padStart(2, "0");
+  const dd = String(day).padStart(2, "0");
+  return `${year}-${mm}-${dd}`;
+}
 
 export default function CalendarView() {
-  const { activeProject, theme, setIsCreateTaskModalOpen } = useApp();
+  const {
+    activeProject,
+    theme,
+    setIsCreateTaskModalOpen,
+    setAiPrefillDraft,
+  } = useApp();
   const isDark = theme === "dark";
   const g = getGlassTokens(isDark);
 
@@ -20,55 +51,110 @@ export default function CalendarView() {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTaskKey, setActiveTaskKey] = useState(null);
+  const [selectedDay, setSelectedDay] = useState(null); // day number in active month/year
+  const [showUnscheduledDrawer, setShowUnscheduledDrawer] = useState(false);
 
   const loadTasks = async () => {
     setLoading(true);
     const filters = activeProject ? { projectId: activeProject._id } : {};
     const res = await getTasks(filters);
     if (res.success) {
-      setTasks(res.tasks);
+      setTasks(res.tasks || []);
     }
     setLoading(false);
   };
 
   useEffect(() => {
     loadTasks();
+    const socket = getSocket();
+    if (!socket) return;
+    const onTaskChange = () => loadTasks();
+    socket.on("task:created", onTaskChange);
+    socket.on("task:created_global", onTaskChange);
+    socket.on("task:updated", onTaskChange);
+    socket.on("task:status_changed", onTaskChange);
+    socket.on("task:deleted", onTaskChange);
+    socket.on("project:updated", onTaskChange);
+    return () => {
+      socket.off("task:created", onTaskChange);
+      socket.off("task:created_global", onTaskChange);
+      socket.off("task:updated", onTaskChange);
+      socket.off("task:status_changed", onTaskChange);
+      socket.off("task:deleted", onTaskChange);
+      socket.off("project:updated", onTaskChange);
+    };
   }, [activeProject?._id]);
+
+  // Close all calendar drawers smoothly when Lira Assistant navigates via "Open" button
+  useEffect(() => {
+    const onCloseAll = (e) => {
+      if (e?.detail?.except !== "task") setActiveTaskKey(null);
+      setSelectedDay(null);
+      setShowUnscheduledDrawer(false);
+    };
+    window.addEventListener("lira:close-all-sidebars", onCloseAll);
+    return () => window.removeEventListener("lira:close-all-sidebars", onCloseAll);
+  }, []);
 
   // Calendar calculations
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const firstDayIndex = new Date(year, month, 1).getDay(); // 0=Sun .. 6=Sat
+  const firstDayIndex = new Date(year, month, 1).getDay();
 
   const totalCells = firstDayIndex + daysInMonth;
   const trailingBlankCells = (7 - (totalCells % 7)) % 7;
 
-  const prevMonth = () => setCurrentDate(new Date(year, month - 1, 1));
-  const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
-  const goToToday = () => setCurrentDate(new Date());
+  const prevMonth = () => {
+    setSelectedDay(null);
+    setCurrentDate(new Date(year, month - 1, 1));
+  };
+  const nextMonth = () => {
+    setSelectedDay(null);
+    setCurrentDate(new Date(year, month + 1, 1));
+  };
+  const goToToday = () => {
+    const d = new Date();
+    setCurrentDate(d);
+    setSelectedDay(d.getDate());
+  };
 
   const monthNames = [
     "January", "February", "March", "April", "May", "June",
     "July", "August", "September", "October", "November", "December",
   ];
 
-  // Map tasks to dates in current month/year
-  const tasksByDay = useMemo(() => {
+  const { tasksByDay, unscheduledTasks } = useMemo(() => {
     const map = {};
+    const unsched = [];
     tasks.forEach((task) => {
-      if (!task.dueDate) return;
-      const d = new Date(task.dueDate);
-      if (d.getFullYear() === year && d.getMonth() === month) {
-        const dayNum = d.getDate();
-        if (!map[dayNum]) map[dayNum] = [];
-        map[dayNum].push(task);
+      const ymd = extractLocalYMD(task.dueDate);
+      if (!ymd) {
+        unsched.push(task);
+        return;
+      }
+      if (ymd.year === year && ymd.month === month) {
+        if (!map[ymd.day]) map[ymd.day] = [];
+        map[ymd.day].push(task);
       }
     });
-    return map;
+    return { tasksByDay: map, unscheduledTasks: unsched };
   }, [tasks, year, month]);
 
   const now = new Date();
+  const selectedDayTasks = selectedDay ? tasksByDay[selectedDay] || [] : [];
+
+  const handleScheduleForDate = (dayNum) => {
+    const targetDateStr = toYMD(year, month, dayNum);
+    setSelectedDay(null);
+    setShowUnscheduledDrawer(false);
+    setAiPrefillDraft({
+      type: "create_task",
+      data: { dueDate: targetDateStr },
+      nonce: Date.now(),
+    });
+    setIsCreateTaskModalOpen(true);
+  };
 
   return (
     <div
@@ -89,14 +175,27 @@ export default function CalendarView() {
               Operational Schedule & Deadlines
             </h1>
             <p className={`text-xs ${g.muted}`}>
-              {activeProject ? `[${activeProject.prefix}] ${activeProject.name}` : "All Workspaces"} • Scheduled tasks & upcoming deadlines
+              {activeProject ? `[${activeProject.prefix}] ${activeProject.name}` : "All Workspaces"} • Click any date or task title to inspect details
             </p>
           </div>
         </div>
 
         {/* Month Navigation + Actions */}
         <div className="flex items-center gap-2 flex-wrap">
+          {unscheduledTasks.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowUnscheduledDrawer(true)}
+              className={`px-3 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 cursor-pointer ${g.btnSecondary}`}
+              title="Tasks without a due date"
+            >
+              <Inbox className="w-3.5 h-3.5 text-amber-400" />
+              <span>Unscheduled ({unscheduledTasks.length})</span>
+            </button>
+          )}
+
           <button
+            type="button"
             onClick={loadTasks}
             className={`p-2 rounded-full border transition-colors cursor-pointer ${g.iconBtn}`}
             title="Refresh Calendar"
@@ -105,6 +204,7 @@ export default function CalendarView() {
           </button>
 
           <button
+            type="button"
             onClick={goToToday}
             className={`px-3 py-1.5 rounded-full border text-xs font-semibold transition-colors cursor-pointer ${g.btnSecondary}`}
           >
@@ -113,6 +213,7 @@ export default function CalendarView() {
 
           <div className={`flex items-center gap-1 border p-1 rounded-full ${g.subtleSurface}`}>
             <button
+              type="button"
               onClick={prevMonth}
               className={`p-1.5 rounded-full transition-colors cursor-pointer ${g.muted} hover:text-current`}
               title="Previous Month"
@@ -123,6 +224,7 @@ export default function CalendarView() {
               {monthNames[month]} {year}
             </span>
             <button
+              type="button"
               onClick={nextMonth}
               className={`p-1.5 rounded-full transition-colors cursor-pointer ${g.muted} hover:text-current`}
               title="Next Month"
@@ -132,7 +234,16 @@ export default function CalendarView() {
           </div>
 
           <button
-            onClick={() => setIsCreateTaskModalOpen(true)}
+            type="button"
+            data-ai-target="calendar-add-task-btn"
+            onClick={() => {
+              setAiPrefillDraft({
+                type: "create_task",
+                data: { dueDate: toYMD(year, month, selectedDay || now.getDate()) },
+                nonce: Date.now(),
+              });
+              setIsCreateTaskModalOpen(true);
+            }}
             className={`px-3.5 py-2 rounded-full font-semibold text-xs flex items-center gap-1.5 cursor-pointer ${g.btnPrimary}`}
           >
             <Plus className="w-3.5 h-3.5" /> Add Task
@@ -140,7 +251,7 @@ export default function CalendarView() {
         </div>
       </div>
 
-      {/* Calendar Wrapper (Scrolls cleanly if viewport is narrow, fits 7 cols properly) */}
+      {/* Calendar Wrapper */}
       <div className="flex-1 min-h-0 flex flex-col overflow-auto">
         <div className="min-w-[720px] flex-1 flex flex-col">
           {/* Weekday Labels */}
@@ -162,7 +273,6 @@ export default function CalendarView() {
               isDark ? "border-white/[0.08] bg-white/[0.015]" : "border-slate-900/[0.08] bg-white/55"
             }`}
           >
-            {/* Blank days before month start */}
             {Array.from({ length: firstDayIndex }).map((_, i) => (
               <div
                 key={`empty-start-${i}`}
@@ -172,7 +282,6 @@ export default function CalendarView() {
               />
             ))}
 
-            {/* Days of Month */}
             {Array.from({ length: daysInMonth }).map((_, i) => {
               const day = i + 1;
               const dayTasks = tasksByDay[day] || [];
@@ -180,18 +289,32 @@ export default function CalendarView() {
                 day === now.getDate() &&
                 month === now.getMonth() &&
                 year === now.getFullYear();
+              const isSelected = selectedDay === day;
 
               return (
                 <div
                   key={`day-${day}`}
-                  className={`p-2 min-h-[100px] border-r border-b flex flex-col justify-between transition-colors ${g.border} ${
-                    isToday ? g.selectedRow : g.rowHover
+                  onClick={() => setSelectedDay(day)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setSelectedDay(day);
+                    }
+                  }}
+                  className={`p-2 min-h-[108px] border-r border-b flex flex-col justify-between transition-colors cursor-pointer text-left ${g.border} ${
+                    isSelected
+                      ? "ring-1 ring-inset ring-purple-400/55 bg-purple-500/[0.08]"
+                      : isToday
+                      ? g.selectedRow
+                      : g.rowHover
                   }`}
                 >
                   <div className="flex items-center justify-between mb-1">
                     <span
                       className={`text-xs font-bold font-mono px-1.5 py-0.5 rounded-md ${
-                        isToday ? g.pillActive : g.muted
+                        isToday ? g.pillActive : g.heading
                       }`}
                     >
                       {day}
@@ -209,7 +332,10 @@ export default function CalendarView() {
                       <button
                         key={t._id}
                         type="button"
-                        onClick={() => setActiveTaskKey(t.key || t._id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveTaskKey(t.key || t._id);
+                        }}
                         className={`w-full text-left p-1.5 rounded-lg border text-[10px] cursor-pointer hover:scale-[1.01] transition-transform truncate block ${
                           t.status === "done"
                             ? isDark
@@ -221,6 +347,7 @@ export default function CalendarView() {
                               : "bg-amber-50 border-amber-200 text-amber-800"
                             : `${g.subtleSurface} ${g.heading}`
                         }`}
+                        title={`${t.key}: ${t.title} — click to open details sidebar`}
                       >
                         <div className="flex items-center gap-1 font-semibold truncate">
                           <span className={`text-[9px] font-mono shrink-0 ${g.muted}`}>
@@ -231,8 +358,8 @@ export default function CalendarView() {
                       </button>
                     ))}
                     {dayTasks.length > 3 && (
-                      <span className={`text-[9px] block text-center font-mono ${g.muted}`}>
-                        +{dayTasks.length - 3} more
+                      <span className={`text-[9px] block text-center font-mono font-bold text-purple-400`}>
+                        +{dayTasks.length - 3} more — click day
                       </span>
                     )}
                   </div>
@@ -240,7 +367,6 @@ export default function CalendarView() {
               );
             })}
 
-            {/* Trailing blank cells */}
             {Array.from({ length: trailingBlankCells }).map((_, i) => (
               <div
                 key={`empty-end-${i}`}
@@ -252,6 +378,125 @@ export default function CalendarView() {
           </div>
         </div>
       </div>
+
+      {/* Selected Calendar Day Schedule Sidebar */}
+      <SideDrawer
+        isOpen={selectedDay !== null}
+        onClose={() => setSelectedDay(null)}
+        title={selectedDay ? `${monthNames[month]} ${selectedDay}, ${year}` : "Schedule"}
+        subtitle={`${selectedDayTasks.length} scheduled task${selectedDayTasks.length === 1 ? "" : "s"}`}
+        icon={CalendarIcon}
+        widthClass="max-w-lg"
+        footer={
+          selectedDay && (
+            <button
+              type="button"
+              onClick={() => handleScheduleForDate(selectedDay)}
+              className={`w-full py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer ${g.btnPrimary}`}
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Schedule Task for {monthNames[month]} {selectedDay}</span>
+            </button>
+          )
+        }
+      >
+        <div className="space-y-3">
+          {selectedDayTasks.length === 0 ? (
+            <div className={`p-6 rounded-2xl border text-center space-y-2 ${g.subtleSurface}`}>
+              <Clock className="w-6 h-6 mx-auto opacity-50" />
+              <p className={`text-xs font-semibold ${g.heading}`}>No tasks scheduled on this date</p>
+              <p className={`text-[11px] ${g.muted}`}>
+                Click below to add a task with its deadline set to {monthNames[month]} {selectedDay}, {year}.
+              </p>
+            </div>
+          ) : (
+            selectedDayTasks.map((task) => {
+              const assigneeList = Array.isArray(task.assignees) && task.assignees.length > 0
+                ? task.assignees
+                : task.assignee
+                ? [task.assignee]
+                : [];
+              return (
+                <div
+                  key={task._id}
+                  onClick={() => setActiveTaskKey(task.key || task._id)}
+                  className={`p-4 rounded-2xl border space-y-2.5 cursor-pointer transition-all ${g.card} ${g.rowHover}`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`px-2 py-0.5 rounded-md font-mono text-[10px] font-bold border ${g.badge}`}>
+                          {task.key}
+                        </span>
+                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase ${g.subtleSurface}`}>
+                          {String(task.status || "todo").replace(/_/g, " ")}
+                        </span>
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase bg-purple-500/15 text-purple-300">
+                          {task.priority || "medium"}
+                        </span>
+                      </div>
+                      <h3 className={`text-sm font-bold mt-2 ${g.heading}`}>{task.title}</h3>
+                    </div>
+                    <ArrowUpRight className="w-4 h-4 shrink-0 opacity-60" />
+                  </div>
+
+                  {task.description && (
+                    <p className={`text-xs line-clamp-2 ${g.muted}`}>{task.description}</p>
+                  )}
+
+                  <div className="flex items-center justify-between pt-1 border-t border-white/[0.06] text-[11px]">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      {assigneeList.slice(0, 3).map((a) => (
+                        <div key={a._id || a} className="flex items-center gap-1">
+                          <UserAvatar user={a} className="w-5 h-5 rounded-full" textClass="text-[8px]" />
+                          <span className={`truncate max-w-[90px] ${g.muted}`}>{getDisplayName(a)}</span>
+                        </div>
+                      ))}
+                      {assigneeList.length === 0 && <span className={g.muted}>Unassigned</span>}
+                    </div>
+                    <span className="text-[10px] font-semibold text-purple-400">Open Sidebar Details →</span>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </SideDrawer>
+
+      {/* Unscheduled Tasks Drawer */}
+      <SideDrawer
+        isOpen={showUnscheduledDrawer}
+        onClose={() => setShowUnscheduledDrawer(false)}
+        title="Unscheduled Workspace Tasks"
+        subtitle={`${unscheduledTasks.length} task(s) with no due date set`}
+        icon={Inbox}
+        widthClass="max-w-lg"
+      >
+        <div className="space-y-2.5">
+          {unscheduledTasks.map((t) => (
+            <button
+              key={t._id}
+              type="button"
+              onClick={() => {
+                setShowUnscheduledDrawer(false);
+                setActiveTaskKey(t.key || t._id);
+              }}
+              className={`w-full text-left p-3.5 rounded-2xl border flex items-center justify-between gap-3 cursor-pointer ${g.card} ${g.rowHover}`}
+            >
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className={`px-1.5 py-0.5 rounded font-mono text-[10px] font-bold border ${g.badge}`}>{t.key}</span>
+                  <span className={`text-xs font-bold truncate ${g.heading}`}>{t.title}</span>
+                </div>
+                <p className={`text-[11px] mt-1 ${g.muted}`}>
+                  Click to open task sidebar and assign a due date
+                </p>
+              </div>
+              <CheckCircle2 className="w-4 h-4 opacity-50 shrink-0" />
+            </button>
+          ))}
+        </div>
+      </SideDrawer>
 
       {/* Task Details Drawer */}
       {activeTaskKey && (

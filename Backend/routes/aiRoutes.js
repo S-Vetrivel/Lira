@@ -1,6 +1,25 @@
 const express = require("express");
+const path = require("path");
+const fs = require("fs");
+const multer = require("multer");
 const router = express.Router();
 const { protect } = require("../middleware/authMiddleware");
+
+const aiAttachDir = path.join(__dirname, "../uploads/ai-attachments");
+if (!fs.existsSync(aiAttachDir)) {
+  fs.mkdirSync(aiAttachDir, { recursive: true });
+}
+const aiUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, aiAttachDir),
+    filename: (_req, file, cb) => {
+      const ext = path.extname(file.originalname || "").slice(0, 12);
+      const base = path.basename(file.originalname || "file", ext).replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 48);
+      cb(null, `${Date.now()}_${base}${ext}`);
+    },
+  }),
+  limits: { fileSize: 15 * 1024 * 1024, files: 5 },
+});
 const {
   generateTaskBreakdown,
   executeModularQuery,
@@ -27,6 +46,9 @@ const {
   getAssistantSession,
   getAssistantModels,
   postAssistantChat,
+  uploadAssistantAttachments,
+  exportAssistantArtifact,
+  executeAssistantCardStep,
   stopAssistantGeneration,
   setAssistantMode,
   confirmAssistantAction,
@@ -42,10 +64,13 @@ router.get("/my-access", protect("ai.use"), getMyAIAccess);
 // Reload-Resilient Lira AI Copilot Routes (`ai.use`)
 router.get("/assistant/session", protect("ai.use"), getAssistantSession);
 router.get("/assistant/models", protect("ai.use"), getAssistantModels);
+router.post("/assistant/upload", protect("ai.use"), aiUpload.array("files", 5), uploadAssistantAttachments);
 router.post("/assistant/chat", protect("ai.use"), postAssistantChat);
 router.post("/assistant/stop", protect("ai.use"), stopAssistantGeneration);
 router.put("/assistant/mode", protect("ai.use"), setAssistantMode);
 router.post("/assistant/confirm/:messageId", protect("ai.use"), confirmAssistantAction);
+router.post("/assistant/execute-step", protect("ai.use"), executeAssistantCardStep);
+router.post("/assistant/export", protect("ai.use"), exportAssistantArtifact);
 router.delete("/assistant/session", protect("ai.use"), clearAssistantSession);
 
 // Test Before Storing + Multi-Key Vault Ring CRUD & Switching (Superadmin global OR User BYOK)

@@ -81,8 +81,18 @@ export default function Header() {
         setShowProfileMenu(false);
       }
     };
+    const onCloseAll = () => {
+      setShowWorkspaceMenu(false);
+      setShowNotifications(false);
+      setShowNotificationsSidebar(false);
+      setShowProfileMenu(false);
+    };
     document.addEventListener("mousedown", handleOutside);
-    return () => document.removeEventListener("mousedown", handleOutside);
+    window.addEventListener("lira:close-all-sidebars", onCloseAll);
+    return () => {
+      document.removeEventListener("mousedown", handleOutside);
+      window.removeEventListener("lira:close-all-sidebars", onCloseAll);
+    };
   }, []);
 
   const navItems = [

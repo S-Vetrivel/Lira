@@ -68,12 +68,11 @@ const routineQueue = new Queue("routine-scheduler-queue", defaultQueueOpts);
 // 8. Media Processing Queue (Sharp, WebP conversion, MinIO upload)
 const mediaQueue = new Queue("media-processing", defaultQueueOpts);
 
-// 9. Order Processing Queue (Commerce operations)
-const orderProcessingQueue = new Queue("order-processing-queue", defaultQueueOpts);
-const orderQueue = orderProcessingQueue; // alias
-
-// 10. SMTP Email Notification Queue (Offline chat & task approval emails)
+// 9. SMTP Email Notification Queue (Offline chat & task approval emails)
 const emailQueue = new Queue("email-notification-queue", defaultQueueOpts);
+
+// Multi-node Redis Pub/Sub channel for real-time Copilot cancellation
+const AI_ABORT_CHANNEL = "lira:ai:abort";
 
 // -----------------
 // UNIFIED ENQUEUE HELPERS
@@ -166,6 +165,28 @@ const enqueueMediaJob = async (payload) => {
   }
 };
 
+const enqueueAIJob = async (jobName, payload, opts = {}) => {
+  try {
+    return await aiProcessingQueue.add(jobName, payload, {
+      removeOnComplete: 100,
+      removeOnFail: 50,
+      attempts: opts.attempts ?? 1,
+      ...opts,
+    });
+  } catch (error) {
+    console.error("Failed to enqueue AI job:", error.message);
+  }
+};
+
+const publishAIAbort = async (jobId) => {
+  if (!jobId) return;
+  try {
+    await connection.publish(AI_ABORT_CHANNEL, String(jobId));
+  } catch (error) {
+    console.warn("Failed to publish AI abort signal:", error.message);
+  }
+};
+
 const enqueueEmailJob = async (payload) => {
   try {
     return await emailQueue.add("send-email", payload, {
@@ -192,7 +213,6 @@ const getQueueHealth = async () => {
     { name: "fileSharing", queue: fileSharingQueue },
     { name: "routines", queue: routineQueue },
     { name: "media", queue: mediaQueue },
-    { name: "orders", queue: orderProcessingQueue },
     { name: "email", queue: emailQueue },
   ];
 
@@ -216,6 +236,7 @@ const getQueueHealth = async () => {
 module.exports = {
   connection,
   redisConfig,
+  AI_ABORT_CHANNEL,
   websocketQueue,
   notificationQueue,
   activityQueue,
@@ -224,8 +245,6 @@ module.exports = {
   fileSharingQueue,
   routineQueue,
   mediaQueue,
-  orderProcessingQueue,
-  orderQueue,
   emailQueue,
   enqueueWebSocketEvent,
   enqueueNotification,
@@ -234,6 +253,8 @@ module.exports = {
   enqueueFileJob,
   enqueueRoutineJob,
   enqueueMediaJob,
+  enqueueAIJob,
+  publishAIAbort,
   enqueueEmailJob,
   getQueueHealth,
 };

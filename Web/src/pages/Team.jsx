@@ -96,6 +96,17 @@ export default function Team() {
   const [editStatus, setEditStatus] = useState("active");
   const [savingEdit, setSavingEdit] = useState(false);
 
+  useEffect(() => {
+    const onCloseAll = () => {
+      setSelectedMember(null);
+      setReviewCandidate(null);
+      setDeclineCandidate(null);
+      setShowAddUserModal(false);
+    };
+    window.addEventListener("lira:close-all-sidebars", onCloseAll);
+    return () => window.removeEventListener("lira:close-all-sidebars", onCloseAll);
+  }, []);
+
   const openMemberDrawer = (member) => {
     setSelectedMember(member);
     setEditRole(member.role || "employee");
@@ -174,12 +185,23 @@ export default function Team() {
         fetchMembers();
       };
 
+      const handleTeamRefresh = () => {
+        fetchMembers();
+        fetchJoinRequests();
+      };
+
       socket.on("join-request:new", handleNewRequest);
       socket.on("join-request:updated", handleUpdatedRequest);
+      socket.on("team:updated", handleTeamRefresh);
+      socket.on("rbac:updated", handleTeamRefresh);
+      socket.on("department:updated", handleTeamRefresh);
 
       return () => {
         socket.off("join-request:new", handleNewRequest);
         socket.off("join-request:updated", handleUpdatedRequest);
+        socket.off("team:updated", handleTeamRefresh);
+        socket.off("rbac:updated", handleTeamRefresh);
+        socket.off("department:updated", handleTeamRefresh);
       };
     }
   }, [user?._id, user?.role]);

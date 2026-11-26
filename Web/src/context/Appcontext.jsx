@@ -96,6 +96,27 @@ export const AppProvider = ({ children }) => {
   const [isAIAssistantOpen, setIsAIAssistantOpen] = useState(() => localStorage.getItem("lira_ai_open") === "1");
   const [aiPrefillDraft, setAiPrefillDraft] = useState(null);
   const [aiExternalPrompt, setAiExternalPrompt] = useState(null);
+  const [aiCursorTarget, setAiCursorTarget] = useState(null);
+
+  const triggerAICursor = useCallback(({ selector = null, label = "Lira Copilot", x = null, y = null, sequence = null } = {}) => {
+    setAiCursorTarget({ selector, label, x, y, sequence, nonce: Date.now() });
+  }, []);
+
+  const playAICursorSequence = useCallback((sequence = []) => {
+    if (!Array.isArray(sequence) || sequence.length === 0) return;
+    setAiCursorTarget({ sequence, nonce: Date.now() });
+  }, []);
+
+  const closeAllSidebars = useCallback((except = null) => {
+    setIsAIAssistantOpen(false);
+    setIsChatOpen(false);
+    setIsCommandPaletteOpen(false);
+    setIsCreateTaskModalOpen(false);
+    if (except !== "task") {
+      setSelectedTaskKeyOrId(null);
+    }
+    window.dispatchEvent(new CustomEvent("lira:close-all-sidebars", { detail: { except } }));
+  }, []);
 
   const askLiraAI = useCallback((promptText) => {
     setIsAIAssistantOpen(true);
@@ -563,6 +584,9 @@ export const AppProvider = ({ children }) => {
         socket.off("join-request:updated", handleUpdatedJoinRequest);
         socket.off("request:created", handleRequestEvent);
         socket.off("request:updated", handleRequestEvent);
+        socket.off("department:updated", refreshDepartments);
+        socket.off("project:updated", refreshProjects);
+        socket.off("team:updated", refreshTeam);
         socket.off("task:created_global", handleTaskEvent);
         socket.off("task:updated", handleTaskEvent);
         socket.off("task:status_changed", handleTaskEvent);
@@ -571,7 +595,6 @@ export const AppProvider = ({ children }) => {
         socket.off("rbac:updated", handleRbacUpdated);
         socket.off("rbac:user-updated", handleRbacUserUpdated);
         socket.off("ai:misuse-warning", handleAIMisuseWarning);
-        socket.off("rbac:user-updated", handleRbacUserUpdated);
       };
     }
   }, [user, refreshProjects, refreshDepartments, refreshTeam, refreshRoles, refreshNotifications, refreshChatUnread, refreshPendingJoinCount, refreshTabPendingCounts, navigate, navigateFromNotification]);
@@ -644,6 +667,10 @@ export const AppProvider = ({ children }) => {
       setAiPrefillDraft,
       aiExternalPrompt,
       setAiExternalPrompt,
+      aiCursorTarget,
+      triggerAICursor,
+      playAICursorSequence,
+      closeAllSidebars,
       askLiraAI,
       openDirectChat,
       openRoomChat,
@@ -691,6 +718,10 @@ export const AppProvider = ({ children }) => {
       isAIAssistantOpen,
       aiPrefillDraft,
       aiExternalPrompt,
+      aiCursorTarget,
+      triggerAICursor,
+      playAICursorSequence,
+      closeAllSidebars,
       askLiraAI,
       openDirectChat,
       openRoomChat,

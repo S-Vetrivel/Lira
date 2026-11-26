@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useApp } from "../context/Appcontext";
+import { getSocket } from "../services/socket";
 import { getMyTasks } from "../services/api";
 import {
   AlertCircle,
@@ -38,6 +39,21 @@ export default function MyWork() {
 
   useEffect(() => {
     fetchWork();
+    const socket = getSocket();
+    if (!socket) return;
+    const onTaskChange = () => fetchWork();
+    socket.on("task:created", onTaskChange);
+    socket.on("task:created_global", onTaskChange);
+    socket.on("task:updated", onTaskChange);
+    socket.on("task:status_changed", onTaskChange);
+    socket.on("task:deleted", onTaskChange);
+    return () => {
+      socket.off("task:created", onTaskChange);
+      socket.off("task:created_global", onTaskChange);
+      socket.off("task:updated", onTaskChange);
+      socket.off("task:status_changed", onTaskChange);
+      socket.off("task:deleted", onTaskChange);
+    };
   }, []);
 
   const getGreeting = () => {

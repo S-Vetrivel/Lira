@@ -22,21 +22,19 @@ const startWorkers = async () => {
     const fileSharingWorker = require("./fileSharingWorker");
     const routineSchedulerWorker = require("./routineSchedulerWorker");
     const mediaWorker = require("./mediaWorker");
-    const orderWorker = require("./orderWorker");
     const emailWorker = require("./emailWorker");
     const { enqueueRoutineJob } = require("../services/queue");
 
-    console.log("🚀 [Worker Engine] 10 Unified Background Queue Workers active:");
+    console.log("🚀 [Worker Engine] 9 Unified Background Queue Workers active:");
     console.log("   ⚡ 1. WebSocket Broadcast Worker (concurrency: 10)");
     console.log("   🔔 2. Notification Processor Worker (concurrency: 5)");
     console.log("   📝 3. Audit Activity Log Worker (concurrency: 5)");
     console.log("   📊 4. Task Metrics & Analytics Worker (concurrency: 3)");
-    console.log("   🧠 5. Google AI Task Worker (concurrency: 2)");
+    console.log("   🧠 5. Distributed Lira AI Worker (concurrency: 6)");
     console.log("   📁 6. File Sharing & Verification Worker (concurrency: 5)");
     console.log("   ⏰ 7. Routine Scheduler & Escalation Worker (concurrency: 2)");
     console.log("   🖼️  8. Media Sharp & MinIO Worker (concurrency: 4)");
-    console.log("   📦 9. Order Processing Worker (concurrency: 5)");
-    console.log("   📧 10. SMTP Email Notification Worker (concurrency: 3)");
+    console.log("   📧 9. SMTP Email Notification Worker (concurrency: 3)");
 
     // Schedule recurring routine trigger every 60 seconds
     const routineInterval = setInterval(() => {
@@ -56,7 +54,6 @@ const startWorkers = async () => {
         fileSharingWorker.close(),
         routineSchedulerWorker.close(),
         mediaWorker.close(),
-        orderWorker.close(),
         emailWorker.close(),
         connection.quit(),
       ]);
@@ -76,7 +73,6 @@ const startWorkers = async () => {
       fileSharingWorker,
       routineSchedulerWorker,
       mediaWorker,
-      orderWorker,
       emailWorker,
       shutdown,
     };

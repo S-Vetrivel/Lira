@@ -1179,6 +1179,55 @@ export async function clearAIAssistantSessionAPI() {
   }
 }
 
+export async function uploadAIAssistantFilesAPI(files = []) {
+  try {
+    const formData = new FormData();
+    Array.from(files).slice(0, 5).forEach((f) => formData.append("files", f));
+    const res = await api.post("/ai/assistant/upload", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    return res.data;
+  } catch (error) {
+    toast.error(error.response?.data?.message || "Failed to upload attachments");
+    return { success: false, attachments: [] };
+  }
+}
+
+export async function executeAIAssistantCardStepAPI({ step, messageId = "", replyText = "" }) {
+  try {
+    const res = await api.post("/ai/assistant/execute-step", { step, messageId, replyText });
+    if (res.data?.success) toast.success(res.data.executedResult?.summary || "Action executed");
+    return res.data;
+  } catch (error) {
+    toast.error(error.response?.data?.message || "Action could not be executed");
+    return { success: false, message: error.response?.data?.message };
+  }
+}
+
+export async function exportAIAssistantArtifactAPI({ format = "pdf", artifact = {} }) {
+  try {
+    const res = await api.post(
+      "/ai/assistant/export",
+      { format, artifact },
+      { responseType: "blob" }
+    );
+    const ext = format === "ppt" || format === "pptx" ? "pptx" : format === "csv" ? "csv" : "pdf";
+    const safeName = (artifact.title || "Lira-Workspace-Export").replace(/[^a-zA-Z0-9_-]+/g, "_");
+    const blobUrl = URL.createObjectURL(res.data);
+    const a = document.createElement("a");
+    a.href = blobUrl;
+    a.download = `${safeName}.${ext}`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 2500);
+    return { success: true };
+  } catch (error) {
+    toast.error("Failed to generate document download");
+    return { success: false };
+  }
+}
+
 // ==========================================
 // SUPERADMIN AUDIT LOG & SYSTEM MONITOR APIs
 // ==========================================

@@ -61,21 +61,57 @@ export default function CreateTaskModal({ isOpen, onClose, onCreated }) {
   }, [isOpen, activeProject?._id, prefilledByAI]);
 
   useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (e) => {
+      if (e.key === "Escape") onClose?.();
+    };
+    const onCloseAll = () => onClose?.();
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("lira:close-all-sidebars", onCloseAll);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("lira:close-all-sidebars", onCloseAll);
+    };
+  }, [isOpen, onClose]);
+
+  useEffect(() => {
+    let typeTimer = null;
     if (aiPrefillDraft?.type === "create_task" && aiPrefillDraft?.data) {
       const d = aiPrefillDraft.data;
       if (d.projectId) setProjectId(d.projectId);
-      if (d.title) setTitle(d.title);
       if (d.description) setDescription(d.description);
       if (d.type) setType(d.type);
       if (d.priority) setPriority(d.priority);
+      if (d.dueDate) setDueDate(String(d.dueDate).slice(0, 10));
       if (Array.isArray(d.assignees)) setAssignees(d.assignees);
       if (Array.isArray(d.assignedDepartments)) setAssignedDepartments(d.assignedDepartments);
       if (Array.isArray(d.subtasks)) {
         setSubtasks(d.subtasks.map((s) => ({ title: typeof s === "string" ? s : s.title || "" })).filter((s) => s.title));
       }
+
+      if (d.title) {
+        if (d.cursorWalkthrough) {
+          setTitle("");
+          const targetTitle = String(d.title);
+          let idx = 0;
+          typeTimer = setInterval(() => {
+            idx += 1;
+            setTitle(targetTitle.slice(0, idx));
+            if (idx >= targetTitle.length && typeTimer) {
+              clearInterval(typeTimer);
+              typeTimer = null;
+            }
+          }, 28);
+        } else {
+          setTitle(d.title);
+        }
+      }
       setPrefilledByAI(true);
       setAiPrefillDraft(null);
     }
+    return () => {
+      if (typeTimer) clearInterval(typeTimer);
+    };
   }, [aiPrefillDraft, setAiPrefillDraft]);
 
   if (!isOpen) return null;
@@ -284,6 +320,7 @@ export default function CreateTaskModal({ isOpen, onClose, onCreated }) {
             </div>
             <input
               type="text"
+              data-ai-target="task-title-input"
               placeholder="e.g. Migrate payment gateway or Refactor auth flow"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
@@ -312,6 +349,7 @@ export default function CreateTaskModal({ isOpen, onClose, onCreated }) {
               Priority
             </label>
             <select
+              data-ai-target="task-priority-select"
               value={priority}
               onChange={(e) => setPriority(e.target.value)}
               className={`w-full text-xs font-semibold rounded-xl px-3.5 py-2.5 border focus:outline-none cursor-pointer ${g.input}`}
@@ -344,6 +382,7 @@ export default function CreateTaskModal({ isOpen, onClose, onCreated }) {
               </label>
               <input
                 type="date"
+                data-ai-target="task-duedate-input"
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
                 className={`w-full text-xs font-semibold rounded-xl px-3.5 py-2.5 border focus:outline-none ${g.input}`}
@@ -427,6 +466,7 @@ export default function CreateTaskModal({ isOpen, onClose, onCreated }) {
             </button>
             <button
               type="submit"
+              data-ai-target="task-submit-btn"
               disabled={submitting}
               className={`px-6 py-2.5 text-xs font-semibold rounded-xl transition-all cursor-pointer ${g.btnPrimary}`}
             >

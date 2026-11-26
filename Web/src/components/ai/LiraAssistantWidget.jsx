@@ -15,19 +15,25 @@ import {
   KeyRound,
   ListChecks,
   Square,
+  Paperclip,
+  X,
+  FileText,
 } from "lucide-react";
 import { useApp } from "../../context/Appcontext";
 import {
   getAIAssistantSessionAPI,
   sendAIAssistantChatAPI,
+  uploadAIAssistantFilesAPI,
+  executeAIAssistantCardStepAPI,
   stopAIAssistantAPI,
   setAIAssistantModeAPI,
   confirmAIAssistantActionAPI,
   clearAIAssistantSessionAPI,
 } from "../../services/api";
-import { getSocket } from "../../services/socket";
+import { getSocket, initSocketClient } from "../../services/socket";
 import SideDrawer from "../common/SideDrawer";
 import LiraLogo from "../common/LiraLogo";
+import { SanitizedCopilotHtml, CopilotArtifactsList } from "./CopilotRichContent";
 import { getGlassTokens } from "../../styles/glassTheme";
 
 function inferModuleFromPath(pathname) {
@@ -40,6 +46,25 @@ function inferModuleFromPath(pathname) {
   if (pathname.startsWith("/audit")) return "dashboard";
   if (pathname.startsWith("/profile")) return "ai";
   return "dashboard";
+}
+
+function formatPlainCopilotText(rawContent, prevPrompt = "") {
+  const txt = String(rawContent || "").trim();
+  const wantsStructured = /\b(in|as|show|format|output|return)\s+(raw\s+)?(json|yaml|csv|table)\b/i.test(
+    String(prevPrompt || "")
+  );
+  if (wantsStructured || !txt.startsWith("{")) return txt;
+  const cleaned = txt.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```\s*$/i, "").trim();
+  try {
+    const parsed = JSON.parse(cleaned);
+    if (parsed && typeof parsed === "object" && (parsed.reply || parsed.message)) {
+      return String(parsed.reply || parsed.message).trim();
+    }
+  } catch {
+    const m = cleaned.match(/"reply"\s*:\s*"((?:[^"\\]|\\.)*)(?:"|$)/);
+    if (m?.[1]) return m[1].replace(/\\n/g, "\n").replace(/\\"/g, '"').trim();
+  }
+  return txt;
 }
 
 export default function LiraAssistantWidget() {
@@ -55,6 +80,9 @@ export default function LiraAssistantWidget() {
     setAiPrefillDraft,
     aiExternalPrompt,
     setAiExternalPrompt,
+    triggerAICursor,
+    playAICursorSequence,
+    closeAllSidebars,
     setIsCreateTaskModalOpen,
     setSelectedTaskKeyOrId,
     refreshProjects,
@@ -73,9 +101,17 @@ export default function LiraAssistantWidget() {
   const [selectedModelKey, setSelectedModelKey] = useState("auto");
   const [mode, setMode] = useState("review"); // "review" | "auto"
   const [input, setInput] = useState("");
+  const [pendingAttachments, setPendingAttachments] = useState([]);
+  const [uploadingFiles, setUploadingFiles] = useState(false);
   const [sending, setSending] = useState(false);
   const [stopping, setStopping] = useState(false);
   const [confirmingMsgId, setConfirmingMsgId] = useState("");
+  const fileInputRef = useRef(null);
+
+  // 4-corner Glass Pebble position (resets cleanly to "bottom-right" on page reload)
+  const [corner, setCorner] = useState("bottom-right");
+  const [dragPos, setDragPos] = useState(null);
+  const pebbleRef = useRef(null);
 
   const messagesEndRef = useRef(null);
 
@@ -95,13 +131,60 @@ export default function LiraAssistantWidget() {
     sessionStorage.setItem("lira_ai_handled_jobs", JSON.stringify(trimmed));
   };
 
+  const runCursorWalkthroughForMessage = (msg) => {
+    const step0 = msg.steps?.[0] || msg.intent;
+    closeAllSidebars?.();
+    if (msg.navigateTo) navigate(msg.navigateTo);
+
+    if (step0?.type === "create_task") {
+      setTimeout(() => {
+        playAICursorSequence?.([
+          {
+            selector: '[data-ai-target="calendar-add-task-btn"], button[title*="New Task"]',
+            label: "1. Opening Task Creator",
+            delayMs: 850,
+          },
+        ]);
+        setTimeout(() => {
+          setAiPrefillDraft({
+            type: "create_task",
+            data: { ...(step0.prefill || {}), cursorWalkthrough: true },
+            nonce: Date.now(),
+          });
+          setIsCreateTaskModalOpen?.(true);
+          playAICursorSequence?.([
+            { selector: '[data-ai-target="task-title-input"]', label: "2. Typing Title", delayMs: 950 },
+            { selector: '[data-ai-target="task-duedate-input"]', label: "3. Setting Schedule Date", delayMs: 900 },
+            { selector: '[data-ai-target="task-priority-select"]', label: "4. Picking Priority", delayMs: 800 },
+            { selector: '[data-ai-target="task-submit-btn"]', label: "5. Ready — Click Create Task", delayMs: 1100 },
+          ]);
+        }, 850);
+      }, 220);
+    } else if (msg.navigateTo) {
+      triggerAICursor?.({ label: `Navigated to ${msg.navigateTo}` });
+    }
+  };
+
   const applyCompletedMessageEffects = (msg, sourceMode) => {
     if (!msg || msg.status !== "completed" || !msg.jobId) return;
     const handled = getHandledJobs();
     if (handled.has(msg.jobId)) return;
     markJobHandled(msg.jobId);
 
+    if (msg.cursorGuide) {
+      runCursorWalkthroughForMessage(msg);
+      return;
+    }
+
+    const targetIntent = msg.steps?.[0] || msg.intent;
+    const isExplicitNavigation =
+      targetIntent?.type === "navigate" || targetIntent?.type === "open_task";
+
     if (msg.navigateTo) {
+      if (isExplicitNavigation) {
+        closeAllSidebars?.(targetIntent?.type === "open_task" ? "task" : null);
+        triggerAICursor?.({ label: `Navigated to ${msg.navigateTo}` });
+      }
       navigate(msg.navigateTo);
     }
 
@@ -109,29 +192,33 @@ export default function LiraAssistantWidget() {
       refreshProjects?.();
       refreshDepartments?.();
       refreshTeam?.();
-      if (msg.executedResult?.taskKey) {
+      if (msg.executedResult?.taskKey && !String(msg.navigateTo || "").startsWith("/calendar")) {
         setSelectedTaskKeyOrId?.(msg.executedResult.taskKey);
       }
       if (msg.intent?.type === "open_task" && msg.intent?.prefill?.taskKey) {
+        closeAllSidebars?.("task");
         setSelectedTaskKeyOrId?.(msg.intent.prefill.taskKey);
       }
       return;
     }
 
-    // REVIEW MODE: open relevant form & fill draft for user confirmation
-    const targetIntent = msg.steps?.[0] || msg.intent;
+    // REVIEW MODE: open relevant form & fill draft with visible Copilot cursor
     if (targetIntent?.type && targetIntent.type !== "navigate") {
       if (targetIntent.type === "open_task" && targetIntent.prefill?.taskKey) {
+        closeAllSidebars?.("task");
         setSelectedTaskKeyOrId?.(targetIntent.prefill.taskKey);
+        triggerAICursor?.({ label: `Opening ${targetIntent.prefill.taskKey}` });
         return;
       }
       if (targetIntent.type === "create_task") {
         setAiPrefillDraft({ type: "create_task", data: targetIntent.prefill || {}, nonce: Date.now() });
         setIsCreateTaskModalOpen?.(true);
+        triggerAICursor?.({ selector: '[data-ai-target="task-title-input"], form input[type="text"]', label: "Prefilling Task Form" });
         return;
       }
       if (["create_request", "create_project", "create_department"].includes(targetIntent.type)) {
         setAiPrefillDraft({ type: targetIntent.type, data: targetIntent.prefill || {}, nonce: Date.now() });
+        triggerAICursor?.({ selector: "form input, form textarea", label: "Prefilling Form" });
       }
     }
   };
@@ -166,8 +253,8 @@ export default function LiraAssistantWidget() {
 
   // Listen to real-time AI job updates via Socket.IO
   useEffect(() => {
-    if (!canUseAI) return;
-    const socket = getSocket();
+    if (!canUseAI || !user?._id) return;
+    const socket = getSocket() || initSocketClient(user._id);
     if (!socket) return;
     const onAssistantUpdate = ({ session: updatedSession, jobId }) => {
       if (!updatedSession) return;
@@ -180,24 +267,62 @@ export default function LiraAssistantWidget() {
     socket.on("ai:assistant-update", onAssistantUpdate);
     return () => socket.off("ai:assistant-update", onAssistantUpdate);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canUseAI]);
+  }, [canUseAI, user?._id]);
+
+  // Refresh session state cleanly whenever user opens the Copilot sidebar
+  useEffect(() => {
+    if (canUseAI && isAIAssistantOpen) {
+      syncSession(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canUseAI, isAIAssistantOpen]);
+
+  const handleAttachFiles = async (e) => {
+    const picked = Array.from(e.target.files || []);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    if (picked.length === 0) return;
+    setUploadingFiles(true);
+    const res = await uploadAIAssistantFilesAPI(picked);
+    setUploadingFiles(false);
+    if (res.success && Array.isArray(res.attachments)) {
+      setPendingAttachments((prev) => [...prev, ...res.attachments].slice(0, 5));
+    }
+  };
 
   const dispatchPrompt = async (promptText) => {
     const clean = String(promptText || "").trim();
-    if (!clean || sending) return;
+    if ((!clean && pendingAttachments.length === 0) || sending) return;
+    const attachmentsToSend = [...pendingAttachments];
     setInput("");
+    setPendingAttachments([]);
     setSending(true);
     const res = await sendAIAssistantChatAPI({
-      prompt: clean,
+      prompt: clean || `Analyze attached file(s): ${attachmentsToSend.map((a) => a.name).join(", ")}`,
       mode,
       moduleKey: inferModuleFromPath(location.pathname),
       selectedModelKey,
       currentRoute: location.pathname,
       activeProjectId: activeProject?._id || null,
+      attachments: attachmentsToSend,
     });
     setSending(false);
     if (res.success && res.session) {
       setSession(res.session);
+    }
+  };
+
+  const handleCardStepClick = async (step, msgId) => {
+    const res = await executeAIAssistantCardStepAPI({ step, messageId: msgId });
+    if (res.success) {
+      if (res.session) setSession(res.session);
+      refreshTeam?.();
+      refreshProjects?.();
+      refreshDepartments?.();
+      if (res.executedResult?.taskKey) {
+        closeAllSidebars?.("task");
+        navigate(`/board?task=${res.executedResult.taskKey}`);
+        setSelectedTaskKeyOrId?.(res.executedResult.taskKey);
+      }
     }
   };
 
@@ -276,19 +401,31 @@ export default function LiraAssistantWidget() {
   };
 
   const handleReviewOrApply = (msg) => {
-    if (msg.navigateTo) navigate(msg.navigateTo);
+    if (msg.cursorGuide) {
+      runCursorWalkthroughForMessage(msg);
+      return;
+    }
     const targetIntent = msg.steps?.[0] || msg.intent;
+    closeAllSidebars?.(targetIntent?.type === "open_task" ? "task" : null);
+    if (msg.navigateTo) {
+      navigate(msg.navigateTo);
+    }
     if (targetIntent?.type === "create_task") {
       setAiPrefillDraft({ type: "create_task", data: targetIntent.prefill || {}, nonce: Date.now() });
       setIsCreateTaskModalOpen?.(true);
+      triggerAICursor?.({ selector: '[data-ai-target="task-title-input"], form input[type="text"]', label: "Copilot Prefilling Task" });
       return;
     }
     if (targetIntent?.type === "open_task" && targetIntent.prefill?.taskKey) {
       setSelectedTaskKeyOrId?.(targetIntent.prefill.taskKey);
+      triggerAICursor?.({ label: `Opening ${targetIntent.prefill.taskKey}` });
       return;
     }
     if (["create_request", "create_project", "create_department"].includes(targetIntent?.type)) {
       setAiPrefillDraft({ type: targetIntent.type, data: targetIntent.prefill || {}, nonce: Date.now() });
+      triggerAICursor?.({ selector: "form input, form textarea", label: "Copilot Prefilling Form" });
+    } else if (msg.navigateTo) {
+      triggerAICursor?.({ label: `Navigated to ${msg.navigateTo}` });
     }
   };
 
@@ -302,27 +439,96 @@ export default function LiraAssistantWidget() {
       refreshDepartments?.();
       refreshTeam?.();
       if (res.executedResult?.taskKey) {
+        closeAllSidebars?.("task");
         navigate(`/board?task=${res.executedResult.taskKey}`);
         setSelectedTaskKeyOrId?.(res.executedResult.taskKey);
+        triggerAICursor?.({ label: `Opened ${res.executedResult.taskKey}` });
       }
     }
   };
+
+  const handlePebblePointerDown = (e) => {
+    if (e.button !== 0 && e.pointerType === "mouse") return;
+    const rect = pebbleRef.current?.getBoundingClientRect();
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const origLeft = rect ? rect.left : window.innerWidth - 76;
+    const origTop = rect ? rect.top : window.innerHeight - 76;
+    let moved = false;
+    let latestPos = null;
+
+    const onMove = (ev) => {
+      const dx = ev.clientX - startX;
+      const dy = ev.clientY - startY;
+      if (!moved && Math.hypot(dx, dy) > 7) {
+        moved = true;
+      }
+      if (moved) {
+        const clampedX = Math.max(12, Math.min(window.innerWidth - 68, origLeft + dx));
+        const clampedY = Math.max(76, Math.min(window.innerHeight - 68, origTop + dy));
+        latestPos = { x: clampedX, y: clampedY };
+        setDragPos(latestPos);
+      }
+    };
+
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+      if (moved && latestPos) {
+        const cx = latestPos.x + 28;
+        const cy = latestPos.y + 28;
+        const vert = cy < window.innerHeight / 2 ? "top" : "bottom";
+        const horiz = cx < window.innerWidth / 2 ? "left" : "right";
+        setCorner(`${vert}-${horiz}`);
+        setDragPos(null);
+      } else {
+        setDragPos(null);
+        setIsAIAssistantOpen(true);
+      }
+    };
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+  };
+
+  const cornerPosStyle = useMemo(() => {
+    if (dragPos) {
+      return { left: `${dragPos.x}px`, top: `${dragPos.y}px`, right: "auto", bottom: "auto" };
+    }
+    switch (corner) {
+      case "top-left":
+        return { top: "82px", left: "20px", right: "auto", bottom: "auto" };
+      case "top-right":
+        return { top: "82px", right: "20px", left: "auto", bottom: "auto" };
+      case "bottom-left":
+        return { bottom: "20px", left: "20px", top: "auto", right: "auto" };
+      case "bottom-right":
+      default:
+        return { bottom: "20px", right: "20px", top: "auto", left: "auto" };
+    }
+  }, [corner, dragPos]);
 
   const messages = session?.messages || [];
 
   return (
     <>
-      {/* Bottom-Right Glass Pebble Circle Orb with Lira Logo */}
+      {/* 4-Corner Draggable Glass Pebble Orb (Resets to bottom-right on reload; sits cleanly behind sidebars at z-30) */}
       {!isAIAssistantOpen && (
         <motion.button
+          ref={pebbleRef}
           type="button"
-          whileHover={{ scale: 1.07, y: -2 }}
+          data-testid="lira-pebble-orb"
+          data-corner={corner}
+          whileHover={dragPos ? undefined : { scale: 1.07, y: -2 }}
           whileTap={{ scale: 0.94 }}
-          onClick={() => setIsAIAssistantOpen(true)}
-          title="Open Lira Workspace Assistant (Cmd+J)"
+          onPointerDown={handlePebblePointerDown}
+          title="Open Lira Assistant (Cmd+J) — drag to any corner"
           aria-label="Open Lira Workspace Assistant"
-          className="fixed bottom-5 right-5 z-[60] w-14 h-14 rounded-full flex items-center justify-center cursor-pointer backdrop-blur-2xl border transition-shadow"
+          className="fixed z-30 w-14 h-14 rounded-full flex items-center justify-center cursor-grab active:cursor-grabbing backdrop-blur-2xl border select-none touch-none transition-shadow"
           style={{
+            ...cornerPosStyle,
             background: isDark
               ? "radial-gradient(135% 135% at 30% 20%, rgba(255,255,255,0.28) 0%, rgba(168,85,247,0.18) 38%, rgba(20,22,30,0.82) 100%)"
               : "radial-gradient(135% 135% at 30% 20%, rgba(255,255,255,0.95) 0%, rgba(226,232,240,0.8) 50%, rgba(148,163,184,0.45) 100%)",
@@ -352,8 +558,8 @@ export default function LiraAssistantWidget() {
         isOpen={isAIAssistantOpen}
         onClose={() => setIsAIAssistantOpen(false)}
         title="Lira Assistant"
-        subtitle="Your workspace helper for tasks, project chat, messages, and quick navigation"
-        icon={Sparkles}
+        subtitle="Workspace copilot • tasks, calendar cursor guide, charts & exports"
+        headerIcon={<LiraLogo size="sm" showWordmark={false} isDark={isDark} />}
         widthClass="max-w-xl"
         headerActions={
           <div className="flex items-center gap-1.5">
@@ -432,7 +638,7 @@ export default function LiraAssistantWidget() {
                 <button
                   type="button"
                   onClick={() => {
-                    setIsAIAssistantOpen(false);
+                    closeAllSidebars?.();
                     navigate("/profile?tab=ai");
                   }}
                   className="text-purple-400 font-bold hover:underline flex items-center gap-1 shrink-0 cursor-pointer"
@@ -443,7 +649,57 @@ export default function LiraAssistantWidget() {
               </div>
             )}
 
+            {pendingAttachments.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {pendingAttachments.map((att, aIdx) => (
+                  <div
+                    key={`${att.url}-${aIdx}`}
+                    className={`flex items-center gap-1.5 pl-2 pr-1.5 py-1 rounded-lg border text-[10px] ${g.subtleSurface}`}
+                  >
+                    {att.kind === "image" ? (
+                      <img src={att.url} alt={att.name} className="w-4 h-4 rounded object-cover" />
+                    ) : (
+                      <FileText className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                    )}
+                    <span className="max-w-[130px] truncate font-medium">{att.name}</span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setPendingAttachments((prev) => prev.filter((_, idx) => idx !== aIdx))
+                      }
+                      className="p-0.5 rounded hover:text-rose-400 cursor-pointer"
+                      aria-label={`Remove ${att.name}`}
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
             <div className="flex items-center gap-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept="image/*,.pdf,.txt,.csv,.md,.json,.log,.tsv"
+                onChange={handleAttachFiles}
+                className="hidden"
+              />
+              <button
+                type="button"
+                disabled={uploadingFiles}
+                onClick={() => fileInputRef.current?.click()}
+                className={`p-2.5 rounded-xl border cursor-pointer disabled:opacity-40 ${g.btnSecondary}`}
+                title="Attach images or documents (PNG, JPG, PDF, CSV, TXT, JSON)"
+                aria-label="Attach files to Lira Copilot"
+              >
+                {uploadingFiles ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Paperclip className="w-3.5 h-3.5" />
+                )}
+              </button>
               <input
                 type="text"
                 value={input}
@@ -452,8 +708,8 @@ export default function LiraAssistantWidget() {
                   hasProcessing
                     ? "Send a new message to redirect, or click Stop..."
                     : mode === "auto"
-                    ? "Tell Lira what to create, assign, message, or open..."
-                    : "Ask Lira to prepare tasks, messages, or navigate..."
+                    ? "Tell Lira what to create, chart, export, or open..."
+                    : "Ask Lira to prepare tasks, charts, or clarify..."
                 }
                 className={`flex-1 rounded-xl px-3.5 py-2.5 text-xs border focus:outline-none ${g.input}`}
               />
@@ -471,7 +727,7 @@ export default function LiraAssistantWidget() {
               )}
               <button
                 type="submit"
-                disabled={!input.trim() || sending}
+                disabled={(!input.trim() && pendingAttachments.length === 0) || sending}
                 className={`px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-40 ${g.btnPrimary}`}
               >
                 {sending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
@@ -485,13 +741,11 @@ export default function LiraAssistantWidget() {
           {messages.length === 0 ? (
             <div className={`p-5 rounded-2xl border space-y-4 ${g.subtleSurface}`}>
               <div className="flex items-start gap-3">
-                <div className={`w-9 h-9 rounded-xl border flex items-center justify-center shrink-0 ${g.badge}`}>
-                  <Sparkles className="w-4 h-4 text-purple-400" />
-                </div>
+                <LiraLogo size="md" showWordmark={false} isDark={isDark} />
                 <div>
                   <h4 className={`text-xs font-bold ${g.heading}`}>How can I help across your workspace?</h4>
                   <p className={`text-[11px] mt-1 leading-relaxed ${g.muted}`}>
-                    Ask me to create and assign tasks, post team updates, DM colleagues, submit requests, or jump between pages in a single flow.
+                    Attach images or PDFs, ask me to create or schedule tasks, build charts, export CSV/PDF/PPT reports, or walk you through pages with the cursor.
                   </p>
                 </div>
               </div>
@@ -518,8 +772,33 @@ export default function LiraAssistantWidget() {
               if (isUser) {
                 return (
                   <div key={msg._id || idx} className="flex justify-end">
-                    <div className={`max-w-[85%] p-3.5 rounded-2xl rounded-br-sm border text-xs ${g.selectedRow}`}>
+                    <div className={`max-w-[85%] p-3.5 rounded-2xl rounded-br-sm border text-xs space-y-2 ${g.selectedRow}`}>
                       <p className="leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                      {Array.isArray(msg.attachments) && msg.attachments.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 pt-1">
+                          {msg.attachments.map((att, aIdx) =>
+                            att.kind === "image" ? (
+                              <a
+                                key={aIdx}
+                                href={att.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="block rounded-lg overflow-hidden border border-white/15"
+                              >
+                                <img src={att.url} alt={att.name} className="w-20 h-16 object-cover" />
+                              </a>
+                            ) : (
+                              <span
+                                key={aIdx}
+                                className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg border text-[10px] ${g.subtleSurface}`}
+                              >
+                                <FileText className="w-3 h-3 text-sky-400" />
+                                <span className="max-w-[130px] truncate">{att.name}</span>
+                              </span>
+                            )
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
@@ -539,7 +818,7 @@ export default function LiraAssistantWidget() {
                     <button
                       type="button"
                       onClick={() => {
-                        setIsAIAssistantOpen(false);
+                        closeAllSidebars?.();
                         navigate("/profile?tab=ai");
                       }}
                       className={`px-3 py-1.5 rounded-xl text-[11px] font-bold flex items-center gap-1.5 cursor-pointer ${g.btnPrimary}`}
@@ -585,7 +864,7 @@ export default function LiraAssistantWidget() {
                       ) : msg.status === "stopped" ? (
                         <Square className="w-3 h-3 text-amber-400 fill-current" />
                       ) : (
-                        <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+                        <LiraLogo size="sm" showWordmark={false} isDark={isDark} />
                       )}
                       <span className={g.heading}>Lira</span>
                     </div>
@@ -599,7 +878,48 @@ export default function LiraAssistantWidget() {
                     )}
                   </div>
 
-                  <p className="leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                  <p className="leading-relaxed whitespace-pre-wrap">
+                    {formatPlainCopilotText(
+                      msg.content,
+                      idx > 0 ? messages[idx - 1]?.content : ""
+                    )}
+                  </p>
+
+                  {msg.uiHtml && !msg.actionApplied && (
+                    <SanitizedCopilotHtml
+                      html={msg.uiHtml}
+                      isDark={isDark}
+                      onStepClick={(step) => handleCardStepClick(step, msg._id)}
+                      onReplyClick={(txt) => dispatchPrompt(txt)}
+                    />
+                  )}
+
+                  {!msg.uiHtml && Array.isArray(msg.choices) && msg.choices.length > 0 && !msg.actionApplied && (
+                    <div className="space-y-2 w-full">
+                      {msg.choices.map((ch, cIdx) => (
+                        <button
+                          key={cIdx}
+                          type="button"
+                          onClick={() =>
+                            ch.step
+                              ? handleCardStepClick(ch.step, msg._id)
+                              : ch.replyText && dispatchPrompt(ch.replyText)
+                          }
+                          className={`w-full p-2.5 rounded-xl border flex items-center justify-between gap-3 text-left cursor-pointer ${g.subtleSurface} ${g.rowHover}`}
+                        >
+                          <div className="min-w-0">
+                            <div className={`font-bold text-xs truncate ${g.heading}`}>{ch.label}</div>
+                            {ch.sublabel && <div className={`text-[10px] truncate ${g.muted}`}>{ch.sublabel}</div>}
+                          </div>
+                          <ArrowRight className="w-3.5 h-3.5 shrink-0 text-purple-400" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {Array.isArray(msg.artifacts) && msg.artifacts.length > 0 && (
+                    <CopilotArtifactsList artifacts={msg.artifacts} isDark={isDark} />
+                  )}
 
                   {hasSteps && msg.status === "completed" && !msg.actionApplied && (
                     <div className={`p-3 rounded-xl border space-y-1.5 ${g.subtleSurface}`}>
@@ -628,8 +948,10 @@ export default function LiraAssistantWidget() {
                         <button
                           type="button"
                           onClick={() => {
+                            closeAllSidebars?.("task");
                             navigate(`/board?task=${msg.executedResult.taskKey}`);
                             setSelectedTaskKeyOrId?.(msg.executedResult.taskKey);
+                            triggerAICursor?.({ label: `Opened ${msg.executedResult.taskKey}` });
                           }}
                           className="px-2 py-1 rounded-lg bg-emerald-500/20 text-[10px] font-bold shrink-0 cursor-pointer"
                         >
@@ -644,7 +966,11 @@ export default function LiraAssistantWidget() {
                       {msg.navigateTo && (
                         <button
                           type="button"
-                          onClick={() => navigate(msg.navigateTo)}
+                          onClick={() => {
+                            closeAllSidebars?.();
+                            navigate(msg.navigateTo);
+                            triggerAICursor?.({ label: `Opened ${msg.navigateTo}` });
+                          }}
                           className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-semibold flex items-center gap-1 cursor-pointer ${g.btnSecondary}`}
                         >
                           <Navigation className="w-3 h-3 text-sky-400" />

@@ -1,9 +1,10 @@
 const User = require("../models/userModel");
 const Task = require("../models/taskModel");
 const Department = require("../models/departmentModel");
+const Project = require("../models/projectModel");
 const bcrypt = require("bcryptjs");
 const Role = require("../models/roleModel");
-const { isSuperAdminEmail, hasWildcardPermission } = require("../utils/roles");
+const { isSuperAdminEmail, isSuperAdminUser, hasWildcardPermission } = require("../utils/roles");
 const { enqueueWebSocketEvent, enqueueEmailJob } = require("../services/queue");
 const { sendPushToUser, sendPushToAdmins } = require("../services/pushService");
 const { createNotification, notifyAdmins } = require("../utils/notificationHelper");
@@ -237,10 +238,88 @@ exports.deleteUser = async (req, res) => {
       return res.status(400).json({ success: false, message: "Cannot delete your own admin account" });
     }
 
+    const target = await User.findById(id).select("role isSuperAdmin");
+    if (!target) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+    if (isSuperAdminUser(target) && !req.user.isSuperAdmin) {
+      return res.status(403).json({ success: false, message: "Cannot deactivate a Superadmin account" });
+    }
+
     // Soft delete / deactivate
     await User.findByIdAndUpdate(id, { isActive: false, status: "away" });
 
+    enqueueWebSocketEvent({
+      target: "all",
+      event: "team:updated",
+      data: { action: "user_deactivated", userId: id },
+    });
+
     res.status(200).json({ success: true, message: "User deactivated successfully" });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// Superadmin only: Bulk remove all non-Superadmin user accounts cleanly with global realtime broadcast
+exports.bulkRemoveNonSuperadmins = async (req, res) => {
+  try {
+    if (!req.user?.isSuperAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: "Only Superadmin may remove all non-Superadmin accounts",
+      });
+    }
+
+    const candidates = await User.find({
+      _id: { $ne: req.user._id },
+      role: { $nin: ["superadmin", "super_admin"] },
+      isSuperAdmin: { $ne: true },
+    })
+      .select("_id email fullname role")
+      .lean();
+
+    const targetIds = candidates
+      .filter((u) => !isSuperAdminEmail(u.email) && !isSuperAdminUser(u))
+      .map((u) => u._id);
+
+    if (targetIds.length === 0) {
+      return res.status(200).json({
+        success: true,
+        deletedCount: 0,
+        message: "No non-Superadmin accounts found to remove.",
+      });
+    }
+
+    const [delRes] = await Promise.all([
+      User.deleteMany({ _id: { $in: targetIds } }),
+      Project.updateMany({}, { $pull: { members: { $in: targetIds } } }),
+      Department.updateMany({}, { $pull: { members: { $in: targetIds } } }),
+    ]);
+
+    await Promise.all([
+      enqueueWebSocketEvent({
+        target: "all",
+        event: "team:updated",
+        data: { action: "bulk_removed_non_superadmins", deletedCount: delRes.deletedCount || 0 },
+      }),
+      enqueueWebSocketEvent({
+        target: "all",
+        event: "project:updated",
+        data: { action: "members_pruned" },
+      }),
+      enqueueWebSocketEvent({
+        target: "all",
+        event: "department:updated",
+        data: { action: "members_pruned" },
+      }),
+    ]);
+
+    res.status(200).json({
+      success: true,
+      deletedCount: delRes.deletedCount || 0,
+      message: `Removed ${delRes.deletedCount || 0} non-Superadmin user accounts.`,
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

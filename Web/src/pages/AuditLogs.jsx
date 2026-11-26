@@ -96,13 +96,35 @@ export default function AuditLogs() {
       // onlineUserIds in AppContext updates instantaneously; refresh summary stats in background
       loadAudit();
     };
+    const onDomainChange = () => {
+      loadAudit();
+      loadAiUsage();
+    };
     socket.on("connect", onConnect);
     socket.on("presence:update", onPresence);
+    socket.on("team:updated", onDomainChange);
+    socket.on("project:updated", onDomainChange);
+    socket.on("department:updated", onDomainChange);
+    socket.on("rbac:updated", onDomainChange);
+    socket.on("task:created_global", onDomainChange);
+    socket.on("task:updated", onDomainChange);
+    socket.on("task:deleted", onDomainChange);
+    socket.on("request:created", onDomainChange);
+    socket.on("request:updated", onDomainChange);
     return () => {
       socket.off("connect", onConnect);
       socket.off("presence:update", onPresence);
+      socket.off("team:updated", onDomainChange);
+      socket.off("project:updated", onDomainChange);
+      socket.off("department:updated", onDomainChange);
+      socket.off("rbac:updated", onDomainChange);
+      socket.off("task:created_global", onDomainChange);
+      socket.off("task:updated", onDomainChange);
+      socket.off("task:deleted", onDomainChange);
+      socket.off("request:created", onDomainChange);
+      socket.off("request:updated", onDomainChange);
     };
-  }, [loadAudit]);
+  }, [loadAudit, loadAiUsage]);
 
   if (!canViewAudit) {
     return (
@@ -296,7 +318,14 @@ export default function AuditLogs() {
                         </div>
                       </td>
                       <td className="p-3 font-mono font-bold text-[11px] text-indigo-400">
-                        {log.action}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span>{log.action}</span>
+                          {log.actorType === "copilot" && (
+                            <span className="px-1.5 py-0.5 rounded-md bg-purple-500/20 text-purple-300 border border-purple-500/35 text-[9px] font-bold">
+                              COPILOT
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="p-3 font-mono text-[11px] max-w-[220px] truncate" title={log.url}>
                         <span className="font-bold mr-1.5">{log.method}</span>

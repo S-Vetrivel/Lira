@@ -543,12 +543,19 @@ exports.updateTask = async (req, res) => {
     }
 
     // Queue-based WebSocket broadcast
-    await enqueueWebSocketEvent({
-      target: "project",
-      room: task.project.toString(),
-      event: "task:updated",
-      data: populated,
-    });
+    await Promise.all([
+      enqueueWebSocketEvent({
+        target: "project",
+        room: task.project.toString(),
+        event: "task:updated",
+        data: populated,
+      }),
+      enqueueWebSocketEvent({
+        target: "all",
+        event: "task:updated",
+        data: populated,
+      }),
+    ]);
 
     res.status(200).json({ success: true, task: populated });
   } catch (error) {
@@ -624,25 +631,42 @@ exports.updateTaskStatus = async (req, res) => {
     }
 
     // Queue-based WebSocket broadcast for live board update across all users
-    await enqueueWebSocketEvent({
-      target: "project",
-      room: task.project.toString(),
-      event: "task:updated",
-      data: populated,
-    });
-
-    await enqueueWebSocketEvent({
-      target: "project",
-      room: task.project.toString(),
-      event: "task:status_changed",
-      data: {
-        taskId: task._id,
-        key: task.key,
-        oldStatus,
-        newStatus: status,
-        task: populated,
-      },
-    });
+    await Promise.all([
+      enqueueWebSocketEvent({
+        target: "project",
+        room: task.project.toString(),
+        event: "task:updated",
+        data: populated,
+      }),
+      enqueueWebSocketEvent({
+        target: "all",
+        event: "task:updated",
+        data: populated,
+      }),
+      enqueueWebSocketEvent({
+        target: "project",
+        room: task.project.toString(),
+        event: "task:status_changed",
+        data: {
+          taskId: task._id,
+          key: task.key,
+          oldStatus,
+          newStatus: status,
+          task: populated,
+        },
+      }),
+      enqueueWebSocketEvent({
+        target: "all",
+        event: "task:status_changed",
+        data: {
+          taskId: task._id,
+          key: task.key,
+          oldStatus,
+          newStatus: status,
+          task: populated,
+        },
+      }),
+    ]);
 
     await enqueueTaskMetrics({ projectId: task.project });
 
@@ -901,12 +925,19 @@ exports.deleteTask = async (req, res) => {
     await Comment.deleteMany({ task: id });
     await ActivityLog.deleteMany({ task: id });
 
-    await enqueueWebSocketEvent({
-      target: "project",
-      room: projectId,
-      event: "task:deleted",
-      data: { taskId: id, key: task.key },
-    });
+    await Promise.all([
+      enqueueWebSocketEvent({
+        target: "project",
+        room: projectId,
+        event: "task:deleted",
+        data: { taskId: id, key: task.key, projectId },
+      }),
+      enqueueWebSocketEvent({
+        target: "all",
+        event: "task:deleted",
+        data: { taskId: id, key: task.key, projectId },
+      }),
+    ]);
 
     await enqueueTaskMetrics({ projectId });
 
