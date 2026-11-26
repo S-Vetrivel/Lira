@@ -2,7 +2,12 @@ const Role = require("../models/roleModel");
 const User = require("../models/userModel");
 const Department = require("../models/departmentModel");
 const { MODULES_CATALOG } = require("../config/modulesCatalog");
-const { ensureSystemRolesExist, resolveUserAccess } = require("../utils/roles");
+const {
+  ensureSystemRolesExist,
+  resolveUserAccess,
+  getCachedRoles,
+  invalidateRolesCache,
+} = require("../utils/roles");
 const { enqueueWebSocketEvent } = require("../services/queue");
 
 const ts = () => new Date().toISOString();
@@ -15,14 +20,16 @@ exports.getModulesCatalog = async (req, res) => {
   });
 };
 
-// 2. List all roles (+ user counts & department metadata)
+// 2. List all roles from Redis cache (+ live user counts & department metadata)
 exports.listRoles = async (req, res) => {
   try {
-    await ensureSystemRolesExist();
-    const roles = await Role.find()
-      .populate("department", "name code color")
-      .sort({ isSystem: -1, createdAt: 1 })
-      .lean();
+    let { roles, source } = await getCachedRoles();
+    if (!roles || roles.length === 0) {
+      await ensureSystemRolesExist();
+      const refreshed = await getCachedRoles();
+      roles = refreshed.roles;
+      source = refreshed.source;
+    }
 
     const userCounts = await User.aggregate([
       { $match: { isActive: true, status: { $ne: "rejected" } } },
@@ -38,7 +45,7 @@ exports.listRoles = async (req, res) => {
       userCount: countMap[r.name] || 0,
     }));
 
-    res.status(200).json({ success: true, roles: enriched });
+    res.status(200).json({ success: true, source, roles: enriched });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -93,8 +100,9 @@ exports.createRole = async (req, res) => {
     });
 
     const populated = await Role.findById(created._id).populate("department", "name code color").lean();
+    await invalidateRolesCache();
 
-    console.log(`[${ts()}] [RBAC] Superadmin ${req.user.email} created role=${rawName} modules=${modules.length} perms=${permissions.length}`);
+    console.log(`[${ts()}] [RBAC] Superadmin ${req.user.email} created role=${rawName} modules=${modules.length} perms=${permissions.length} (Redis cache refreshed)`);
 
     enqueueWebSocketEvent({
       target: "all",
@@ -140,8 +148,9 @@ exports.updateRole = async (req, res) => {
 
     await roleDoc.save();
     const populated = await Role.findById(roleDoc._id).populate("department", "name code color").lean();
+    await invalidateRolesCache();
 
-    console.log(`[${ts()}] [RBAC] Superadmin ${req.user.email} updated role=${roleDoc.name} modules=${roleDoc.modules.length} perms=${roleDoc.permissions.length}`);
+    console.log(`[${ts()}] [RBAC] Superadmin ${req.user.email} updated role=${roleDoc.name} modules=${roleDoc.modules.length} perms=${roleDoc.permissions.length} (Redis cache refreshed)`);
 
     enqueueWebSocketEvent({
       target: "all",
@@ -180,8 +189,9 @@ exports.deleteRole = async (req, res) => {
     }
 
     await Role.findByIdAndDelete(id);
+    await invalidateRolesCache();
 
-    console.log(`[${ts()}] [RBAC] Superadmin ${req.user.email} deleted role=${roleDoc.name}`);
+    console.log(`[${ts()}] [RBAC] Superadmin ${req.user.email} deleted role=${roleDoc.name} (Redis cache refreshed)`);
 
     enqueueWebSocketEvent({
       target: "all",

@@ -1,5 +1,6 @@
 const Project = require("../models/projectModel");
 const Task = require("../models/taskModel");
+const User = require("../models/userModel");
 const minioService = require("../services/minioService");
 const { createNotification, notifyUsers } = require("../utils/notificationHelper");
 const { enqueueWebSocketEvent, enqueueFileJob } = require("../services/queue");
@@ -10,9 +11,11 @@ exports.getProjects = async (req, res) => {
   try {
     const projects = await Project.find({ status: { $ne: "archived" } })
       .populate("department", "name code color")
+      .populate("departments", "name code color")
       .populate("lead", MEMBER_FIELDS)
       .populate("members", MEMBER_FIELDS)
       .populate("files.uploadedBy", "fullname email avatar profilePicture")
+      .populate("links.addedBy", "fullname email avatar profilePicture")
       .sort({ createdAt: -1 })
       .lean();
 
@@ -61,9 +64,11 @@ exports.getProjectById = async (req, res) => {
     const { id } = req.params;
     const project = await Project.findById(id)
       .populate("department", "name code color")
+      .populate("departments", "name code color")
       .populate("lead", MEMBER_FIELDS)
       .populate("members", MEMBER_FIELDS)
       .populate("files.uploadedBy", "fullname email avatar profilePicture")
+      .populate("links.addedBy", "fullname email avatar profilePicture")
       .lean();
 
     if (!project) {
@@ -109,8 +114,18 @@ exports.getProjectById = async (req, res) => {
 
 exports.createProject = async (req, res) => {
   try {
-    const { name, prefix, description, department, lead, members, color, startDate, targetDate } =
-      req.body;
+    const {
+      name,
+      prefix,
+      description,
+      department,
+      departments = [],
+      lead,
+      members = [],
+      color,
+      startDate,
+      targetDate,
+    } = req.body;
 
     if (!name || !prefix) {
       return res.status(400).json({
@@ -135,14 +150,35 @@ exports.createProject = async (req, res) => {
       });
     }
 
-    const memberIds =
-      Array.isArray(members) && members.length > 0 ? members : [req.user._id];
+    const invokedDeptIds = Array.from(
+      new Set([
+        ...(department ? [department.toString()] : []),
+        ...(Array.isArray(departments) ? departments.filter(Boolean).map(String) : []),
+      ])
+    );
+
+    const memberSet = new Set([req.user._id.toString()]);
+    if (Array.isArray(members)) {
+      members.filter(Boolean).forEach((m) => memberSet.add(m.toString()));
+    }
+    if (invokedDeptIds.length > 0) {
+      const deptUsers = await User.find({
+        department: { $in: invokedDeptIds },
+        isActive: true,
+        status: "active",
+      })
+        .select("_id")
+        .lean();
+      deptUsers.forEach((u) => memberSet.add(u._id.toString()));
+    }
+    const memberIds = Array.from(memberSet);
 
     const project = await Project.create({
       name: name.trim(),
       prefix: cleanPrefix,
       description: description || "",
-      department: department || null,
+      department: department || invokedDeptIds[0] || null,
+      departments: invokedDeptIds,
       lead: lead || req.user._id,
       members: memberIds,
       color: color || "#4F46E5",
@@ -153,6 +189,7 @@ exports.createProject = async (req, res) => {
 
     const populated = await Project.findById(project._id)
       .populate("department", "name code color")
+      .populate("departments", "name code color")
       .populate("lead", MEMBER_FIELDS)
       .populate("members", MEMBER_FIELDS);
 
@@ -178,6 +215,7 @@ exports.updateProject = async (req, res) => {
       "name",
       "description",
       "department",
+      "departments",
       "lead",
       "members",
       "color",
@@ -191,9 +229,11 @@ exports.updateProject = async (req, res) => {
 
     const project = await Project.findByIdAndUpdate(id, updates, { new: true })
       .populate("department", "name code color")
+      .populate("departments", "name code color")
       .populate("lead", MEMBER_FIELDS)
       .populate("members", MEMBER_FIELDS)
-      .populate("files.uploadedBy", "fullname email avatar profilePicture");
+      .populate("files.uploadedBy", "fullname email avatar profilePicture")
+      .populate("links.addedBy", "fullname email avatar profilePicture");
 
     if (!project) {
       return res.status(404).json({ success: false, message: "Project not found" });
@@ -375,6 +415,165 @@ exports.deleteProjectFile = async (req, res) => {
       .populate("files.uploadedBy", "fullname email avatar profilePicture");
 
     res.status(200).json({ success: true, project: populated, files: populated.files });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// Add external URL / resource link to project
+exports.addProjectUrl = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, url, category } = req.body;
+
+    if (!title?.trim() || !url?.trim()) {
+      return res.status(400).json({ success: false, message: "Title and URL are required" });
+    }
+
+    const project = await Project.findById(id);
+    if (!project) {
+      return res.status(404).json({ success: false, message: "Project not found" });
+    }
+
+    const normalizedUrl = /^https?:\/\//i.test(url.trim()) ? url.trim() : `https://${url.trim()}`;
+
+    project.links.push({
+      title: title.trim(),
+      url: normalizedUrl,
+      category: category?.trim() || "Resource",
+      addedBy: req.user._id,
+      addedAt: new Date(),
+    });
+    await project.save();
+
+    const populated = await Project.findById(project._id)
+      .populate("department", "name code color")
+      .populate("lead", MEMBER_FIELDS)
+      .populate("members", MEMBER_FIELDS)
+      .populate("files.uploadedBy", "fullname email avatar profilePicture")
+      .populate("links.addedBy", "fullname email avatar profilePicture");
+
+    await enqueueWebSocketEvent({
+      target: "project",
+      room: project._id.toString(),
+      event: "project:updated",
+      data: populated,
+    });
+
+    res.status(200).json({ success: true, project: populated, links: populated.links });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// Invoke an entire Department / Team into a project (pulls active department staff in as project members)
+exports.invokeProjectDepartment = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { departmentId } = req.body;
+    if (!departmentId) {
+      return res.status(400).json({ success: false, message: "departmentId is required" });
+    }
+
+    const deptUsers = await User.find({
+      department: departmentId,
+      isActive: true,
+      status: "active",
+    })
+      .select("_id")
+      .lean();
+    const userIds = deptUsers.map((u) => u._id);
+
+    const project = await Project.findByIdAndUpdate(
+      id,
+      {
+        $addToSet: {
+          departments: departmentId,
+          members: { $each: userIds },
+        },
+      },
+      { new: true }
+    )
+      .populate("department", "name code color")
+      .populate("departments", "name code color")
+      .populate("lead", MEMBER_FIELDS)
+      .populate("members", MEMBER_FIELDS)
+      .populate("files.uploadedBy", "fullname email avatar profilePicture")
+      .populate("links.addedBy", "fullname email avatar profilePicture");
+
+    if (!project) {
+      return res.status(404).json({ success: false, message: "Project not found" });
+    }
+
+    if (userIds.length > 0) {
+      await notifyUsers({
+        recipients: userIds,
+        sender: req.user._id,
+        type: "project_update",
+        title: "Team Invoked to Project",
+        message: `${req.user.fullname} invoked your team into project [${project.prefix}] ${project.name}.`,
+      });
+    }
+
+    await enqueueWebSocketEvent({
+      target: "project",
+      room: project._id.toString(),
+      event: "project:updated",
+      data: project,
+    });
+
+    res.status(200).json({ success: true, project, addedCount: userIds.length });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// Remove a Department invocation from a project
+exports.removeProjectDepartment = async (req, res) => {
+  try {
+    const { id, deptId } = req.params;
+    const project = await Project.findByIdAndUpdate(
+      id,
+      { $pull: { departments: deptId } },
+      { new: true }
+    )
+      .populate("department", "name code color")
+      .populate("departments", "name code color")
+      .populate("lead", MEMBER_FIELDS)
+      .populate("members", MEMBER_FIELDS)
+      .populate("files.uploadedBy", "fullname email avatar profilePicture")
+      .populate("links.addedBy", "fullname email avatar profilePicture");
+
+    if (!project) {
+      return res.status(404).json({ success: false, message: "Project not found" });
+    }
+
+    res.status(200).json({ success: true, project });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// Remove URL / resource link from project
+exports.deleteProjectUrl = async (req, res) => {
+  try {
+    const { id, urlId } = req.params;
+    const project = await Project.findById(id);
+    if (!project) {
+      return res.status(404).json({ success: false, message: "Project not found" });
+    }
+
+    project.links.pull({ _id: urlId });
+    await project.save();
+
+    const populated = await Project.findById(project._id)
+      .populate("department", "name code color")
+      .populate("lead", MEMBER_FIELDS)
+      .populate("members", MEMBER_FIELDS)
+      .populate("files.uploadedBy", "fullname email avatar profilePicture")
+      .populate("links.addedBy", "fullname email avatar profilePicture");
+
+    res.status(200).json({ success: true, project: populated, links: populated.links });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

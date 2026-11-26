@@ -266,6 +266,28 @@ export async function removeProjectMember(projectId, userId) {
   }
 }
 
+export async function invokeProjectDepartment(projectId, departmentId) {
+  try {
+    const res = await api.post(`/projects/${projectId}/departments`, { departmentId });
+    toast.success("Team invoked into project");
+    return { success: true, project: res.data.project };
+  } catch (error) {
+    toast.error(error.response?.data?.message || "Failed to invoke team");
+    return { success: false, message: error.response?.data?.message };
+  }
+}
+
+export async function removeProjectDepartment(projectId, deptId) {
+  try {
+    const res = await api.delete(`/projects/${projectId}/departments/${deptId}`);
+    toast.success("Team removed from project");
+    return { success: true, project: res.data.project };
+  } catch (error) {
+    toast.error(error.response?.data?.message || "Failed to remove team");
+    return { success: false };
+  }
+}
+
 export async function uploadProjectFile(projectId, file) {
   try {
     const formData = new FormData();
@@ -285,6 +307,26 @@ export async function deleteProjectFile(projectId, fileId) {
     const res = await api.delete(`/projects/${projectId}/files/${fileId}`);
     toast.success("Project file removed");
     return { success: true, project: res.data.project, files: res.data.files };
+  } catch (error) {
+    return { success: false };
+  }
+}
+
+export async function addProjectUrl(projectId, linkData) {
+  try {
+    const res = await api.post(`/projects/${projectId}/urls`, linkData);
+    toast.success("URL added to project");
+    return { success: true, project: res.data.project, links: res.data.links };
+  } catch (error) {
+    return { success: false, message: error.response?.data?.message || "Failed to add URL" };
+  }
+}
+
+export async function deleteProjectUrl(projectId, urlId) {
+  try {
+    const res = await api.delete(`/projects/${projectId}/urls/${urlId}`);
+    toast.success("URL removed from project");
+    return { success: true, project: res.data.project, links: res.data.links };
   } catch (error) {
     return { success: false };
   }
@@ -771,6 +813,20 @@ export async function sendChatMessage(data) {
     return { success: true, message: res.data.message };
   } catch (error) {
     return { success: false, message: error.response?.data?.message };
+  }
+}
+
+export async function togglePinChatMessage(messageId) {
+  try {
+    const res = await api.patch(`/chat/messages/${messageId}/pin`);
+    return {
+      success: true,
+      message: res.data.message,
+      isPinned: res.data.isPinned ?? res.data.message?.isPinned,
+    };
+  } catch (error) {
+    toast.error(error.response?.data?.message || "Failed to toggle pin");
+    return { success: false };
   }
 }
 

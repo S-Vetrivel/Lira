@@ -1,10 +1,83 @@
 const Task = require("../models/taskModel");
 const Project = require("../models/projectModel");
+const User = require("../models/userModel");
 const Comment = require("../models/commentModel");
 const ActivityLog = require("../models/activityLogModel");
 const { logActivity } = require("../utils/activityLogger");
 const { createNotification } = require("../utils/notificationHelper");
 const { enqueueWebSocketEvent, enqueueTaskMetrics, enqueueEmailJob } = require("../services/queue");
+const { hasWildcardPermission, isSuperAdminUser } = require("../utils/roles");
+
+const normalizeAssignmentInput = ({ assignee, assignees, assignedDepartments }) => {
+  const uniqueAssignees = Array.from(
+    new Set([
+      ...(assignee ? [assignee.toString()] : []),
+      ...(Array.isArray(assignees) ? assignees.filter(Boolean).map(String) : []),
+    ])
+  );
+  const primaryAssignee = assignee || uniqueAssignees[0] || null;
+  const uniqueDepts = Array.from(
+    new Set(
+      Array.isArray(assignedDepartments)
+        ? assignedDepartments.filter(Boolean).map(String)
+        : []
+    )
+  );
+  return { primaryAssignee, uniqueAssignees, uniqueDepts };
+};
+
+const notifyAssignedRecipients = async ({
+  userIds = [],
+  departmentIds = [],
+  excludeUserId,
+  sender,
+  task,
+}) => {
+  const recipientIdsSet = new Set(userIds.filter(Boolean).map(String));
+  if (departmentIds.length > 0) {
+    const deptUsers = await User.find({
+      department: { $in: departmentIds },
+      isActive: true,
+      status: "active",
+    })
+      .select("_id")
+      .lean();
+    deptUsers.forEach((u) => recipientIdsSet.add(u._id.toString()));
+  }
+  if (excludeUserId) {
+    recipientIdsSet.delete(excludeUserId.toString());
+  }
+  if (recipientIdsSet.size === 0) return;
+
+  const recipientsArr = Array.from(recipientIdsSet);
+  await Promise.all(
+    recipientsArr.map((recId) =>
+      createNotification({
+        recipient: recId,
+        sender: sender._id,
+        task: task._id,
+        type: "assigned",
+        message: `${sender.fullname} assigned you task ${task.key}: "${task.title}"`,
+      })
+    )
+  );
+  const assignedUsers = await User.find({ _id: { $in: recipientsArr } })
+    .select("email")
+    .lean();
+  assignedUsers.forEach((au) => {
+    if (au.email) {
+      enqueueEmailJob({
+        to: au.email,
+        type: "task_assigned",
+        data: {
+          key: task.key,
+          title: task.title,
+          assignerName: sender.fullname || sender.email,
+        },
+      });
+    }
+  });
+};
 
 // Get tasks with filtering
 exports.getTasks = async (req, res) => {
@@ -16,8 +89,17 @@ exports.getTasks = async (req, res) => {
     if (targetProjectId) filter.project = targetProjectId;
     if (status) filter.status = status;
     if (assignee) {
-      if (assignee === "unassigned") filter.assignee = null;
-      else filter.assignee = assignee;
+      if (assignee === "unassigned") {
+        filter.$and = (filter.$and || []).concat([
+          { assignee: null },
+          { $or: [{ assignees: { $exists: false } }, { assignees: { $size: 0 } }] },
+          { $or: [{ assignedDepartments: { $exists: false } }, { assignedDepartments: { $size: 0 } }] },
+        ]);
+      } else {
+        filter.$and = (filter.$and || []).concat([
+          { $or: [{ assignee }, { assignees: assignee }] },
+        ]);
+      }
     }
     if (priority) filter.priority = priority;
     if (type) filter.type = type;
@@ -36,7 +118,9 @@ exports.getTasks = async (req, res) => {
     }
 
     const tasks = await Task.find(filter)
-      .populate("assignee", "fullname email avatar profilePicture jobTitle role")
+      .populate("assignee", "fullname email avatar profilePicture jobTitle role publicId departmentName")
+      .populate("assignees", "fullname email avatar profilePicture jobTitle role publicId departmentName")
+      .populate("assignedDepartments", "name code color")
       .populate("reporter", "fullname email avatar profilePicture")
       .populate("project", "name prefix color")
       .populate("subtasks.assignee", "fullname email avatar")
@@ -57,10 +141,17 @@ exports.getMyTasks = async (req, res) => {
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
 
-    const allMyTasks = await Task.find({ assignee: userId })
+    const myOrConditions = [{ assignee: userId }, { assignees: userId }];
+    if (req.user.department) {
+      myOrConditions.push({ assignedDepartments: req.user.department });
+    }
+
+    const allMyTasks = await Task.find({ $or: myOrConditions })
       .populate("reporter", "fullname email avatar")
       .populate("project", "name prefix color")
-      .populate("assignee", "fullname email avatar jobTitle role")
+      .populate("assignee", "fullname email avatar jobTitle role publicId departmentName")
+      .populate("assignees", "fullname email avatar jobTitle role publicId departmentName")
+      .populate("assignedDepartments", "name code color")
       .sort({ dueDate: 1, createdAt: -1 })
       .lean();
 
@@ -125,9 +216,11 @@ exports.getTaskByKeyOrId = async (req, res) => {
     }
 
     const task = await Task.findOne(query)
-      .populate("assignee", "fullname email avatar profilePicture jobTitle role")
+      .populate("assignee", "fullname email avatar profilePicture jobTitle role publicId departmentName")
+      .populate("assignees", "fullname email avatar profilePicture jobTitle role publicId departmentName")
+      .populate("assignedDepartments", "name code color")
       .populate("reporter", "fullname email avatar profilePicture jobTitle role")
-      .populate("project", "name prefix color lead department")
+      .populate("project", "name prefix color lead department departments")
       .populate("subtasks.assignee", "fullname email avatar")
       .populate("workLogs.user", "fullname email avatar")
       .populate("attachments.uploadedBy", "fullname email avatar");
@@ -166,6 +259,8 @@ exports.createTask = async (req, res) => {
       type,
       priority,
       assignee,
+      assignees = [],
+      assignedDepartments = [],
       dueDate,
       estimatedHours,
       subtasks,
@@ -195,6 +290,35 @@ exports.createTask = async (req, res) => {
         }))
       : [];
 
+    const { primaryAssignee, uniqueAssignees, uniqueDepts } = normalizeAssignmentInput({
+      assignee,
+      assignees,
+      assignedDepartments,
+    });
+
+    const canAssignTask =
+      isSuperAdminUser(req.user) ||
+      hasWildcardPermission(req.user.permissions, "tasks.assign");
+
+    // Without `tasks.assign`, disallow assigning tasks to other users or departments on creation
+    let finalAssignee = primaryAssignee;
+    let finalAssignees = uniqueAssignees;
+    let finalDepts = uniqueDepts;
+    if (!canAssignTask) {
+      const selfId = req.user._id.toString();
+      const hasOthers =
+        uniqueAssignees.some((uid) => uid !== selfId) || uniqueDepts.length > 0;
+      if (hasOthers) {
+        return res.status(403).json({
+          success: false,
+          message: "Permission denied: requires 'tasks.assign' to assign tasks to others or teams.",
+        });
+      }
+      finalAssignees = uniqueAssignees.filter((uid) => uid === selfId);
+      finalAssignee = finalAssignees[0] || null;
+      finalDepts = [];
+    }
+
     const task = await Task.create({
       key,
       project: project._id,
@@ -203,7 +327,9 @@ exports.createTask = async (req, res) => {
       type: type || "task",
       status: "todo",
       priority: priority || "medium",
-      assignee: assignee || null,
+      assignee: finalAssignee,
+      assignees: finalAssignees,
+      assignedDepartments: finalDepts,
       reporter: req.user._id,
       dueDate: dueDate || null,
       estimatedHours: Number(estimatedHours) || 0,
@@ -211,7 +337,9 @@ exports.createTask = async (req, res) => {
     });
 
     const populated = await Task.findById(task._id)
-      .populate("assignee", "fullname email avatar profilePicture jobTitle role")
+      .populate("assignee", "fullname email avatar profilePicture jobTitle role publicId departmentName")
+      .populate("assignees", "fullname email avatar profilePicture jobTitle role publicId departmentName")
+      .populate("assignedDepartments", "name code color")
       .populate("reporter", "fullname email avatar profilePicture")
       .populate("project", "name prefix color")
       .populate("subtasks.assignee", "fullname email avatar");
@@ -228,27 +356,13 @@ exports.createTask = async (req, res) => {
       },
     });
 
-    // Notify assignee if assigned
-    if (assignee && assignee.toString() !== req.user._id.toString()) {
-      await createNotification({
-        recipient: assignee,
-        sender: req.user._id,
-        task: task._id,
-        type: "assigned",
-        message: `${req.user.fullname} assigned you task ${key}: "${task.title}"`,
-      });
-      if (populated.assignee?.email) {
-        enqueueEmailJob({
-          to: populated.assignee.email,
-          type: "task_assigned",
-          data: {
-            key,
-            title: task.title,
-            assignerName: req.user.fullname || req.user.email,
-          },
-        });
-      }
-    }
+    await notifyAssignedRecipients({
+      userIds: finalAssignees,
+      departmentIds: finalDepts,
+      excludeUserId: req.user._id,
+      sender: req.user,
+      task: { _id: task._id, key, title: task.title },
+    });
 
     // Enqueue real-time WebSocket broadcast via BullMQ & Redis
     await enqueueWebSocketEvent({
@@ -283,7 +397,13 @@ exports.updateTask = async (req, res) => {
     const task = await Task.findById(id);
     if (!task) return res.status(404).json({ success: false, message: "Task not found" });
 
-    const previousAssignee = task.assignee?.toString();
+    const prevAssigneesSet = new Set([
+      ...(task.assignee ? [task.assignee.toString()] : []),
+      ...(task.assignees || []).map((a) => a.toString()),
+    ]);
+    const prevDeptIdsSet = new Set(
+      (task.assignedDepartments || []).map((d) => d.toString())
+    );
     const previousPriority = task.priority;
     const previousTitle = task.title;
 
@@ -293,14 +413,58 @@ exports.updateTask = async (req, res) => {
     if (updates.priority !== undefined) task.priority = updates.priority;
     if (updates.dueDate !== undefined) task.dueDate = updates.dueDate;
     if (updates.estimatedHours !== undefined) task.estimatedHours = Number(updates.estimatedHours) || 0;
-    if (updates.assignee !== undefined) {
-      task.assignee = updates.assignee ? updates.assignee : null;
+
+    const assignmentMutated =
+      updates.assignee !== undefined ||
+      updates.assignees !== undefined ||
+      updates.assignedDepartments !== undefined;
+
+    if (assignmentMutated) {
+      const canAssignTask =
+        isSuperAdminUser(req.user) ||
+        hasWildcardPermission(req.user.permissions, "tasks.assign");
+
+      if (!canAssignTask) {
+        return res.status(403).json({
+          success: false,
+          message: "Permission denied: requires 'tasks.assign' to modify task assignees or teams.",
+        });
+      }
+
+      if (updates.assignees !== undefined || updates.assignee !== undefined) {
+        const nextSingle = updates.assignee !== undefined ? updates.assignee : null;
+        const nextList =
+          updates.assignees !== undefined
+            ? updates.assignees
+            : updates.assignee
+              ? [updates.assignee]
+              : [];
+        const { primaryAssignee, uniqueAssignees } = normalizeAssignmentInput({
+          assignee: nextSingle,
+          assignees: nextList,
+          assignedDepartments: [],
+        });
+        task.assignee = primaryAssignee;
+        task.assignees = uniqueAssignees;
+      }
+
+      if (updates.assignedDepartments !== undefined) {
+        task.assignedDepartments = Array.from(
+          new Set(
+            Array.isArray(updates.assignedDepartments)
+              ? updates.assignedDepartments.filter(Boolean).map(String)
+              : []
+          )
+        );
+      }
     }
 
     await task.save();
 
     const populated = await Task.findById(task._id)
-      .populate("assignee", "fullname email avatar profilePicture jobTitle role")
+      .populate("assignee", "fullname email avatar profilePicture jobTitle role publicId departmentName")
+      .populate("assignees", "fullname email avatar profilePicture jobTitle role publicId departmentName")
+      .populate("assignedDepartments", "name code color")
       .populate("reporter", "fullname email avatar profilePicture")
       .populate("project", "name prefix color")
       .populate("subtasks.assignee", "fullname email avatar");
@@ -335,8 +499,23 @@ exports.updateTask = async (req, res) => {
       });
     }
 
-    if (previousAssignee !== task.assignee?.toString()) {
-      const isNowUnassigned = !task.assignee;
+    const nextAssigneesArr = (task.assignees || []).map((a) => a.toString());
+    const nextDeptsArr = (task.assignedDepartments || []).map((d) => d.toString());
+    const addedUsers = nextAssigneesArr.filter((uid) => !prevAssigneesSet.has(uid));
+    const addedDepts = nextDeptsArr.filter((did) => !prevDeptIdsSet.has(did));
+    const assigneesChanged =
+      addedUsers.length > 0 ||
+      addedDepts.length > 0 ||
+      nextAssigneesArr.length !== prevAssigneesSet.size ||
+      nextDeptsArr.length !== prevDeptIdsSet.size;
+
+    if (assigneesChanged) {
+      const isNowUnassigned =
+        !task.assignee && nextAssigneesArr.length === 0 && nextDeptsArr.length === 0;
+      const summaryParts = [
+        ...(populated.assignees || []).map((u) => u.fullname).filter(Boolean),
+        ...(populated.assignedDepartments || []).map((d) => `Team ${d.name}`).filter(Boolean),
+      ];
       await logActivity({
         task: task._id,
         project: task.project,
@@ -344,33 +523,22 @@ exports.updateTask = async (req, res) => {
         action: isNowUnassigned ? "unassigned" : "assigned",
         details: {
           field: "assignee",
-          oldValue: previousAssignee,
-          newValue: task.assignee,
+          oldValue: Array.from(prevAssigneesSet),
+          newValue: nextAssigneesArr,
           message: isNowUnassigned
             ? `${req.user.fullname} unassigned this task`
-            : `${req.user.fullname} assigned this task to ${populated.assignee?.fullname || "a team member"}`,
+            : `${req.user.fullname} updated assignment: ${summaryParts.join(", ") || populated.assignee?.fullname || "team"}`,
         },
       });
 
-      if (task.assignee && task.assignee.toString() !== req.user._id.toString()) {
-        await createNotification({
-          recipient: task.assignee,
-          sender: req.user._id,
-          task: task._id,
-          type: "assigned",
-          message: `${req.user.fullname} assigned you task ${task.key}: "${task.title}"`,
+      if (addedUsers.length > 0 || addedDepts.length > 0) {
+        await notifyAssignedRecipients({
+          userIds: addedUsers,
+          departmentIds: addedDepts,
+          excludeUserId: req.user._id,
+          sender: req.user,
+          task: { _id: task._id, key: task.key, title: task.title },
         });
-        if (populated.assignee?.email) {
-          enqueueEmailJob({
-            to: populated.assignee.email,
-            type: "task_assigned",
-            data: {
-              key: task.key,
-              title: task.title,
-              assignerName: req.user.fullname || req.user.email,
-            },
-          });
-        }
       }
     }
 
@@ -408,7 +576,9 @@ exports.updateTaskStatus = async (req, res) => {
     await task.save();
 
     const populated = await Task.findById(task._id)
-      .populate("assignee", "fullname email avatar profilePicture jobTitle role")
+      .populate("assignee", "fullname email avatar profilePicture jobTitle role publicId departmentName")
+      .populate("assignees", "fullname email avatar profilePicture jobTitle role publicId departmentName")
+      .populate("assignedDepartments", "name code color")
       .populate("reporter", "fullname email avatar profilePicture")
       .populate("project", "name prefix color")
       .populate("subtasks.assignee", "fullname email avatar");
@@ -507,7 +677,9 @@ exports.addWorkLog = async (req, res) => {
     await task.save();
 
     const populated = await Task.findById(task._id)
-      .populate("assignee", "fullname email avatar profilePicture jobTitle role")
+      .populate("assignee", "fullname email avatar profilePicture jobTitle role publicId departmentName")
+      .populate("assignees", "fullname email avatar profilePicture jobTitle role publicId departmentName")
+      .populate("assignedDepartments", "name code color")
       .populate("reporter", "fullname email avatar profilePicture")
       .populate("project", "name prefix color")
       .populate("workLogs.user", "fullname email avatar");

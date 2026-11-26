@@ -39,9 +39,10 @@ const COLUMNS = [
 ];
 
 export default function KanbanBoard({ onSelectTask }) {
-  const { user, activeProject, teamMembers, setIsCreateTaskModalOpen, theme } = useApp();
+  const { user, isSuperAdmin, hasPermission, activeProject, teamMembers, setIsCreateTaskModalOpen, theme } = useApp();
   const isDark = theme === "dark";
   const g = getGlassTokens(isDark);
+  const canCreateTask = isSuperAdmin || hasPermission("tasks.create");
 
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -161,9 +162,21 @@ export default function KanbanBoard({ onSelectTask }) {
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
 
+    const matchesUser = (t, uid) => {
+      if (!uid) return true;
+      const sid = String(uid);
+      if (String(t.assignee?._id || t.assignee) === sid) return true;
+      if ((t.assignees || []).some((a) => String(a._id || a) === sid)) return true;
+      return false;
+    };
+
     return tasks.filter((t) => {
-      if (filterMyTasks && t.assignee?._id !== user?._id) return false;
-      if (selectedAssignee && t.assignee?._id !== selectedAssignee) return false;
+      const userDeptId = String(user?.department?._id || user?.department || "");
+      const inMyDept =
+        userDeptId &&
+        (t.assignedDepartments || []).some((d) => String(d._id || d) === userDeptId);
+      if (filterMyTasks && !matchesUser(t, user?._id) && !inMyDept) return false;
+      if (selectedAssignee && !matchesUser(t, selectedAssignee)) return false;
       if (selectedPriority && t.priority !== selectedPriority) return false;
       if (selectedType && t.type !== selectedType) return false;
 
@@ -392,13 +405,15 @@ export default function KanbanBoard({ onSelectTask }) {
                       }`}
                     >
                       <p className="text-xs font-medium">No tasks in {column.title}</p>
-                      <button
-                        onClick={() => setIsCreateTaskModalOpen(true)}
-                        className={`mt-2 text-xs font-semibold flex items-center gap-1 cursor-pointer ${g.heading} hover:underline`}
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        <span>Add task</span>
-                      </button>
+                      {canCreateTask && (
+                        <button
+                          onClick={() => setIsCreateTaskModalOpen(true)}
+                          className={`mt-2 text-xs font-semibold flex items-center gap-1 cursor-pointer ${g.heading} hover:underline`}
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Add task</span>
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>

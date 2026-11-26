@@ -174,25 +174,53 @@ export default function TaskCard({ task, onClick, onDragStart }) {
           )}
         </div>
 
-        {/* Assignee Avatar */}
-        <div className="flex items-center">
-          {task.assignee ? (
-            <UserAvatar
-              user={task.assignee}
-              className={`w-5 h-5 rounded-full border ${
-                isDark ? "border-white/20" : "border-slate-300"
-              }`}
-              textClass="text-[9px]"
-            />
-          ) : (
-            <span
-              className={`text-[10px] italic px-1.5 py-0.5 rounded ${
-                isDark ? "text-slate-500 bg-white/5" : "text-slate-400 bg-slate-100"
-              }`}
-            >
-              Unassigned
+        {/* Assignee Group & Team Badges */}
+        <div className="flex items-center gap-1.5">
+          {Array.isArray(task.assignedDepartments) && task.assignedDepartments.length > 0 && (
+            <span className="px-1.5 py-0.2 rounded bg-indigo-500/15 border border-indigo-500/30 text-[9px] font-mono font-bold text-indigo-300">
+              {task.assignedDepartments[0].code || task.assignedDepartments[0].name}
+              {task.assignedDepartments.length > 1 ? ` +${task.assignedDepartments.length - 1}` : ""}
             </span>
           )}
+          {(() => {
+            const list =
+              Array.isArray(task.assignees) && task.assignees.length > 0
+                ? task.assignees
+                : task.assignee
+                  ? [task.assignee]
+                  : [];
+            if (list.length > 0) {
+              return (
+                <div className="flex items-center -space-x-1.5">
+                  {list.slice(0, 3).map((u) => (
+                    <UserAvatar
+                      key={u._id || u}
+                      user={u}
+                      className={`w-5 h-5 rounded-full border ${
+                        isDark ? "border-white/20" : "border-slate-300"
+                      }`}
+                      textClass="text-[9px]"
+                    />
+                  ))}
+                  {list.length > 3 && (
+                    <span className="pl-2 text-[9px] font-mono opacity-75">+{list.length - 3}</span>
+                  )}
+                </div>
+              );
+            }
+            if (!task.assignedDepartments?.length) {
+              return (
+                <span
+                  className={`text-[10px] italic px-1.5 py-0.5 rounded ${
+                    isDark ? "text-slate-500 bg-white/5" : "text-slate-400 bg-slate-100"
+                  }`}
+                >
+                  Unassigned
+                </span>
+              );
+            }
+            return null;
+          })()}
         </div>
       </div>
     </div>

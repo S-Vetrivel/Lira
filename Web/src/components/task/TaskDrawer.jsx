@@ -39,10 +39,12 @@ import {
   Plus,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import AssignmentSelector from "./AssignmentSelector";
 
 export default function TaskDrawer({ taskKeyOrId, onClose, onTaskUpdated }) {
-  const { user, teamMembers, theme } = useApp();
+  const { user, teamMembers, departments, projects, isSuperAdmin, hasPermission, theme } = useApp();
   const isDark = theme === "dark";
+  const canAssignTask = isSuperAdmin || hasPermission("tasks.assign");
 
   const [task, setTask] = useState(null);
   const [comments, setComments] = useState([]);
@@ -153,8 +155,19 @@ export default function TaskDrawer({ taskKeyOrId, onClose, onTaskUpdated }) {
     }
   };
 
-  const handleAssigneeChange = async (newAssigneeId) => {
-    const res = await updateTask(task._id, { assignee: newAssigneeId || null });
+  const handleAssigneesChange = async (newAssignees) => {
+    const res = await updateTask(task._id, {
+      assignee: newAssignees[0] || null,
+      assignees: newAssignees,
+    });
+    if (res.success) {
+      setTask(res.task);
+      onTaskUpdated?.(res.task);
+    }
+  };
+
+  const handleAssignedDepartmentsChange = async (newDeptIds) => {
+    const res = await updateTask(task._id, { assignedDepartments: newDeptIds });
     if (res.success) {
       setTask(res.task);
       onTaskUpdated?.(res.task);
@@ -754,23 +767,26 @@ export default function TaskDrawer({ taskKeyOrId, onClose, onTaskUpdated }) {
 
               {/* Right Minimal Properties Inspector */}
               <div className={`md:col-span-4 p-5 space-y-4 ${g.subtleSurface}`}>
-                <div className="space-y-1">
-                  <label className={`text-[10px] font-semibold uppercase tracking-wider block ${mutedText}`}>
-                    Assignee
-                  </label>
-                  <select
-                    value={task.assignee?._id || ""}
-                    onChange={(e) => handleAssigneeChange(e.target.value)}
-                    className={inputBase}
-                  >
-                    <option value="">Unassigned</option>
-                    {teamMembers.map((m) => (
-                      <option key={m._id} value={m._id}>
-                        {m.fullname}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <AssignmentSelector
+                  teamMembers={teamMembers}
+                  departments={departments}
+                  project={
+                    projects.find((p) => String(p._id) === String(task.project?._id || task.project)) ||
+                    task.project
+                  }
+                  selectedAssignees={
+                    Array.isArray(task.assignees) && task.assignees.length > 0
+                      ? task.assignees.map((u) => String(u._id || u))
+                      : task.assignee
+                        ? [String(task.assignee._id || task.assignee)]
+                        : []
+                  }
+                  selectedDepartments={(task.assignedDepartments || []).map((d) => String(d._id || d))}
+                  onChangeAssignees={handleAssigneesChange}
+                  onChangeDepartments={handleAssignedDepartmentsChange}
+                  canAssign={canAssignTask}
+                  isDark={isDark}
+                />
 
                 <div className="space-y-1">
                   <label className={`text-[10px] font-semibold uppercase tracking-wider block ${mutedText}`}>

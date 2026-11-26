@@ -228,10 +228,15 @@ const UserAvatar = ({ user, size = "md" }) => {
 
 // 2. Role Select
 const RoleSelect = ({ currentRole, onChange, theme, disabled }) => {
-  const assignableRoles = [
-    { value: "user", label: "User" },
-    { value: "staff", label: "Staff" },
-  ];
+  const { roles, isSuperAdmin } = useApp();
+  const assignableRoles = (roles && roles.length > 0
+    ? roles
+    : [
+        { name: "employee", displayName: "Employee" },
+        { name: "manager", displayName: "Manager" },
+        { name: "admin", displayName: "Admin" },
+      ]
+  ).filter((r) => isSuperAdmin || (!r.isSystem && r.name !== "superadmin"));
 
   if (disabled) {
     return (
@@ -249,18 +254,13 @@ const RoleSelect = ({ currentRole, onChange, theme, disabled }) => {
         className="appearance-none bg-transparent border rounded-lg pl-3 pr-8 py-1.5 text-xs font-bold uppercase outline-none focus:ring-1 focus:ring-current cursor-pointer hover:bg-black/5 transition-colors"
         style={{ borderColor: theme.navbar.border }}
       >
-        {currentRole === "admin" && (
-          <option value="admin" disabled className="text-gray-400 bg-gray-100">
-            Admin
-          </option>
-        )}
         {assignableRoles.map((role) => (
           <option
-            key={role.value}
-            value={role.value}
+            key={role.name}
+            value={role.name}
             style={{ color: "black" }}
           >
-            {role.label}
+            {role.displayName || role.name}
           </option>
         ))}
       </select>

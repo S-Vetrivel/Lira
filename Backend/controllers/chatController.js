@@ -46,7 +46,8 @@ exports.sendMessage = async (req, res) => {
 
     const populated = await Message.findById(newMessage._id)
       .populate("sender", USER_POPULATE_FIELDS)
-      .populate("recipient", USER_POPULATE_FIELDS);
+      .populate("recipient", USER_POPULATE_FIELDS)
+      .populate("pinnedBy", "fullname email avatar publicId");
 
     // Broadcast in real-time
     const io = getIO();
@@ -122,9 +123,49 @@ exports.getMessages = async (req, res) => {
       .sort({ createdAt: 1 })
       .limit(parseInt(limit, 10))
       .populate("sender", USER_POPULATE_FIELDS)
-      .populate("recipient", USER_POPULATE_FIELDS);
+      .populate("recipient", USER_POPULATE_FIELDS)
+      .populate("pinnedBy", "fullname email avatar publicId");
 
     res.status(200).json({ success: true, count: messages.length, messages });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// Pin or Unpin a message in a room/project chat
+exports.togglePinMessage = async (req, res) => {
+  try {
+    const { messageId } = req.params;
+    const msg = await Message.findById(messageId);
+    if (!msg) {
+      return res.status(404).json({ success: false, message: "Message not found" });
+    }
+
+    msg.isPinned = !msg.isPinned;
+    msg.pinnedBy = msg.isPinned ? req.user._id : null;
+    msg.pinnedAt = msg.isPinned ? new Date() : null;
+    await msg.save();
+
+    const populated = await Message.findById(msg._id)
+      .populate("sender", USER_POPULATE_FIELDS)
+      .populate("recipient", USER_POPULATE_FIELDS)
+      .populate("pinnedBy", "fullname email avatar publicId");
+
+    const io = getIO();
+    if (io) {
+      io.to(`chat_${msg.roomId}`).emit("chat:pinned", {
+        roomId: msg.roomId,
+        messageId: msg._id.toString(),
+        isPinned: populated.isPinned,
+        message: populated,
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      isPinned: populated.isPinned,
+      message: populated,
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

@@ -74,6 +74,9 @@ export default function Analytics() {
     setIsCreateTaskModalOpen,
     setIsChatOpen,
     theme,
+    isSuperAdmin,
+    hasModule,
+    hasPermission,
   } = useApp();
   const isDark = theme === "dark";
   const g = getGlassTokens(isDark);
@@ -384,63 +387,77 @@ export default function Analytics() {
             </div>
           </div>
 
-          {/* Quick Home Navigation Shortcuts */}
+          {/* Quick Home Navigation Shortcuts — gated dynamically by user's modules & permissions */}
           <div className={`pt-2 border-t flex items-center justify-between gap-2 flex-wrap ${g.border}`}>
             <div className="flex items-center gap-2 flex-wrap">
-              <Link
-                to="/board"
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${g.btnSecondary}`}
-              >
-                <Kanban className="w-3.5 h-3.5 opacity-75" />
-                <span>Open Sprint Board</span>
-              </Link>
-              <Link
-                to="/my-work"
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${g.btnSecondary}`}
-              >
-                <CheckSquare className="w-3.5 h-3.5 opacity-75" />
-                <span>My Day</span>
-              </Link>
-              <Link
-                to="/requests"
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${g.btnSecondary}`}
-              >
-                <FileCheck2 className="w-3.5 h-3.5 opacity-75" />
-                <span>Approvals</span>
-              </Link>
-              <Link
-                to="/team"
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${g.btnSecondary}`}
-              >
-                <Users className="w-3.5 h-3.5 opacity-75" />
-                <span>Team</span>
-              </Link>
-              <Link
-                to="/projects"
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${g.btnSecondary}`}
-              >
-                <FolderKanban className="w-3.5 h-3.5 opacity-75" />
-                <span>Workspaces</span>
-              </Link>
+              {(isSuperAdmin || hasModule("board")) && (
+                <Link
+                  to="/board"
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${g.btnSecondary}`}
+                >
+                  <Kanban className="w-3.5 h-3.5 opacity-75" />
+                  <span>Open Sprint Board</span>
+                </Link>
+              )}
+              {(isSuperAdmin || hasModule("tasks")) && (
+                <Link
+                  to="/my-work"
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${g.btnSecondary}`}
+                >
+                  <CheckSquare className="w-3.5 h-3.5 opacity-75" />
+                  <span>My Day</span>
+                </Link>
+              )}
+              {(isSuperAdmin || hasModule("requests")) && (
+                <Link
+                  to="/requests"
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${g.btnSecondary}`}
+                >
+                  <FileCheck2 className="w-3.5 h-3.5 opacity-75" />
+                  <span>Approvals</span>
+                </Link>
+              )}
+              {(isSuperAdmin || hasModule("team")) && (
+                <Link
+                  to="/team"
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${g.btnSecondary}`}
+                >
+                  <Users className="w-3.5 h-3.5 opacity-75" />
+                  <span>Team</span>
+                </Link>
+              )}
+              {(isSuperAdmin || hasModule("projects") || hasModule("departments")) && (
+                <Link
+                  to="/projects"
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${g.btnSecondary}`}
+                >
+                  <FolderKanban className="w-3.5 h-3.5 opacity-75" />
+                  <span>Workspaces</span>
+                </Link>
+              )}
             </div>
 
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setIsChatOpen(true)}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${g.btnSecondary}`}
-              >
-                <MessageSquare className="w-3.5 h-3.5 opacity-75" />
-                <span>Team Chat</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsCreateTaskModalOpen(true)}
-                className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs transition-all cursor-pointer ${g.btnPrimary}`}
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>New Task</span>
-              </button>
+              {(isSuperAdmin || hasModule("chat")) && (
+                <button
+                  type="button"
+                  onClick={() => setIsChatOpen(true)}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${g.btnSecondary}`}
+                >
+                  <MessageSquare className="w-3.5 h-3.5 opacity-75" />
+                  <span>Team Chat</span>
+                </button>
+              )}
+              {(isSuperAdmin || hasPermission("tasks.create")) && (
+                <button
+                  type="button"
+                  onClick={() => setIsCreateTaskModalOpen(true)}
+                  className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs transition-all cursor-pointer ${g.btnPrimary}`}
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>New Task</span>
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -978,9 +995,11 @@ export default function Analytics() {
                     <Circle className="w-2 h-2 fill-emerald-400 text-emerald-400" />
                     Live synced with MongoDB workload
                   </span>
-                  <Link to="/team" className="hover:underline font-semibold">
-                    View Team →
-                  </Link>
+                  {(isSuperAdmin || hasModule("team")) && (
+                    <Link to="/team" className="hover:underline font-semibold">
+                      View Team →
+                    </Link>
+                  )}
                 </div>
               </>
             ) : (

@@ -27,7 +27,7 @@ router.get("/my-work", protect("tasks.view"), getMyTasks);
 router.post("/bulk-update", protect("tasks.edit"), bulkUpdateTasks);
 router.get("/:keyOrId", protect("tasks.view"), getTaskByKeyOrId);
 router.post("/", protect("tasks.create"), createTask);
-router.put("/:id", protect("tasks.edit"), updateTask);
+router.put("/:id", protect(["tasks.edit", "tasks.assign"]), updateTask);
 router.patch("/:id/status", protect("tasks.edit"), updateTaskStatus);
 router.post("/:id/submit-for-review", protect("tasks.review"), submitForReview);
 router.post("/:id/approve", protect("tasks.approve"), approveTask);

@@ -142,3 +142,56 @@ export function RoleRoute({ allowedRoles = [] }) {
 
   return <Outlet />;
 }
+
+const MODULE_FALLBACK_ORDER = [
+  { moduleKey: "dashboard", path: "/dashboard" },
+  { moduleKey: "board", path: "/board" },
+  { moduleKey: "tasks", path: "/my-work" },
+  { moduleKey: "requests", path: "/requests" },
+  { moduleKey: "projects", path: "/projects" },
+  { moduleKey: "departments", path: "/projects" },
+  { moduleKey: "team", path: "/team" },
+  { moduleKey: "rbac", path: "/roles" },
+];
+
+export function getFirstAllowedRoute({ isSuperAdmin, hasModule }) {
+  if (isSuperAdmin) return "/dashboard";
+  if (typeof hasModule === "function") {
+    const match = MODULE_FALLBACK_ORDER.find((entry) => hasModule(entry.moduleKey));
+    if (match) return match.path;
+  }
+  return "/profile";
+}
+
+/**
+ * Dynamic Module Route Guard:
+ * - Only renders routes if `isSuperAdmin` or user holds at least one module in `moduleKeys`.
+ * - Redirects unauthorized roles cleanly to their first permitted module route (or `/profile`).
+ */
+export function ModuleRoute({ moduleKeys = [] }) {
+  const { user, isValidating, isSuperAdmin, hasModule } = useApp();
+
+  if (isValidating) {
+    return <AuthLoadingScreen />;
+  }
+
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (isPendingOrRestricted(user)) {
+    return <Navigate to="/join-request" replace />;
+  }
+
+  const allowed =
+    isSuperAdmin ||
+    moduleKeys.length === 0 ||
+    moduleKeys.some((k) => hasModule(k));
+
+  if (!allowed) {
+    const fallback = getFirstAllowedRoute({ isSuperAdmin, hasModule });
+    return <Navigate to={fallback} replace />;
+  }
+
+  return <Outlet />;
+}

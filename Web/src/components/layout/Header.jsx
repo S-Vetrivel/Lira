@@ -87,11 +87,17 @@ export default function Header() {
     { label: "Requests", path: "/requests", icon: FileCheck2, pendingCount: pendingRequestsCount, moduleKey: "requests" },
     { label: "My Day", path: "/my-work", icon: CheckSquare, pendingCount: myPendingCount, moduleKey: "tasks" },
     { label: "Team", path: "/team", icon: Users, pendingCount: pendingJoinCount, moduleKey: "team" },
-    { label: "Workspaces", path: "/projects", icon: Layers, moduleKey: "projects" },
+    { label: "Workspaces", path: "/projects", icon: Layers, moduleKeys: ["projects", "departments"] },
     ...(isSuperAdmin || hasPermission("rbac.view") || hasPermission("rbac.manage")
       ? [{ label: "Roles", path: "/roles", icon: Shield, moduleKey: "rbac" }]
       : []),
-  ].filter((item) => isSuperAdmin || !item.moduleKey || hasModule(item.moduleKey));
+  ].filter((item) => {
+    if (isSuperAdmin) return true;
+    if (Array.isArray(item.moduleKeys)) {
+      return item.moduleKeys.some((k) => hasModule(k));
+    }
+    return !item.moduleKey || hasModule(item.moduleKey);
+  });
 
   const handleMarkAllRead = async () => {
     await markAllNotificationsRead();
@@ -121,7 +127,7 @@ export default function Header() {
         <div className={`hidden sm:block h-5 w-px shrink-0 ${isDark ? "bg-white/12" : "bg-slate-900/12"}`} />
 
         {/* Interactive Glass Workspace Switcher */}
-        {projects.length > 0 && (
+        {projects.length > 0 && (isSuperAdmin || hasModule("projects") || hasModule("board") || hasModule("tasks")) && (
           <div className="relative">
             <button
               type="button"
@@ -195,16 +201,18 @@ export default function Header() {
                       );
                     })}
                   </div>
-                  <div className={`mt-2 pt-2 border-t ${g.border}`}>
-                    <Link
-                      to="/projects"
-                      onClick={() => setShowWorkspaceMenu(false)}
-                      className={`flex items-center justify-center gap-1.5 w-full py-1.5 rounded-xl text-[11px] font-semibold transition-colors ${g.btnSecondary}`}
-                    >
-                      <FolderKanban className="w-3.5 h-3.5" />
-                      <span>Manage All Workspaces</span>
-                    </Link>
-                  </div>
+                  {(isSuperAdmin || hasModule("projects") || hasModule("departments")) && (
+                    <div className={`mt-2 pt-2 border-t ${g.border}`}>
+                      <Link
+                        to="/projects"
+                        onClick={() => setShowWorkspaceMenu(false)}
+                        className={`flex items-center justify-center gap-1.5 w-full py-1.5 rounded-xl text-[11px] font-semibold transition-colors ${g.btnSecondary}`}
+                      >
+                        <FolderKanban className="w-3.5 h-3.5" />
+                        <span>Manage All Workspaces</span>
+                      </Link>
+                    </div>
+                  )}
                 </motion.div>
               )}
             </AnimatePresence>
@@ -448,17 +456,19 @@ export default function Header() {
           </div>
         </div>
 
-        {/* Prominent New Task CTA */}
-        <button
-          type="button"
-          onClick={() => setIsCreateTaskModalOpen(true)}
-          className={`h-10 flex items-center gap-1.5 text-xs px-3 xl:px-3.5 rounded-xl transition-all active:scale-95 cursor-pointer ${g.btnPrimary}`}
-          title="Create New Task"
-        >
-          <Plus className="w-4 h-4 shrink-0" />
-          <span className="hidden 2xl:inline">New Task</span>
-          <span className="hidden sm:inline 2xl:hidden">Task</span>
-        </button>
+        {/* Prominent New Task CTA — visible only if user holds tasks.create permission */}
+        {(isSuperAdmin || hasPermission("tasks.create")) && (
+          <button
+            type="button"
+            onClick={() => setIsCreateTaskModalOpen(true)}
+            className={`h-10 flex items-center gap-1.5 text-xs px-3 xl:px-3.5 rounded-xl transition-all active:scale-95 cursor-pointer ${g.btnPrimary}`}
+            title="Create New Task"
+          >
+            <Plus className="w-4 h-4 shrink-0" />
+            <span className="hidden 2xl:inline">New Task</span>
+            <span className="hidden sm:inline 2xl:hidden">Task</span>
+          </button>
+        )}
 
         {/* Larger Profile & Session Tray */}
         <div className="relative">

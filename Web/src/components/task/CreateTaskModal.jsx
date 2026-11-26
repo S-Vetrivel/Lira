@@ -18,18 +18,30 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { getGlassTokens } from "../../styles/glassTheme";
+import AssignmentSelector from "./AssignmentSelector";
 
 export default function CreateTaskModal({ isOpen, onClose, onCreated }) {
-  const { user, projects, activeProject, teamMembers, theme } = useApp();
+  const {
+    user,
+    projects,
+    activeProject,
+    teamMembers,
+    departments,
+    isSuperAdmin,
+    hasPermission,
+    theme,
+  } = useApp();
   const isDark = theme === "dark";
   const g = getGlassTokens(isDark);
+  const canAssignTask = isSuperAdmin || hasPermission("tasks.assign");
 
   const [projectId, setProjectId] = useState(activeProject?._id || "");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [type, setType] = useState("task");
   const [priority, setPriority] = useState("medium");
-  const [assignee, setAssignee] = useState("");
+  const [assignees, setAssignees] = useState([]);
+  const [assignedDepartments, setAssignedDepartments] = useState([]);
   const [dueDate, setDueDate] = useState("");
   const [estimatedHours, setEstimatedHours] = useState("");
   const [subtasks, setSubtasks] = useState([]);
@@ -118,7 +130,9 @@ export default function CreateTaskModal({ isOpen, onClose, onCreated }) {
       description: description.trim(),
       type,
       priority,
-      assignee: assignee || null,
+      assignee: canAssignTask ? assignees[0] || null : null,
+      assignees: canAssignTask ? assignees : [],
+      assignedDepartments: canAssignTask ? assignedDepartments : [],
       dueDate: dueDate || null,
       estimatedHours: Number(estimatedHours) || 0,
       subtasks: subtasks.map((s) => ({ title: s.title })),
@@ -134,7 +148,8 @@ export default function CreateTaskModal({ isOpen, onClose, onCreated }) {
       setTitle("");
       setDescription("");
       setSubtasks([]);
-      setAssignee("");
+      setAssignees([]);
+      setAssignedDepartments([]);
       setDueDate("");
       setEstimatedHours("");
     }
@@ -261,42 +276,35 @@ export default function CreateTaskModal({ isOpen, onClose, onCreated }) {
             />
           </div>
 
-          {/* Assignee & Priority row */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-            <div>
-              <label className={`text-xs font-bold block mb-1.5 ${g.heading}`}>
-                Assignee
-              </label>
-              <select
-                value={assignee}
-                onChange={(e) => setAssignee(e.target.value)}
-                className={`w-full text-xs font-semibold rounded-xl px-3.5 py-2.5 border focus:outline-none cursor-pointer ${g.input}`}
-              >
-                <option value="" className={isDark ? "bg-[#14151a] text-white" : "bg-white text-slate-900"}>Leave Unassigned (Backlog)</option>
-                {teamMembers.map((m) => (
-                  <option key={m._id} value={m._id} className={isDark ? "bg-[#14151a] text-white" : "bg-white text-slate-900"}>
-                    {m.fullname} ({m.departmentName || "General"})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className={`text-xs font-bold block mb-1.5 ${g.heading}`}>
-                Priority
-              </label>
-              <select
-                value={priority}
-                onChange={(e) => setPriority(e.target.value)}
-                className={`w-full text-xs font-semibold rounded-xl px-3.5 py-2.5 border focus:outline-none cursor-pointer ${g.input}`}
-              >
-                <option value="low" className={isDark ? "bg-[#14151a] text-white" : "bg-white text-slate-900"}>Low</option>
-                <option value="medium" className={isDark ? "bg-[#14151a] text-white" : "bg-white text-slate-900"}>Medium</option>
-                <option value="high" className={isDark ? "bg-[#14151a] text-white" : "bg-white text-slate-900"}>High</option>
-                <option value="urgent" className={isDark ? "bg-[#14151a] text-white" : "bg-white text-slate-900"}>Urgent</option>
-              </select>
-            </div>
+          {/* Priority row */}
+          <div>
+            <label className={`text-xs font-bold block mb-1.5 ${g.heading}`}>
+              Priority
+            </label>
+            <select
+              value={priority}
+              onChange={(e) => setPriority(e.target.value)}
+              className={`w-full text-xs font-semibold rounded-xl px-3.5 py-2.5 border focus:outline-none cursor-pointer ${g.input}`}
+            >
+              <option value="low" className={isDark ? "bg-[#14151a] text-white" : "bg-white text-slate-900"}>Low</option>
+              <option value="medium" className={isDark ? "bg-[#14151a] text-white" : "bg-white text-slate-900"}>Medium</option>
+              <option value="high" className={isDark ? "bg-[#14151a] text-white" : "bg-white text-slate-900"}>High</option>
+              <option value="urgent" className={isDark ? "bg-[#14151a] text-white" : "bg-white text-slate-900"}>Urgent</option>
+            </select>
           </div>
+
+          {/* Multi-User / Team Assignment */}
+          <AssignmentSelector
+            teamMembers={teamMembers}
+            departments={departments}
+            project={projects.find((p) => p._id === (projectId || activeProject?._id))}
+            selectedAssignees={assignees}
+            selectedDepartments={assignedDepartments}
+            onChangeAssignees={setAssignees}
+            onChangeDepartments={setAssignedDepartments}
+            canAssign={canAssignTask}
+            isDark={isDark}
+          />
 
           {/* Due Date & Estimated Hours row */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">

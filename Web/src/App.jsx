@@ -6,6 +6,8 @@ import {
   ProtectedRoute,
   PublicOnlyRoute,
   JoinRequestGuard,
+  ModuleRoute,
+  getFirstAllowedRoute,
   AuthLoadingScreen,
   isPendingOrRestricted,
 } from "./components/auth/AuthGuards";
@@ -33,7 +35,7 @@ import JoinRequestStatus from "./pages/JoinRequestStatus";
  * - Renders the main Workspace Dashboard (Overview) for approved authenticated members
  */
 function HomeEntry() {
-  const { user, isValidating } = useApp();
+  const { user, isValidating, isSuperAdmin, hasModule } = useApp();
 
   if (isValidating) {
     return <AuthLoadingScreen />;
@@ -45,6 +47,11 @@ function HomeEntry() {
 
   if (isPendingOrRestricted(user)) {
     return <Navigate to="/join-request" replace />;
+  }
+
+  if (!isSuperAdmin && !hasModule("dashboard")) {
+    const fallback = getFirstAllowedRoute({ isSuperAdmin, hasModule });
+    return <Navigate to={fallback} replace />;
   }
 
   return (
@@ -96,19 +103,33 @@ function App() {
           <Route path="/join-request" element={<JoinRequestStatus />} />
         </Route>
 
-        {/* Authenticated Workspace Routes (Must be active approved member) */}
+        {/* Authenticated Workspace Routes (Must be active approved member + Module RBAC) */}
         <Route element={<ProtectedRoute />}>
           <Route element={<MainLayout />}>
-            <Route path="/dashboard" element={<Analytics />} />
-            <Route path="/analytics" element={<Analytics />} />
-            <Route path="/board" element={<Board />} />
-            <Route path="/table" element={<TableView />} />
-            <Route path="/calendar" element={<CalendarView />} />
-            <Route path="/requests" element={<Requests />} />
-            <Route path="/my-work" element={<MyWork />} />
-            <Route path="/team" element={<Team />} />
-            <Route path="/projects" element={<Projects />} />
-            <Route path="/roles" element={<Roles />} />
+            <Route element={<ModuleRoute moduleKeys={["dashboard"]} />}>
+              <Route path="/dashboard" element={<Analytics />} />
+              <Route path="/analytics" element={<Analytics />} />
+            </Route>
+            <Route element={<ModuleRoute moduleKeys={["board"]} />}>
+              <Route path="/board" element={<Board />} />
+              <Route path="/table" element={<TableView />} />
+              <Route path="/calendar" element={<CalendarView />} />
+            </Route>
+            <Route element={<ModuleRoute moduleKeys={["requests"]} />}>
+              <Route path="/requests" element={<Requests />} />
+            </Route>
+            <Route element={<ModuleRoute moduleKeys={["tasks"]} />}>
+              <Route path="/my-work" element={<MyWork />} />
+            </Route>
+            <Route element={<ModuleRoute moduleKeys={["team"]} />}>
+              <Route path="/team" element={<Team />} />
+            </Route>
+            <Route element={<ModuleRoute moduleKeys={["projects", "departments"]} />}>
+              <Route path="/projects" element={<Projects />} />
+            </Route>
+            <Route element={<ModuleRoute moduleKeys={["rbac"]} />}>
+              <Route path="/roles" element={<Roles />} />
+            </Route>
             <Route path="/profile" element={<Profile />} />
           </Route>
         </Route>

@@ -99,6 +99,18 @@ const TaskSchema = new Schema(
       ref: "User",
       index: true,
     },
+    assignees: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
+    assignedDepartments: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: "Department",
+      },
+    ],
     collaborators: [
       {
         type: Schema.Types.ObjectId,

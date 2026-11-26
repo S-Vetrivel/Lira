@@ -11,6 +11,14 @@ const ProjectFileSchema = new Schema({
   uploadedAt: { type: Date, default: Date.now },
 });
 
+const ProjectLinkSchema = new Schema({
+  title: { type: String, required: true, trim: true },
+  url: { type: String, required: true, trim: true },
+  category: { type: String, default: "Resource", trim: true },
+  addedBy: { type: Schema.Types.ObjectId, ref: "User" },
+  addedAt: { type: Date, default: Date.now },
+});
+
 const ProjectSchema = new Schema(
   {
     name: { type: String, required: true, trim: true },
@@ -23,9 +31,11 @@ const ProjectSchema = new Schema(
     },
     description: { type: String, default: "" },
     department: { type: Schema.Types.ObjectId, ref: "Department" },
+    departments: [{ type: Schema.Types.ObjectId, ref: "Department" }],
     lead: { type: Schema.Types.ObjectId, ref: "User" },
     members: [{ type: Schema.Types.ObjectId, ref: "User" }],
     files: [ProjectFileSchema],
+    links: [ProjectLinkSchema],
     status: {
       type: String,
       enum: ["active", "archived", "completed"],

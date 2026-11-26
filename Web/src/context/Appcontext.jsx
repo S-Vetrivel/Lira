@@ -127,37 +127,6 @@ export const AppProvider = ({ children }) => {
     }
   }, [user]);
 
-  // Refresh data functions
-  const refreshProjects = useCallback(async () => {
-    const res = await getProjects();
-    if (res.success) {
-      setProjects(res.projects);
-      setActiveProject((prev) => {
-        if (!prev && res.projects.length > 0) return res.projects[0];
-        const match = res.projects.find((p) => p._id === prev?._id);
-        return match || res.projects[0] || null;
-      });
-    }
-  }, []);
-
-  const refreshDepartments = useCallback(async () => {
-    const res = await getDepartments();
-    if (res.success) setDepartments(res.departments);
-  }, []);
-
-  const refreshTeam = useCallback(async () => {
-    const res = await getTeamMembers();
-    if (res.success) setTeamMembers(res.members);
-  }, []);
-
-  const refreshRoles = useCallback(async () => {
-    if (!user) return;
-    const res = await getRoles();
-    if (res.success && Array.isArray(res.roles)) {
-      setRoles(res.roles);
-    }
-  }, [user]);
-
   const isSuperAdmin = Boolean(
     user?.isSuperAdmin ||
       user?.role === "superadmin" ||
@@ -197,6 +166,50 @@ export const AppProvider = ({ children }) => {
     [user, isSuperAdmin]
   );
 
+  // Refresh data functions (strictly gated by active user permissions to avoid unauthorized 403 bursts)
+  const refreshProjects = useCallback(async () => {
+    if (!user || (!isSuperAdmin && !hasPermission("projects.view"))) {
+      setProjects([]);
+      setActiveProject(null);
+      return;
+    }
+    const res = await getProjects();
+    if (res.success) {
+      setProjects(res.projects);
+      setActiveProject((prev) => {
+        if (!prev && res.projects.length > 0) return res.projects[0];
+        const match = res.projects.find((p) => p._id === prev?._id);
+        return match || res.projects[0] || null;
+      });
+    }
+  }, [user, isSuperAdmin, hasPermission]);
+
+  const refreshDepartments = useCallback(async () => {
+    if (!user || (!isSuperAdmin && !hasPermission("departments.view"))) {
+      setDepartments([]);
+      return;
+    }
+    const res = await getDepartments();
+    if (res.success) setDepartments(res.departments);
+  }, [user, isSuperAdmin, hasPermission]);
+
+  const refreshTeam = useCallback(async () => {
+    if (!user || (!isSuperAdmin && !hasPermission("team.view"))) {
+      setTeamMembers([]);
+      return;
+    }
+    const res = await getTeamMembers();
+    if (res.success) setTeamMembers(res.members);
+  }, [user, isSuperAdmin, hasPermission]);
+
+  const refreshRoles = useCallback(async () => {
+    if (!user) return;
+    const res = await getRoles();
+    if (res.success && Array.isArray(res.roles)) {
+      setRoles(res.roles);
+    }
+  }, [user]);
+
   const refreshNotifications = useCallback(async () => {
     if (!user) return;
     const res = await getNotifications();
@@ -207,7 +220,10 @@ export const AppProvider = ({ children }) => {
   }, [user]);
 
   const refreshChatUnread = useCallback(async () => {
-    if (!user) return;
+    if (!user || (!isSuperAdmin && !hasPermission("chat.view"))) {
+      setUnreadChatCount(0);
+      return;
+    }
     try {
       const res = await getChatConversations();
       if (res.success && typeof res.totalUnread === "number") {
@@ -216,7 +232,7 @@ export const AppProvider = ({ children }) => {
     } catch {
       // ignore
     }
-  }, [user]);
+  }, [user, isSuperAdmin, hasPermission]);
 
   const refreshPendingJoinCount = useCallback(async () => {
     if (!user || (!isSuperAdmin && !hasPermission("team.join_requests") && user.role !== "admin" && user.role !== "manager")) {
@@ -231,15 +247,17 @@ export const AppProvider = ({ children }) => {
     } catch {
       // ignore
     }
-  }, [user]);
+  }, [user, isSuperAdmin, hasPermission]);
 
   const refreshTabPendingCounts = useCallback(async () => {
     if (!user || user.status !== "active") return;
     try {
+      const canReq = isSuperAdmin || hasPermission("requests.view");
+      const canTasks = isSuperAdmin || hasPermission("tasks.view");
       const [reqsRes, myRes, reviewRes] = await Promise.allSettled([
-        getRequests(),
-        getMyTasks(),
-        getTasks({ status: "review" }),
+        canReq ? getRequests() : Promise.resolve({ success: false }),
+        canTasks ? getMyTasks() : Promise.resolve({ success: false }),
+        canTasks ? getTasks({ status: "review" }) : Promise.resolve({ success: false }),
       ]);
       if (reqsRes.status === "fulfilled" && reqsRes.value?.success) {
         const myActionableReqs = (reqsRes.value.requests || []).filter((r) => {
@@ -253,9 +271,14 @@ export const AppProvider = ({ children }) => {
         setPendingRequestsCount(myActionableReqs.length);
       }
       if (myRes.status === "fulfilled" && myRes.value?.success) {
+        const uid = user._id?.toString();
+        const uDept = (user.department?._id || user.department)?.toString();
         const openMy = (myRes.value.tasks || []).filter((t) => {
-          const assigneeId = t.assignee?._id || t.assignee;
-          return t.status !== "done" && assigneeId?.toString() === user._id?.toString();
+          if (t.status === "done") return false;
+          const inSingle = (t.assignee?._id || t.assignee)?.toString() === uid;
+          const inMulti = (t.assignees || []).some((a) => (a._id || a)?.toString() === uid);
+          const inDept = uDept && (t.assignedDepartments || []).some((d) => (d._id || d)?.toString() === uDept);
+          return inSingle || inMulti || inDept;
         });
         setMyPendingCount(openMy.length);
       }
@@ -269,7 +292,7 @@ export const AppProvider = ({ children }) => {
     } catch {
       // ignore
     }
-  }, [user]);
+  }, [user, isSuperAdmin, hasPermission]);
 
   const navigateFromNotification = useCallback(
     async (notif) => {

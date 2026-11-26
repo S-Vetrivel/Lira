@@ -35,6 +35,7 @@ const MODULES_CATALOG = [
       { slug: "tasks.view", label: "View Tasks & My Day", description: "Read tasks and personal queue" },
       { slug: "tasks.create", label: "Create Tasks", description: "Create new tickets and subtasks" },
       { slug: "tasks.edit", label: "Edit & Transition Tasks", description: "Update fields, log effort, drag columns, comment" },
+      { slug: "tasks.assign", label: "Assign Users & Teams", description: "Assign tasks to individual users, groups, or teams" },
       { slug: "tasks.review", label: "Submit for Review", description: "Submit completed work for QA/Lead approval" },
       { slug: "tasks.approve", label: "Approve / Request Redo", description: "Approve tasks in review or request revisions" },
       { slug: "tasks.delete", label: "Delete Tasks", description: "Permanently remove tasks" },
@@ -58,8 +59,11 @@ const MODULES_CATALOG = [
     route: "/projects",
     actions: [
       { slug: "projects.view", label: "View Workspaces", description: "Access projects and download workspace files" },
-      { slug: "projects.create", label: "Create Workspaces", description: "Create new project workspaces" },
-      { slug: "projects.edit", label: "Manage Workspaces", description: "Edit project settings, members, and files" },
+      { slug: "projects.create", label: "Create Workspaces", description: "Create new project workspaces & invoke teams" },
+      { slug: "projects.edit", label: "Edit Workspace Details", description: "Update project name, description, status" },
+      { slug: "projects.members", label: "Manage Project Teams & Members", description: "Invoke teams/departments or add/remove individuals" },
+      { slug: "projects.urls", label: "Manage Project URLs", description: "Add and remove project links and external resources" },
+      { slug: "projects.files", label: "Manage Project Files", description: "Upload and remove project shared files" },
       { slug: "projects.delete", label: "Delete Workspaces", description: "Delete workspaces and archives" },
     ],
   },
@@ -96,6 +100,7 @@ const MODULES_CATALOG = [
     actions: [
       { slug: "chat.view", label: "Access Chat & Files", description: "Read channels, DMs, and download shared files" },
       { slug: "chat.send", label: "Send Messages & Upload", description: "Post encrypted messages and upload chunks" },
+      { slug: "chat.pin", label: "Pin Messages", description: "Pin or unpin important messages in channels & projects" },
     ],
   },
   {

@@ -83,6 +83,9 @@ export default function Profile() {
     theme,
     projects,
     departments,
+    roles,
+    isSuperAdmin,
+    hasPermission,
     setActiveProject,
     refreshDepartments,
     refreshTeam,
@@ -92,7 +95,7 @@ export default function Profile() {
   const isDark = theme === "dark";
   const g = getGlassTokens(isDark);
 
-  const isAdmin = user?.role === "admin";
+  const isAdmin = isSuperAdmin || user?.role === "admin" || hasPermission("team.edit");
   const isManager = user?.role === "manager";
   const canManageUsers = isAdmin || isManager;
 
@@ -1439,9 +1442,18 @@ export default function Profile() {
                 onChange={(e) => setCreateForm({ ...createForm, role: e.target.value })}
                 className={inputClass}
               >
-                <option value="employee">Employee</option>
-                <option value="manager">Manager</option>
-                <option value="admin">Admin</option>
+                {(roles && roles.length > 0
+                  ? roles.filter((r) => isSuperAdmin || (!r.isSystem && r.name !== "superadmin"))
+                  : [
+                      { name: "employee", displayName: "Employee" },
+                      { name: "manager", displayName: "Manager" },
+                      { name: "admin", displayName: "Admin" },
+                    ]
+                ).map((r) => (
+                  <option key={r.name} value={r.name}>
+                    {r.displayName || r.name}
+                  </option>
+                ))}
               </select>
             </div>
             <div>
@@ -1560,9 +1572,18 @@ export default function Profile() {
                   onChange={(e) => setEditUserForm({ ...editUserForm, role: e.target.value })}
                   className={inputClass}
                 >
-                  <option value="employee">Employee</option>
-                  <option value="manager">Manager</option>
-                  <option value="admin">Admin</option>
+                  {(roles && roles.length > 0
+                    ? roles.filter((r) => isSuperAdmin || (!r.isSystem && r.name !== "superadmin"))
+                    : [
+                        { name: "employee", displayName: "Employee" },
+                        { name: "manager", displayName: "Manager" },
+                        { name: "admin", displayName: "Admin" },
+                      ]
+                  ).map((r) => (
+                    <option key={r.name} value={r.name}>
+                      {r.displayName || r.name}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div>

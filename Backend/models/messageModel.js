@@ -66,6 +66,9 @@ const MessageSchema = new Schema(
         readAt: { type: Date, default: Date.now },
       },
     ],
+    isPinned: { type: Boolean, default: false, index: true },
+    pinnedBy: { type: Schema.Types.ObjectId, ref: "User", default: null },
+    pinnedAt: { type: Date, default: null },
   },
   { timestamps: true }
 );

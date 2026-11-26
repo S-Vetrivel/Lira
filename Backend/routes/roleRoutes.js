@@ -13,8 +13,8 @@ const {
 // Module catalog (any authenticated workspace member can inspect available modules)
 router.get("/catalog", protect(), getModulesCatalog);
 
-// List dynamic roles (viewers need rbac.view or team governance access)
-router.get("/", protect(["rbac.view", "team.edit", "team.join_requests"]), listRoles);
+// List dynamic roles from Redis cache (available to all authenticated members for UI dropdowns)
+router.get("/", protect(), listRoles);
 
 // Superadmin-only dynamic role & module CRUD
 router.post("/", requireSuperAdmin, createRole);

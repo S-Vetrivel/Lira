@@ -17,15 +17,19 @@ import {
   ShieldCheck,
   Loader2,
   FolderKanban,
+  Pin,
+  PinOff,
 } from "lucide-react";
 import { useApp } from "../../context/Appcontext";
 import {
   getChatConversations,
   getChatMessages,
   sendChatMessage,
+  togglePinChatMessage,
   markChatRoomRead,
   uploadSingleChunk,
 } from "../../services/api";
+import MessageSenderPopover from "./MessageSenderPopover";
 import {
   getSocket,
   joinChatRoom,
@@ -61,6 +65,9 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
     user,
     theme,
     projects,
+    teamMembers,
+    isSuperAdmin,
+    hasPermission,
     chatTargetUser,
     setChatTargetUser,
     chatTargetRoom,
@@ -69,6 +76,8 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
   } = useApp();
   const isDark = theme === "dark";
   const g = getGlassTokens(isDark);
+  const canSendChat = isSuperAdmin || hasPermission("chat.send");
+  const canPinChat = isSuperAdmin || hasPermission("chat.pin") || hasPermission("chat.send");
 
   const [colleagues, setColleagues] = useState([]);
   const [channelUnread, setChannelUnread] = useState({});
@@ -84,10 +93,14 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
   const [typingUsers, setTypingUsers] = useState({});
   const [quickUploadProgress, setQuickUploadProgress] = useState(null);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
+  const [inspectedSender, setInspectedSender] = useState(null);
+  const [showPinnedList, setShowPinnedList] = useState(false);
 
   const messagesEndRef = useRef(null);
   const quickFileInputRef = useRef(null);
   const typingTimeoutRef = useRef(null);
+
+  const pinnedMessages = useMemo(() => messages.filter((m) => m.isPinned), [messages]);
 
   const onlineUserIds = useMemo(() => {
     const ids = new Set();
@@ -234,9 +247,30 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
       });
     };
 
+    const handlePinnedMessage = (payload) => {
+      const targetId = payload?.messageId || payload?._id;
+      const nextPinned = payload?.isPinned ?? payload?.message?.isPinned;
+      const msgObj = payload?.message || payload;
+      if (payload?.roomId === roomId && targetId) {
+        setMessages((prev) =>
+          prev.map((m) =>
+            String(m._id) === String(targetId)
+              ? {
+                  ...m,
+                  isPinned: nextPinned,
+                  pinnedBy: msgObj?.pinnedBy || null,
+                  pinnedAt: msgObj?.pinnedAt || null,
+                }
+              : m
+          )
+        );
+      }
+    };
+
     if (socket) {
       socket.on("chat:message", handleIncomingMessage);
       socket.on("chat:typing", handleTyping);
+      socket.on("chat:pinned", handlePinnedMessage);
     }
 
     return () => {
@@ -245,9 +279,30 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
       if (socket) {
         socket.off("chat:message", handleIncomingMessage);
         socket.off("chat:typing", handleTyping);
+        socket.off("chat:pinned", handlePinnedMessage);
       }
     };
   }, [selectedRoom, isOpen, user?._id]);
+
+  const handleTogglePin = async (messageId) => {
+    if (!messageId) return;
+    const res = await togglePinChatMessage(messageId);
+    if (res.success) {
+      setMessages((prev) =>
+        prev.map((m) =>
+          m._id === messageId
+            ? {
+                ...m,
+                isPinned: res.isPinned,
+                pinnedBy: res.message?.pinnedBy || null,
+                pinnedAt: res.message?.pinnedAt || null,
+              }
+            : m
+        )
+      );
+      toast.success(res.isPinned ? "Message pinned" : "Message unpinned");
+    }
+  };
 
   // Auto-scroll on new message
   useEffect(() => {
@@ -855,6 +910,58 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
           {/* VIEW 1: MESSAGES FEED */}
           {rightTab === "messages" && (
             <>
+              {pinnedMessages.length > 0 && (
+                <div className={`px-4 py-2 border-b text-xs shrink-0 ${g.subtleSurface}`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowPinnedList((v) => !v)}
+                      className="flex items-center gap-1.5 font-semibold text-amber-400 hover:underline cursor-pointer truncate"
+                    >
+                      <Pin className="w-3.5 h-3.5 shrink-0" />
+                      <span>{pinnedMessages.length} Pinned</span>
+                      <span className={`font-normal truncate ${g.muted}`}>
+                        — {pinnedMessages[pinnedMessages.length - 1]?.decryptedText}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowPinnedList((v) => !v)}
+                      className={`px-2 py-0.5 rounded-lg border text-[10px] font-semibold cursor-pointer ${g.btnSecondary}`}
+                    >
+                      {showPinnedList ? "Hide" : "Show all"}
+                    </button>
+                  </div>
+                  {showPinnedList && (
+                    <div className={`mt-2 pt-2 border-t space-y-1.5 max-h-32 overflow-y-auto ${g.border}`}>
+                      {pinnedMessages.map((pm) => (
+                        <div key={pm._id} className="flex items-center justify-between gap-2 text-[11px]">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              document.getElementById(`msg-${pm._id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+                            }}
+                            className="truncate text-left hover:underline cursor-pointer"
+                          >
+                            <strong className="mr-1">{getDisplayName(pm.sender)}:</strong>
+                            {pm.decryptedText}
+                          </button>
+                          {canPinChat && (
+                            <button
+                              type="button"
+                              onClick={() => handleTogglePin(pm._id)}
+                              className="text-rose-400 hover:underline shrink-0 text-[10px] cursor-pointer"
+                            >
+                              Unpin
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="flex-1 p-4 overflow-y-auto space-y-3.5">
                 {loading && (
                   <div className={`flex items-center justify-center py-12 gap-2 text-xs ${g.muted}`}>
@@ -916,23 +1023,32 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
                         </div>
                       )}
 
-                      <div className={`flex items-end gap-2 ${isMe ? "justify-end" : "justify-start"}`}>
+                      <div id={msg._id ? `msg-${msg._id}` : undefined} className={`group flex items-end gap-2 ${isMe ? "justify-end" : "justify-start"}`}>
                         {!isMe && (
-                          <div className="shrink-0 mb-1">
+                          <button
+                            type="button"
+                            onClick={() => setInspectedSender(msg.sender)}
+                            className="shrink-0 mb-1 cursor-pointer hover:opacity-85"
+                            title="View sender profile"
+                          >
                             <UserAvatar
                               user={msg.sender}
                               name={senderName}
                               className="w-7 h-7 rounded-xl border border-white/10"
                               textClass="text-[10px]"
                             />
-                          </div>
+                          </button>
                         )}
 
                         <div className={`flex flex-col max-w-[78%] ${isMe ? "items-end" : "items-start"}`}>
                           <div className="flex items-center gap-1.5 mb-1 px-1">
-                            <span className={`text-[10px] font-bold ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+                            <button
+                              type="button"
+                              onClick={() => setInspectedSender(msg.sender)}
+                              className={`text-[10px] font-bold hover:underline cursor-pointer ${isDark ? "text-slate-300" : "text-slate-700"}`}
+                            >
                               {isMe ? "You" : senderName}
-                            </span>
+                            </button>
                             {msg.sender?.publicId && !isMe && (
                               <span className={`text-[9px] font-mono px-1.5 py-0.2 rounded border ${g.badge}`}>
                                 {msg.sender.publicId}
@@ -941,27 +1057,47 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
                             <span className={`text-[9px] font-mono ${g.muted}`}>
                               {formatTimeIN(msg.createdAt || Date.now())}
                             </span>
+                            {msg.isPinned && <Pin className="w-2.5 h-2.5 text-amber-400 shrink-0" title="Pinned" />}
                             {isMe && <CheckCheck className={`w-3 h-3 ${g.accentIcon}`} />}
                           </div>
 
-                          <div
-                            className={`rounded-2xl px-3.5 py-2 text-xs leading-relaxed ${
-                              isMe
-                                ? isDark
-                                  ? "bg-zinc-200 text-zinc-950 font-medium rounded-br-xs"
-                                  : "bg-zinc-900 text-white rounded-br-xs"
-                                : `${g.subtleSurface} ${g.heading} border rounded-bl-xs`
-                            }`}
-                          >
-                            {(!hasAttachments || !msg.decryptedText?.startsWith("Shared file:")) &&
-                              !legacyAttachment && (
-                                <p className="whitespace-pre-wrap break-words">{msg.decryptedText}</p>
-                              )}
+                          <div className="flex items-center gap-1.5">
+                            <div
+                              className={`rounded-2xl px-3.5 py-2 text-xs leading-relaxed ${
+                                msg.isPinned ? "ring-1 ring-amber-400/50 " : ""
+                              }${
+                                isMe
+                                  ? isDark
+                                    ? "bg-zinc-200 text-zinc-950 font-medium rounded-br-xs"
+                                    : "bg-zinc-900 text-white rounded-br-xs"
+                                  : `${g.subtleSurface} ${g.heading} border rounded-bl-xs`
+                              }`}
+                            >
+                              {(!hasAttachments || !msg.decryptedText?.startsWith("Shared file:")) &&
+                                !legacyAttachment && (
+                                  <p className="whitespace-pre-wrap break-words">{msg.decryptedText}</p>
+                                )}
 
-                            {hasAttachments &&
-                              msg.attachments.map((att) => renderAttachmentCard(att, isMe))}
+                              {hasAttachments &&
+                                msg.attachments.map((att) => renderAttachmentCard(att, isMe))}
 
-                            {legacyAttachment && renderAttachmentCard(legacyAttachment, isMe)}
+                              {legacyAttachment && renderAttachmentCard(legacyAttachment, isMe)}
+                            </div>
+
+                            {canPinChat && msg._id && (
+                              <button
+                                type="button"
+                                onClick={() => handleTogglePin(msg._id)}
+                                className={`p-1 rounded-lg transition-opacity cursor-pointer ${
+                                  msg.isPinned
+                                    ? "opacity-100 text-amber-400"
+                                    : "opacity-0 group-hover:opacity-100 text-slate-400 hover:bg-white/10"
+                                }`}
+                                title={msg.isPinned ? "Unpin message" : "Pin message"}
+                              >
+                                {msg.isPinned ? <PinOff className="w-3.5 h-3.5" /> : <Pin className="w-3.5 h-3.5" />}
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -989,47 +1125,53 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
               )}
 
               {/* Message Composer Bar */}
-              <form
-                onSubmit={handleSendMessage}
-                className={`p-3 border-t flex items-center gap-2 shrink-0 ${g.subHeader}`}
-              >
-                <input
-                  ref={quickFileInputRef}
-                  type="file"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) handleQuickFileUpload(file);
-                    e.target.value = "";
-                  }}
-                />
-
-                <button
-                  type="button"
-                  onClick={() => quickFileInputRef.current?.click()}
-                  className={`p-2 rounded-xl transition-colors cursor-pointer ${g.iconBtn}`}
-                  title="Attach & share file immediately"
+              {canSendChat ? (
+                <form
+                  onSubmit={handleSendMessage}
+                  className={`p-3 border-t flex items-center gap-2 shrink-0 ${g.subHeader}`}
                 >
-                  <Paperclip className="w-4 h-4" />
-                </button>
+                  <input
+                    ref={quickFileInputRef}
+                    type="file"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleQuickFileUpload(file);
+                      e.target.value = "";
+                    }}
+                  />
 
-                <input
-                  type="text"
-                  value={inputText}
-                  onChange={handleInputChange}
-                  placeholder={`Message ${isDirect ? selectedRoom?.name : `#${selectedRoom?.name}`}...`}
-                  className={`flex-1 rounded-xl px-3.5 py-2 text-xs border focus:outline-none transition-colors font-medium ${g.input}`}
-                />
+                  <button
+                    type="button"
+                    onClick={() => quickFileInputRef.current?.click()}
+                    className={`p-2 rounded-xl transition-colors cursor-pointer ${g.iconBtn}`}
+                    title="Attach & share file immediately"
+                  >
+                    <Paperclip className="w-4 h-4" />
+                  </button>
 
-                <button
-                  type="submit"
-                  disabled={!inputText.trim() || sending}
-                  className={`px-3.5 py-2 rounded-xl disabled:opacity-30 text-xs transition-all flex items-center gap-1.5 cursor-pointer ${g.btnPrimary}`}
-                >
-                  <Send className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Send</span>
-                </button>
-              </form>
+                  <input
+                    type="text"
+                    value={inputText}
+                    onChange={handleInputChange}
+                    placeholder={`Message ${isDirect ? selectedRoom?.name : `#${selectedRoom?.name}`}...`}
+                    className={`flex-1 rounded-xl px-3.5 py-2 text-xs border focus:outline-none transition-colors font-medium ${g.input}`}
+                  />
+
+                  <button
+                    type="submit"
+                    disabled={!inputText.trim() || sending}
+                    className={`px-3.5 py-2 rounded-xl disabled:opacity-30 text-xs transition-all flex items-center gap-1.5 cursor-pointer ${g.btnPrimary}`}
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Send</span>
+                  </button>
+                </form>
+              ) : (
+                <div className={`p-3 border-t text-center text-xs ${g.subHeader} ${g.muted}`}>
+                  Read-only chat view (sending disabled for your role)
+                </div>
+              )}
             </>
           )}
 
@@ -1130,6 +1272,17 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
           )}
         </div>
       </div>
+
+      {inspectedSender && (
+        <MessageSenderPopover
+          sender={inspectedSender}
+          currentUserId={user?._id}
+          teamMembers={teamMembers}
+          isDark={isDark}
+          onClose={() => setInspectedSender(null)}
+          onStartDM={selectDirectColleague}
+        />
+      )}
     </div>
   );
 }

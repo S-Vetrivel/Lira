@@ -3,6 +3,56 @@ const {
   ALL_MODULE_KEYS,
   ALL_ACTION_SLUGS,
 } = require("../config/modulesCatalog");
+const { connection: redisClient } = require("../services/queue");
+
+const ROLES_CACHE_KEY = "lira:rbac:roles";
+const ROLES_CACHE_TTL_SEC = 3600; // 1 hour
+
+/**
+ * Retrieve all dynamic roles from Redis cache first, falling back to MongoDB and populating Redis.
+ */
+async function getCachedRoles() {
+  try {
+    if (redisClient && redisClient.status === "ready") {
+      const cached = await redisClient.get(ROLES_CACHE_KEY);
+      if (cached) {
+        return { roles: JSON.parse(cached), source: "redis" };
+      }
+    }
+  } catch (err) {
+    // Fallback cleanly to MongoDB if Redis is momentarily unreachable
+  }
+
+  const Role = require("../models/roleModel");
+  const roles = await Role.find()
+    .populate("department", "name code color")
+    .sort({ isSystem: -1, createdAt: 1 })
+    .lean();
+
+  try {
+    if (redisClient && redisClient.status === "ready") {
+      await redisClient.setex(ROLES_CACHE_KEY, ROLES_CACHE_TTL_SEC, JSON.stringify(roles));
+    }
+  } catch (err) {
+    // non-fatal cache write failure
+  }
+
+  return { roles, source: "mongodb" };
+}
+
+/**
+ * Invalidate and immediately re-warm Redis role cache after any Role mutation.
+ */
+async function invalidateRolesCache() {
+  try {
+    if (redisClient && redisClient.status === "ready") {
+      await redisClient.del(ROLES_CACHE_KEY);
+    }
+  } catch (err) {
+    // ignore
+  }
+  return await getCachedRoles();
+}
 
 /**
  * Superadmin & Dynamic Module RBAC Helper
@@ -127,11 +177,11 @@ async function resolveUserAccess(user) {
     };
   }
 
-  const Role = require("../models/roleModel");
   const roleName = String(user.role || "employee").trim().toLowerCase();
-  let roleDoc = await Role.findOne({ name: roleName }).lean();
+  const { roles } = await getCachedRoles();
+  let roleDoc = (roles || []).find((r) => r.name === roleName);
   if (!roleDoc && user.roleRef) {
-    roleDoc = await Role.findById(user.roleRef).lean();
+    roleDoc = (roles || []).find((r) => String(r._id) === String(user.roleRef));
   }
 
   const baseModules = Array.isArray(roleDoc?.modules) ? roleDoc.modules : [];
@@ -280,6 +330,8 @@ async function ensureSystemRolesExist() {
     await Role.insertMany(defaultDynamicRoles);
     console.log("🛡️ Seeded dynamic RBAC roles: admin, manager, employee (+ hardcoded superadmin)");
   }
+
+  await invalidateRolesCache();
 }
 
 module.exports = {
@@ -291,4 +343,6 @@ module.exports = {
   hasWildcardPermission,
   resolveUserAccess,
   ensureSystemRolesExist,
+  getCachedRoles,
+  invalidateRolesCache,
 };

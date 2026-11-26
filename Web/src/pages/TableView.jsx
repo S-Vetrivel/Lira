@@ -414,22 +414,55 @@ export default function TableView() {
                     </select>
                   </td>
                   <td className="p-3.5">
-                    <div className="flex items-center gap-2">
-                      {t.assignee ? (
-                        <UserAvatar
-                          user={t.assignee}
-                          className="w-6 h-6 rounded-full border border-white/10"
-                          textClass="text-[10px]"
-                        />
-                      ) : (
-                        <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${g.badge}`}>
-                          ?
+                    {(() => {
+                      const list =
+                        Array.isArray(t.assignees) && t.assignees.length > 0
+                          ? t.assignees
+                          : t.assignee
+                            ? [t.assignee]
+                            : [];
+                      const depts = Array.isArray(t.assignedDepartments) ? t.assignedDepartments : [];
+                      if (list.length === 0 && depts.length === 0) {
+                        return (
+                          <div className="flex items-center gap-2">
+                            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${g.badge}`}>
+                              ?
+                            </div>
+                            <span className={`truncate max-w-[130px] ${g.heading}`}>{ownerName}</span>
+                          </div>
+                        );
+                      }
+                      return (
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {list.length > 0 && (
+                            <div className="flex items-center -space-x-1.5">
+                              {list.slice(0, 3).map((u) => (
+                                <UserAvatar
+                                  key={u._id || u}
+                                  user={u}
+                                  className="w-6 h-6 rounded-full border border-white/20"
+                                  textClass="text-[9px]"
+                                />
+                              ))}
+                              {list.length > 3 && (
+                                <span className={`pl-2 text-[10px] font-mono ${g.muted}`}>+{list.length - 3}</span>
+                              )}
+                            </div>
+                          )}
+                          {list.length === 1 && (
+                            <span className={`truncate max-w-[100px] ${g.heading}`}>{getDisplayName(list[0])}</span>
+                          )}
+                          {depts.map((d) => (
+                            <span
+                              key={d._id || d}
+                              className={`px-1.5 py-0.5 rounded border text-[9px] font-mono font-bold ${g.badge}`}
+                            >
+                              {d.code || d.name}
+                            </span>
+                          ))}
                         </div>
-                      )}
-                      <span className={`truncate max-w-[130px] ${g.heading}`}>
-                        {ownerName}
-                      </span>
-                    </div>
+                      );
+                    })()}
                   </td>
                   <td className={`p-3.5 font-mono text-[11px] ${g.muted}`}>
                     <div className="flex items-center gap-1.5">
