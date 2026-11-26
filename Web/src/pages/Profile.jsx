@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useApp } from "../context/Appcontext";
 import {
   updateProfileInfo,
@@ -16,7 +16,7 @@ import {
 } from "../services/api";
 import UserAvatar from "../components/common/UserAvatar";
 import SideDrawer from "../components/common/SideDrawer";
-import AIKeyManagerModal from "../components/ai/AIKeyManagerModal";
+import AIKeyRingWorkspace from "../components/ai/AIKeyRingWorkspace";
 import { formatDateIN, formatTimeIN, formatNumberIN } from "../utils/formatters";
 import {
   Camera,
@@ -81,6 +81,7 @@ const STATUS_OPTIONS = [
 
 export default function Profile() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const {
     user,
     setUser,
@@ -104,9 +105,17 @@ export default function Profile() {
   const canManageUsers = isAdmin || isManager;
   const canUsePersonalAI = isSuperAdmin || hasPermission("ai.use");
 
-  const [activeTab, setActiveTab] = useState("profile"); // 'profile' | 'users' | 'audit'
-  const [aiKeyModalOpen, setAiKeyModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState(
+    () => searchParams.get("tab") || "profile"
+  ); // 'profile' | 'ai' | 'users' | 'audit'
   const [personalKeyCount, setPersonalKeyCount] = useState(0);
+
+  useEffect(() => {
+    const t = searchParams.get("tab");
+    if (t && ["profile", "ai", "users", "audit"].includes(t)) {
+      setActiveTab(t);
+    }
+  }, [searchParams]);
 
   const loadPersonalAiSummary = async () => {
     if (!canUsePersonalAI) return;
@@ -583,7 +592,7 @@ export default function Profile() {
         </div>
 
         {/* Navigation Tabs */}
-        {canManageUsers && (
+        {(canManageUsers || canUsePersonalAI) && (
           <div className={`mt-5 pt-4 border-t flex flex-wrap items-center gap-2 ${isDark ? "border-white/[0.06]" : "border-slate-200"}`}>
             <button
               type="button"
@@ -602,27 +611,53 @@ export default function Profile() {
               <span>My Profile & Workspaces</span>
             </button>
 
-            <button
-              type="button"
-              onClick={() => setActiveTab("users")}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
-                activeTab === "users"
-                  ? isDark
-                    ? "bg-white text-slate-950"
-                    : "bg-slate-900 text-white"
-                  : isDark
-                  ? "text-slate-400 hover:text-white hover:bg-white/[0.05]"
-                  : "text-slate-600 hover:bg-slate-100"
-              }`}
-            >
-              <Users className="w-3.5 h-3.5" />
-              <span>User Management</span>
-              {pendingRequests.length > 0 && (
-                <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-amber-500 text-slate-950">
-                  {pendingRequests.length}
-                </span>
-              )}
-            </button>
+            {canUsePersonalAI && (
+              <button
+                type="button"
+                onClick={() => setActiveTab("ai")}
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
+                  activeTab === "ai"
+                    ? isDark
+                      ? "bg-white text-slate-950"
+                      : "bg-slate-900 text-white"
+                    : isDark
+                    ? "text-slate-400 hover:text-white hover:bg-white/[0.05]"
+                    : "text-slate-600 hover:bg-slate-100"
+                }`}
+              >
+                <KeyRound className="w-3.5 h-3.5 text-purple-400" />
+                <span>AI Keys & Vault Access</span>
+                {personalKeyCount > 0 && (
+                  <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-purple-500/20 text-purple-300">
+                    {personalKeyCount}
+                  </span>
+                )}
+              </button>
+            )}
+
+            {canManageUsers && (
+              <button
+                type="button"
+                onClick={() => setActiveTab("users")}
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
+                  activeTab === "users"
+                    ? isDark
+                      ? "bg-white text-slate-950"
+                      : "bg-slate-900 text-white"
+                    : isDark
+                    ? "text-slate-400 hover:text-white hover:bg-white/[0.05]"
+                    : "text-slate-600 hover:bg-slate-100"
+                }`}
+              >
+                <Users className="w-3.5 h-3.5" />
+                <span>User Management</span>
+                {pendingRequests.length > 0 && (
+                  <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-amber-500 text-slate-950">
+                    {pendingRequests.length}
+                  </span>
+                )}
+              </button>
+            )}
 
             {isAdmin && (
               <button
@@ -645,6 +680,16 @@ export default function Profile() {
           </div>
         )}
       </div>
+
+      {/* TAB: FULL-PAGE AI KEYS & VAULT ACCESS */}
+      {activeTab === "ai" && canUsePersonalAI && (
+        <AIKeyRingWorkspace
+          scope="user"
+          allowScopeSwitch={isSuperAdmin}
+          onUpdated={loadPersonalAiSummary}
+          isDark={isDark}
+        />
+      )}
 
       {/* TAB 1: MY PROFILE & WORKSPACES */}
       {activeTab === "profile" && (
@@ -807,11 +852,11 @@ export default function Profile() {
                   </div>
                   <button
                     type="button"
-                    onClick={() => setAiKeyModalOpen(true)}
+                    onClick={() => setActiveTab("ai")}
                     className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer shrink-0 ${g.btnPrimary}`}
                   >
                     <Sparkles className="w-3.5 h-3.5" />
-                    <span>Manage Keys</span>
+                    <span>Open AI Tab</span>
                   </button>
                 </div>
               </div>
@@ -1785,14 +1830,6 @@ export default function Profile() {
           </div>
         )}
       </SideDrawer>
-
-      <AIKeyManagerModal
-        isOpen={aiKeyModalOpen}
-        onClose={() => setAiKeyModalOpen(false)}
-        scope="user"
-        onUpdated={loadPersonalAiSummary}
-        isDark={isDark}
-      />
     </div>
   );
 }

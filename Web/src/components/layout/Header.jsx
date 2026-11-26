@@ -31,7 +31,6 @@ import { markNotificationRead, markAllNotificationsRead } from "../../services/a
 import UserAvatar from "../common/UserAvatar";
 import LiraLogo from "../common/LiraLogo";
 import SideDrawer from "../common/SideDrawer";
-import AIKeyManagerModal from "../ai/AIKeyManagerModal";
 import { getGlassTokens } from "../../styles/glassTheme";
 import { getDisplayName } from "../../utils/formatters";
 
@@ -71,8 +70,6 @@ export default function Header() {
   const [showNotificationsSidebar, setShowNotificationsSidebar] = useState(false);
   const [notifFilter, setNotifFilter] = useState("all");
   const [showProfileMenu, setShowProfileMenu] = useState(false);
-  const [showAiKeyModal, setShowAiKeyModal] = useState(false);
-  const [aiKeyModalScope, setAiKeyModalScope] = useState("user");
 
   const headerRef = useRef(null);
 
@@ -565,33 +562,25 @@ export default function Header() {
                 </Link>
 
                 {(isSuperAdmin || hasPermission("ai.use")) && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowProfileMenu(false);
-                      setAiKeyModalScope("user");
-                      setShowAiKeyModal(true);
-                    }}
+                  <Link
+                    to="/profile?tab=ai"
+                    onClick={() => setShowProfileMenu(false)}
                     className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${g.btnSecondary}`}
                   >
                     <KeyRound className="w-4 h-4 text-purple-400" />
                     <span>My AI Keys (BYOK)</span>
-                  </button>
+                  </Link>
                 )}
 
                 {(isSuperAdmin || hasPermission("ai.manage")) && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowProfileMenu(false);
-                      setAiKeyModalScope("global");
-                      setShowAiKeyModal(true);
-                    }}
+                  <Link
+                    to="/roles?tab=ai"
+                    onClick={() => setShowProfileMenu(false)}
                     className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${g.btnSecondary}`}
                   >
                     <Shield className="w-4 h-4 text-emerald-400" />
-                    <span>Superadmin AI Vault Keys</span>
-                  </button>
+                    <span>Superadmin AI Vault & Keys</span>
+                  </Link>
                 )}
 
                 {/* Mobile Navigation Links */}
@@ -628,13 +617,6 @@ export default function Header() {
           </AnimatePresence>
         </div>
       </div>
-
-      <AIKeyManagerModal
-        isOpen={showAiKeyModal}
-        onClose={() => setShowAiKeyModal(false)}
-        scope={aiKeyModalScope}
-        isDark={isDark}
-      />
 
       <SideDrawer
         isOpen={showNotificationsSidebar}

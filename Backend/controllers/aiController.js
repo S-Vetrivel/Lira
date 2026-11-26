@@ -831,7 +831,13 @@ exports.listGlobalGrants = async (req, res) => {
         .populate("revokedBy", "fullname email publicId")
         .sort({ isActive: -1, createdAt: -1 })
         .lean(),
-      User.find({ isApproved: true }).select("_id fullname email publicId role department").sort({ fullname: 1 }).lean(),
+      User.find({
+        isActive: { $ne: false },
+        status: { $nin: ["pending_approval", "rejected"] },
+      })
+        .select("_id fullname email publicId role department departmentName jobTitle")
+        .sort({ fullname: 1 })
+        .lean(),
       Department.find({}).select("_id name code color").sort({ name: 1 }).lean(),
       Project.find({}).select("_id name prefix").sort({ name: 1 }).lean(),
     ]);

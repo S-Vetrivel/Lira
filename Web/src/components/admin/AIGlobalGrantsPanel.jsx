@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   ShieldCheck,
   UserCheck,
@@ -10,6 +10,9 @@ import {
   Trash2,
   Loader2,
   KeyRound,
+  Search,
+  ChevronDown,
+  Check,
 } from "lucide-react";
 import {
   getAIGlobalGrants,
@@ -35,11 +38,16 @@ export default function AIGlobalGrantsPanel({ isDark = true }) {
   const [submitting, setSubmitting] = useState(false);
 
   // Grant Form State
-  const [targetType, setTargetType] = useState("department");
+  const [targetType, setTargetType] = useState("user");
   const [targetId, setTargetId] = useState("");
+  const [targetSearch, setTargetSearch] = useState("");
+  const [dropdownOpen, setDropdownOpen] = useState(false);
   const [provider, setProvider] = useState("all");
   const [selectedModules, setSelectedModules] = useState(["*"]);
   const [note, setNote] = useState("");
+  const [grantSearch, setGrantSearch] = useState("");
+
+  const dropdownRef = useRef(null);
 
   const loadGrants = async () => {
     setLoading(true);
@@ -56,12 +64,49 @@ export default function AIGlobalGrantsPanel({ isDark = true }) {
     loadGrants();
   }, []);
 
-  const currentTargetList =
-    targetType === "user"
-      ? targets.users
+  useEffect(() => {
+    const onOutside = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onOutside);
+    return () => document.removeEventListener("mousedown", onOutside);
+  }, []);
+
+  const currentTargetList = useMemo(() => {
+    return targetType === "user"
+      ? targets.users || []
       : targetType === "department"
-      ? targets.departments
-      : targets.projects;
+      ? targets.departments || []
+      : targets.projects || [];
+  }, [targetType, targets]);
+
+  const filteredTargets = useMemo(() => {
+    const q = targetSearch.trim().toLowerCase();
+    if (!q) return currentTargetList;
+    return currentTargetList.filter((item) => {
+      const hay = [
+        item.fullname,
+        item.name,
+        item.email,
+        item.publicId,
+        item.code,
+        item.prefix,
+        item.role,
+        item.departmentName,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return hay.includes(q);
+    });
+  }, [currentTargetList, targetSearch]);
+
+  const selectedTargetObj = useMemo(
+    () => currentTargetList.find((item) => String(item._id) === String(targetId)),
+    [currentTargetList, targetId]
+  );
 
   const toggleModule = (modKey) => {
     if (modKey === "*") {
@@ -91,10 +136,23 @@ export default function AIGlobalGrantsPanel({ isDark = true }) {
     setSubmitting(false);
     if (res.success) {
       setTargetId("");
+      setTargetSearch("");
       setNote("");
       await loadGrants();
     }
   };
+
+  const filteredGrants = useMemo(() => {
+    const q = grantSearch.trim().toLowerCase();
+    if (!q) return grants;
+    return grants.filter((gr) =>
+      [gr.targetName, gr.targetType, gr.provider, ...(gr.allowedModules || []), gr.note]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(q)
+    );
+  }, [grants, grantSearch]);
 
   return (
     <div className={`p-5 rounded-2xl border space-y-5 ${g.card}`}>
@@ -126,6 +184,12 @@ export default function AIGlobalGrantsPanel({ isDark = true }) {
               {TARGET_TYPES.map((t) => {
                 const Icon = t.icon;
                 const active = targetType === t.key;
+                const count =
+                  t.key === "user"
+                    ? (targets.users || []).length
+                    : t.key === "department"
+                    ? (targets.departments || []).length
+                    : (targets.projects || []).length;
                 return (
                   <button
                     key={t.key}
@@ -133,40 +197,106 @@ export default function AIGlobalGrantsPanel({ isDark = true }) {
                     onClick={() => {
                       setTargetType(t.key);
                       setTargetId("");
+                      setTargetSearch("");
+                      setDropdownOpen(false);
                     }}
                     className={`px-2 py-1.5 rounded-lg border text-[10px] font-semibold flex items-center justify-center gap-1 cursor-pointer transition-all ${
-                      active ? g.selectedRow : `${g.btnSecondary} opacity-55 hover:opacity-90`
+                      active ? g.selectedRow : `${g.btnSecondary} opacity-50 hover:opacity-90`
                     }`}
-                    title={t.label}
+                    title={`${t.label} (${count})`}
                   >
                     <Icon className="w-3 h-3 shrink-0" />
-                    <span className="truncate">{t.key === "project" ? "Team" : t.key}</span>
+                    <span className="truncate">{t.key === "project" ? "Team" : t.key} ({count})</span>
                   </button>
                 );
               })}
             </div>
           </div>
 
-          <div>
+          {/* Searchable Target Selector Dropdown */}
+          <div className="relative" ref={dropdownRef}>
             <label className={`text-[11px] font-bold block mb-1.5 ${g.heading}`}>
               Select {targetType === "user" ? "User" : targetType === "department" ? "Department" : "Project / Team"} *
             </label>
-            <select
-              required
-              value={targetId}
-              onChange={(e) => setTargetId(e.target.value)}
-              className={`w-full rounded-xl px-3 py-2 text-xs border focus:outline-none ${g.input}`}
+            <button
+              type="button"
+              onClick={() => setDropdownOpen((o) => !o)}
+              className={`w-full rounded-xl px-3 py-2 text-xs border flex items-center justify-between gap-2 text-left cursor-pointer ${g.input}`}
             >
-              <option value="" className={isDark ? "bg-[#14151a]" : "bg-white"}>
-                Choose target...
-              </option>
-              {(currentTargetList || []).map((item) => (
-                <option key={item._id} value={item._id} className={isDark ? "bg-[#14151a]" : "bg-white"}>
-                  {item.fullname || item.name}
-                  {item.publicId ? ` (${item.publicId})` : item.code ? ` (${item.code})` : item.prefix ? ` [${item.prefix}]` : ""}
-                </option>
-              ))}
-            </select>
+              <span className="truncate">
+                {selectedTargetObj
+                  ? `${selectedTargetObj.fullname || selectedTargetObj.name}${
+                      selectedTargetObj.publicId
+                        ? ` (${selectedTargetObj.publicId})`
+                        : selectedTargetObj.code
+                        ? ` (${selectedTargetObj.code})`
+                        : selectedTargetObj.prefix
+                        ? ` [${selectedTargetObj.prefix}]`
+                        : ""
+                    }`
+                  : `Search & choose ${targetType}... (${currentTargetList.length})`}
+              </span>
+              <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform ${dropdownOpen ? "rotate-180" : ""}`} />
+            </button>
+
+            {dropdownOpen && (
+              <div
+                className={`absolute left-0 right-0 mt-1.5 rounded-xl border shadow-2xl z-40 overflow-hidden ${g.dropdown}`}
+              >
+                <div className={`p-2 border-b ${g.border}`}>
+                  <div className="relative">
+                    <Search className={`w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 ${g.muted}`} />
+                    <input
+                      type="text"
+                      autoFocus
+                      value={targetSearch}
+                      onChange={(e) => setTargetSearch(e.target.value)}
+                      placeholder={`Search ${targetType} by name, email, ID...`}
+                      className={`w-full rounded-lg pl-8 pr-2.5 py-1.5 text-xs border focus:outline-none ${g.input}`}
+                    />
+                  </div>
+                </div>
+                <div className="max-h-56 overflow-y-auto p-1 space-y-0.5">
+                  {filteredTargets.length === 0 ? (
+                    <div className={`p-3 text-center text-xs italic ${g.muted}`}>
+                      No matching {targetType} found.
+                    </div>
+                  ) : (
+                    filteredTargets.map((item) => {
+                      const isSel = String(item._id) === String(targetId);
+                      return (
+                        <button
+                          key={item._id}
+                          type="button"
+                          onClick={() => {
+                            setTargetId(item._id);
+                            setDropdownOpen(false);
+                          }}
+                          className={`w-full px-2.5 py-2 rounded-lg text-left text-xs flex items-center justify-between gap-2 cursor-pointer transition-colors ${
+                            isSel ? g.selectedRow : g.rowHover
+                          }`}
+                        >
+                          <div className="min-w-0">
+                            <div className="font-semibold truncate">
+                              {item.fullname || item.name}
+                            </div>
+                            <div className={`text-[10px] font-mono truncate ${g.muted}`}>
+                              {item.email || item.description || ""}
+                              {item.publicId ? ` · ${item.publicId}` : ""}
+                              {item.role ? ` · ${item.role}` : ""}
+                              {item.departmentName ? ` · ${item.departmentName}` : ""}
+                              {item.code ? `Code: ${item.code}` : ""}
+                              {item.prefix ? `Key: ${item.prefix}` : ""}
+                            </div>
+                          </div>
+                          {isSel && <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />}
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           <div>
@@ -206,7 +336,7 @@ export default function AIGlobalGrantsPanel({ isDark = true }) {
                   type="button"
                   onClick={() => toggleModule(mod.key)}
                   className={`px-2.5 py-1 rounded-full border text-[10px] font-semibold cursor-pointer transition-all ${
-                    checked ? g.pillActive : `${g.pillInactive} opacity-65 hover:opacity-100`
+                    checked ? g.pillActive : `${g.pillInactive} opacity-55 hover:opacity-100`
                   }`}
                 >
                   {mod.key === "*" ? "* All Modules" : mod.label}
@@ -226,23 +356,37 @@ export default function AIGlobalGrantsPanel({ isDark = true }) {
         </div>
       </form>
 
+      {/* Filter existing grants */}
+      {grants.length > 0 && (
+        <div className="relative max-w-sm">
+          <Search className={`w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 ${g.muted}`} />
+          <input
+            type="text"
+            value={grantSearch}
+            onChange={(e) => setGrantSearch(e.target.value)}
+            placeholder="Filter granted users, teams, or modules..."
+            className={`w-full rounded-xl pl-8 pr-3 py-1.5 text-xs border focus:outline-none ${g.input}`}
+          />
+        </div>
+      )}
+
       {/* Active & Revoked Grants Table */}
       {loading ? (
         <div className={`py-6 flex items-center justify-center gap-2 text-xs ${g.muted}`}>
           <Loader2 className="w-4 h-4 animate-spin" />
           <span>Loading Global Key Grants...</span>
         </div>
-      ) : grants.length === 0 ? (
+      ) : filteredGrants.length === 0 ? (
         <div className={`py-8 text-center rounded-xl border text-xs italic ${g.subtleSurface} ${g.muted}`}>
-          No Global Key grants issued yet. By default, only Superadmin can use Global Vault / .env keys; other users require their own BYOK key or a grant above.
+          No Global Key grants match. By default, only Superadmin can use Global Vault / .env keys; other users require their own BYOK key or a grant above.
         </div>
       ) : (
         <div className="space-y-2">
-          {grants.map((gr) => (
+          {filteredGrants.map((gr) => (
             <div
               key={gr._id}
               className={`p-3.5 rounded-xl border flex flex-wrap items-center justify-between gap-3 transition-opacity ${
-                gr.isActive ? g.selectedRow : `${g.subtleSurface} opacity-55`
+                gr.isActive ? g.selectedRow : `${g.subtleSurface} opacity-50`
               }`}
             >
               <div className="min-w-0 flex-1 space-y-1">
@@ -322,4 +466,3 @@ export default function AIGlobalGrantsPanel({ isDark = true }) {
     </div>
   );
 }
-

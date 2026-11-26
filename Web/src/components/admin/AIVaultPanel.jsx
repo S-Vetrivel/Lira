@@ -21,7 +21,7 @@ import {
   activateAIKeyEntry,
 } from "../../services/api";
 import { getGlassTokens } from "../../styles/glassTheme";
-import AIKeyManagerModal from "../ai/AIKeyManagerModal";
+import AIKeyRingWorkspace from "../ai/AIKeyRingWorkspace";
 import AIGlobalGrantsPanel from "./AIGlobalGrantsPanel";
 
 export default function AIVaultPanel({ isDark = true }) {
@@ -35,9 +35,9 @@ export default function AIVaultPanel({ isDark = true }) {
   const [savingProvider, setSavingProvider] = useState("");
   const [testingProvider, setTestingProvider] = useState("");
   const [rawTestStatus, setRawTestStatus] = useState({});
-  const [keyModalOpen, setKeyModalOpen] = useState(false);
-  const [keyModalProvider, setKeyModalProvider] = useState("google");
-  const [keyModalScope, setKeyModalScope] = useState("global");
+  const [subView, setSubView] = useState("vault"); // "vault" | "ring"
+  const [ringProvider, setRingProvider] = useState("google");
+  const [ringScope, setRingScope] = useState("global");
 
   const loadConfig = async () => {
     setLoading(true);
@@ -119,9 +119,9 @@ export default function AIVaultPanel({ isDark = true }) {
   };
 
   const openKeysModal = (pKey = "google", modalScope = "global") => {
-    setKeyModalProvider(pKey);
-    setKeyModalScope(modalScope);
-    setKeyModalOpen(true);
+    setRingProvider(pKey);
+    setRingScope(modalScope);
+    setSubView("ring");
   };
 
   if (loading) {
@@ -158,16 +158,34 @@ export default function AIVaultPanel({ isDark = true }) {
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={() => openKeysModal("google", "global")}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer ${g.btnPrimary}`}
+            onClick={() => setSubView("vault")}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all ${
+              subView === "vault" ? g.pillActive : `${g.btnSecondary} opacity-65 hover:opacity-100`
+            }`}
+          >
+            <Cpu className="w-3.5 h-3.5" />
+            <span>Provider Routing & Grants</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => openKeysModal(ringProvider, "global")}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all ${
+              subView === "ring" && ringScope === "global"
+                ? g.pillActive
+                : `${g.btnSecondary} opacity-65 hover:opacity-100`
+            }`}
           >
             <KeyRound className="w-3.5 h-3.5" />
             <span>Global Key Ring</span>
           </button>
           <button
             type="button"
-            onClick={() => openKeysModal("google", "user")}
-            className={`px-3 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-1.5 cursor-pointer ${g.btnSecondary}`}
+            onClick={() => openKeysModal(ringProvider, "user")}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all ${
+              subView === "ring" && ringScope === "user"
+                ? g.pillActive
+                : `${g.btnSecondary} opacity-65 hover:opacity-100`
+            }`}
           >
             <Lock className="w-3.5 h-3.5 text-purple-400" />
             <span>My Personal Keys</span>
@@ -183,7 +201,18 @@ export default function AIVaultPanel({ isDark = true }) {
         </div>
       </div>
 
-      {/* Provider Cards Grid */}
+      {subView === "ring" ? (
+        <AIKeyRingWorkspace
+          scope={ringScope}
+          allowScopeSwitch={true}
+          initialProvider={ringProvider}
+          onScopeChange={setRingScope}
+          onUpdated={loadConfig}
+          isDark={isDark}
+        />
+      ) : (
+        <>
+          {/* Provider Cards Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {providers.map((p) => {
           const d = drafts[p.key] || {};
@@ -473,17 +502,10 @@ export default function AIVaultPanel({ isDark = true }) {
         })}
       </div>
 
-      {/* Global Key Access Grants & Module Permissions */}
-      <AIGlobalGrantsPanel isDark={isDark} />
-
-      <AIKeyManagerModal
-        isOpen={keyModalOpen}
-        onClose={() => setKeyModalOpen(false)}
-        scope={keyModalScope}
-        initialProvider={keyModalProvider}
-        onUpdated={loadConfig}
-        isDark={isDark}
-      />
+          {/* Global Key Access Grants & Module Permissions */}
+          <AIGlobalGrantsPanel isDark={isDark} />
+        </>
+      )}
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   Shield,
   ShieldCheck,
@@ -52,7 +53,17 @@ export default function Roles() {
   } = useApp();
   const isDark = theme === "dark";
 
-  const [activeTab, setActiveTab] = useState("roles"); // 'roles' | 'departments'
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState(
+    () => searchParams.get("tab") || "roles"
+  ); // 'roles' | 'departments' | 'ai'
+
+  useEffect(() => {
+    const t = searchParams.get("tab");
+    if (t && ["roles", "departments", "ai"].includes(t)) {
+      setActiveTab(t);
+    }
+  }, [searchParams]);
   const [roles, setRoles] = useState([]);
   const [modulesCatalog, setModulesCatalog] = useState([]);
   const [loading, setLoading] = useState(true);
