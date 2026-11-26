@@ -26,6 +26,7 @@ import {
   joinChatRoom,
   leaveChatRoom,
   sendSocketChatMessage,
+  subscribeRealtimeEvents,
 } from "../services/socket";
 import { encryptText, decryptText } from "../services/crypto";
 import SideDrawer from "../components/common/SideDrawer";
@@ -315,14 +316,21 @@ export default function Projects() {
     }
   }, [liveProj?._id]);
 
-  // Load project tasks when tasks tab is active
+  // Load project tasks when tasks tab is active & auto-refresh on real-time task CRUD events
   useEffect(() => {
     if (!liveProj?._id || projDrawerTab !== "tasks") return;
-    setLoadingProjTasks(true);
-    getTasks({ project: liveProj._id }).then((res) => {
-      if (res.success) setProjTasks(res.tasks || []);
-      setLoadingProjTasks(false);
-    });
+    const loadProjTasks = () => {
+      setLoadingProjTasks(true);
+      getTasks({ project: liveProj._id }).then((res) => {
+        if (res.success) setProjTasks(res.tasks || []);
+        setLoadingProjTasks(false);
+      });
+    };
+    loadProjTasks();
+    return subscribeRealtimeEvents(
+      ["task:created", "task:created_global", "task:updated", "task:status_changed", "task:deleted"],
+      () => loadProjTasks()
+    );
   }, [liveProj?._id, projDrawerTab]);
 
   // Live WebSocket project chat inside sidebar when chat tab is active

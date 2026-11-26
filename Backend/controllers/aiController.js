@@ -23,6 +23,7 @@ const {
   stopAssistantJob,
   confirmAssistantMessageAction,
   executeDirectCardStep,
+  clearAssistantSessionForUser,
   getUserAvailableModels,
 } = require("../services/aiAssistantService");
 const {
@@ -443,6 +444,9 @@ exports.deleteKeyRingEntry = async (req, res) => {
     }
 
     await cfg.save();
+    if (cfg.scope === "global") {
+      enqueueWebSocketEvent({ target: "all", event: "ai:config-updated", data: { provider: cfg.provider } });
+    }
     res.status(200).json({
       success: true,
       message: "Encrypted key removed",
@@ -1000,6 +1004,11 @@ exports.deleteGlobalGrant = async (req, res) => {
     if (!grant) {
       return res.status(404).json({ success: false, message: "Grant not found" });
     }
+    enqueueWebSocketEvent({
+      target: "all",
+      event: "ai:grants-updated",
+      data: { grantId: grant._id, deleted: true },
+    });
     res.status(200).json({ success: true, message: "Global AI grant deleted" });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -1300,12 +1309,7 @@ exports.confirmAssistantAction = async (req, res) => {
 
 exports.clearAssistantSession = async (req, res) => {
   try {
-    const session = await getOrCreateSession(req.user._id);
-    const allAtts = (session.messages || []).flatMap((m) => m.attachments || []);
-    cleanupAttachmentFiles(allAtts);
-    session.messages = [];
-    session.activeJobId = "";
-    await session.save();
+    const session = await clearAssistantSessionForUser(req.user._id);
     res.status(200).json({ success: true, session });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

@@ -31,7 +31,7 @@ import {
   confirmAIAssistantActionAPI,
   clearAIAssistantSessionAPI,
 } from "../../services/api";
-import { getSocket, initSocketClient } from "../../services/socket";
+import { getSocket, initSocketClient, subscribeRealtimeEvents, emitLocalRealtimeEvent } from "../../services/socket";
 import SideDrawer from "../common/SideDrawer";
 import LiraLogo, { LiraLogoMark } from "../common/LiraLogo";
 import { SanitizedCopilotHtml, CopilotArtifactsList } from "./CopilotRichContent";
@@ -404,6 +404,17 @@ export default function LiraAssistantWidget() {
     }
   };
 
+  const refreshAllWorkspaceStores = () => {
+    refreshProjects?.();
+    refreshDepartments?.();
+    refreshTeam?.();
+    refreshRoles?.();
+    refreshNotifications?.();
+    ["rbac:updated", "department:updated", "project:updated", "team:updated", "task:updated", "request:updated"].forEach(
+      (evt) => emitLocalRealtimeEvent(evt, { source: "copilot" })
+    );
+  };
+
   const applyCompletedMessageEffects = (msg, sourceMode) => {
     if (!msg || msg.status !== "completed" || !msg.jobId) return;
     const handled = getHandledJobs();
@@ -411,11 +422,7 @@ export default function LiraAssistantWidget() {
     markJobHandled(msg.jobId);
 
     if (sourceMode === "auto" || msg.actionApplied) {
-      refreshProjects?.();
-      refreshDepartments?.();
-      refreshTeam?.();
-      refreshRoles?.();
-      refreshNotifications?.();
+      refreshAllWorkspaceStores();
     }
 
     // Only drive UI navigation, modals, or cursor walkthrough in the active tab that owns/opened Copilot
@@ -472,21 +479,18 @@ export default function LiraAssistantWidget() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canUseAI, user?._id]);
 
-  // Listen to real-time AI job updates via Socket.IO
+  // Listen to real-time AI job updates via Socket.IO & AppProvider relay
   useEffect(() => {
     if (!canUseAI || !user?._id) return;
-    const socket = getSocket() || initSocketClient(user._id);
-    if (!socket) return;
-    const onAssistantUpdate = ({ session: updatedSession, jobId }) => {
+    initSocketClient(user._id);
+    return subscribeRealtimeEvents(["ai:assistant-update"], ({ session: updatedSession, jobId }) => {
       if (!updatedSession) return;
       setSession(updatedSession);
       const targetMsg = (updatedSession.messages || []).find((m) => m.jobId === jobId);
       if (targetMsg && targetMsg.status === "completed") {
         applyCompletedMessageEffects(targetMsg, targetMsg.mode || updatedSession.mode);
       }
-    };
-    socket.on("ai:assistant-update", onAssistantUpdate);
-    return () => socket.off("ai:assistant-update", onAssistantUpdate);
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canUseAI, user?._id]);
 
@@ -670,10 +674,7 @@ export default function LiraAssistantWidget() {
     const res = await executeAIAssistantCardStepAPI({ step, messageId: msgId });
     if (res.success) {
       if (res.session) setSession(res.session);
-      refreshTeam?.();
-      refreshProjects?.();
-      refreshDepartments?.();
-      refreshRoles?.();
+      refreshAllWorkspaceStores();
       if (res.executedResult?.taskKey) {
         closeAllSidebars?.("task");
         navigate(`/board?task=${res.executedResult.taskKey}`);
@@ -767,9 +768,7 @@ export default function LiraAssistantWidget() {
     setConfirmingMsgId("");
     if (res.success) {
       if (res.session) setSession(res.session);
-      refreshProjects?.();
-      refreshDepartments?.();
-      refreshTeam?.();
+      refreshAllWorkspaceStores();
       if (res.executedResult?.taskKey) {
         closeAllSidebars?.("task");
         navigate(`/board?task=${res.executedResult.taskKey}`);

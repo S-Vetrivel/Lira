@@ -15,6 +15,22 @@ const isUserOnline = (userId) => {
 
 const getOnlineUserIds = () => Array.from(onlineUsers.keys());
 
+const emitTargetEvent = (target, room, event, data) => {
+  if (!io || !event) return;
+  if (target === "user" && room) {
+    io.to(`user_${room}`).emit(event, data);
+  } else if (target === "project" && room) {
+    io.to(`project_${room}`).emit(event, data);
+  } else if (target === "chat" && room) {
+    const chatRoom = room.startsWith("chat_") ? room : `chat_${room}`;
+    io.to(chatRoom).emit(event, data);
+  } else if (target === "all") {
+    io.emit(event, data);
+  } else if (room) {
+    io.to(room).emit(event, data);
+  }
+};
+
 const initSocket = (server) => {
   io = new Server(server, {
     cors: {
@@ -27,13 +43,41 @@ const initSocket = (server) => {
     transports: ["websocket", "polling"],
   });
 
-  // Attach Redis adapter for multi-node cluster synchronization
+  // Attach Redis adapter for multi-node cluster synchronization + worker-to-API broadcast relay
   try {
     const pubClient = new Redis(redisConfig);
     const subClient = pubClient.duplicate();
+    const clusterSub = new Redis(redisConfig);
+
+    pubClient.on("error", () => {});
+    subClient.on("error", () => {});
+    clusterSub.on("error", () => {});
 
     io.adapter(createAdapter(pubClient, subClient));
     console.log("⚡ Socket.IO Redis Cluster Adapter initialized");
+
+    clusterSub.subscribe("CLUSTER_WEBSOCKET_CHANNEL", (err) => {
+      if (err) {
+        console.warn("⚠️ Failed to subscribe to CLUSTER_WEBSOCKET_CHANNEL:", err.message);
+      } else {
+        console.log("📡 Subscribed to CLUSTER_WEBSOCKET_CHANNEL for live worker CRUD sync");
+      }
+    });
+
+    clusterSub.on("message", async (channel, raw) => {
+      if (channel !== "CLUSTER_WEBSOCKET_CHANNEL" || !raw) return;
+      try {
+        const msg = JSON.parse(raw);
+        if (msg.fromPid && msg.fromPid === process.pid) return;
+        if (msg.deliveryId) {
+          const lock = await pubClient.set(`ws:relay:${msg.deliveryId}`, "1", "EX", 30, "NX");
+          if (lock !== "OK") return;
+        }
+        emitTargetEvent(msg.target, msg.room, msg.event, msg.data);
+      } catch (err) {
+        console.warn("⚠️ CLUSTER_WEBSOCKET_CHANNEL parse error:", err.message);
+      }
+    });
   } catch (err) {
     console.warn("⚠️ Failed to attach Redis adapter, using standalone adapter:", err.message);
   }
@@ -264,6 +308,7 @@ const emitToAll = (event, data) => {
 module.exports = {
   initSocket,
   getIO,
+  emitTargetEvent,
   emitToUser,
   emitToProject,
   emitToAll,

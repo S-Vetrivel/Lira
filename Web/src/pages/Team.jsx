@@ -10,7 +10,7 @@ import {
   approveJoinRequest,
   rejectJoinRequest,
 } from "../services/api";
-import { initSocketClient } from "../services/socket";
+import { initSocketClient, subscribeRealtimeEvents } from "../services/socket";
 import {
   Users,
   UserPlus,
@@ -56,10 +56,10 @@ export default function Team() {
   const assignableRoles = (roles && roles.length > 0
     ? roles
     : [
-        { name: "employee", displayName: "Employee" },
-        { name: "manager", displayName: "Manager" },
-        { name: "admin", displayName: "Admin" },
-      ]
+      { name: "employee", displayName: "Employee" },
+      { name: "manager", displayName: "Manager" },
+      { name: "admin", displayName: "Admin" },
+    ]
   ).filter((r) => isSuperAdmin || (!r.isSystem && r.name !== "superadmin"));
 
   const [activeTab, setActiveTab] = useState(() =>
@@ -219,47 +219,29 @@ export default function Team() {
 
     // Real-time WebSocket listener for new join requests & updates
     if (user?._id) {
-      const socket = initSocketClient(user._id);
-
-      const handleNewRequest = (data) => {
-        toast((t) => (
-          <div className="flex items-start gap-2.5">
-            <span className="text-xl">👋</span>
-            <div>
-              <p className="font-bold text-xs text-white">New Team Join Request</p>
-              <p className="text-[11px] text-slate-300">
-                {data.user?.fullname} ({data.user?.publicId}) requested to join {data.user?.departmentName}.
-              </p>
-            </div>
-          </div>
-        ), { duration: 6000 });
-
-        fetchJoinRequests();
-      };
-
-      const handleUpdatedRequest = () => {
-        fetchJoinRequests();
-        fetchMembers();
-      };
-
-      const handleTeamRefresh = () => {
-        fetchMembers();
-        fetchJoinRequests();
-      };
-
-      socket.on("join-request:new", handleNewRequest);
-      socket.on("join-request:updated", handleUpdatedRequest);
-      socket.on("team:updated", handleTeamRefresh);
-      socket.on("rbac:updated", handleTeamRefresh);
-      socket.on("department:updated", handleTeamRefresh);
-
-      return () => {
-        socket.off("join-request:new", handleNewRequest);
-        socket.off("join-request:updated", handleUpdatedRequest);
-        socket.off("team:updated", handleTeamRefresh);
-        socket.off("rbac:updated", handleTeamRefresh);
-        socket.off("department:updated", handleTeamRefresh);
-      };
+      initSocketClient(user._id);
+      return subscribeRealtimeEvents(
+        ["join-request:new", "join-request:updated", "team:updated", "rbac:updated", "department:updated"],
+        (data, evt) => {
+          if (evt === "join-request:new") {
+            toast((t) => (
+              <div className="flex items-start gap-2.5">
+                <span className="text-xl">👋</span>
+                <div>
+                  <p className="font-bold text-xs text-white">New Team Join Request</p>
+                  <p className="text-[11px] text-slate-300">
+                    {data.user?.fullname} ({data.user?.publicId}) requested to join {data.user?.departmentName}.
+                  </p>
+                </div>
+              </div>
+            ), { duration: 6000 });
+            fetchJoinRequests();
+            return;
+          }
+          fetchMembers();
+          fetchJoinRequests();
+        }
+      );
     }
   }, [user?._id, user?.role]);
 
@@ -267,9 +249,9 @@ export default function Team() {
     setReviewCandidate(candidate);
     setApproveDeptName(
       candidate.joinRequest?.requestedDepartmentName ||
-        candidate.departmentName ||
-        departments?.[0]?.name ||
-        "Engineering"
+      candidate.departmentName ||
+      departments?.[0]?.name ||
+      "Engineering"
     );
     setApproveRole(candidate.joinRequest?.requestedRole || "employee");
     setApproveJobTitle(
@@ -694,19 +676,18 @@ export default function Team() {
                               : member.role || "Member");
                       return (
                         <span
-                          className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full border ${
-                            member.role === "superadmin"
-                              ? "bg-purple-500/15 text-purple-300 border-purple-500/30"
-                              : member.role === "admin"
+                          className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full border ${member.role === "superadmin"
+                            ? "bg-purple-500/15 text-purple-300 border-purple-500/30"
+                            : member.role === "admin"
+                              ? isDark
+                                ? "bg-white/[0.08] text-zinc-100 border-white/[0.15]"
+                                : "bg-zinc-900 text-white border-zinc-900"
+                              : member.role === "manager"
                                 ? isDark
-                                  ? "bg-white/[0.08] text-zinc-100 border-white/[0.15]"
-                                  : "bg-zinc-900 text-white border-zinc-900"
-                                : member.role === "manager"
-                                  ? isDark
-                                    ? "bg-amber-500/10 text-amber-300 border-amber-500/20"
-                                    : "bg-amber-50 text-amber-700 border-amber-200"
-                                  : "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
-                          }`}
+                                  ? "bg-amber-500/10 text-amber-300 border-amber-500/20"
+                                  : "bg-amber-50 text-amber-700 border-amber-200"
+                                : "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
+                            }`}
                         >
                           <span>{roleLabel}</span>
                         </span>
@@ -1058,9 +1039,8 @@ export default function Team() {
         {reviewCandidate && (
           <form onSubmit={handleConfirmApprove} className="space-y-4">
             <div
-              className={`p-3.5 rounded-2xl border flex items-center gap-3 ${
-                isDark ? "bg-white/[0.03] border-white/10" : "bg-slate-50 border-slate-200"
-              }`}
+              className={`p-3.5 rounded-2xl border flex items-center gap-3 ${isDark ? "bg-white/[0.03] border-white/10" : "bg-slate-50 border-slate-200"
+                }`}
             >
               <UserAvatar
                 user={reviewCandidate}
@@ -1084,9 +1064,8 @@ export default function Team() {
 
             {reviewCandidate.joinRequest?.reason && (
               <div
-                className={`p-3 rounded-xl border text-xs ${
-                  isDark ? "bg-white/[0.02] border-white/[0.07] text-slate-300" : "bg-slate-50 border-slate-200 text-slate-600"
-                }`}
+                className={`p-3 rounded-xl border text-xs ${isDark ? "bg-white/[0.02] border-white/[0.07] text-slate-300" : "bg-slate-50 border-slate-200 text-slate-600"
+                  }`}
               >
                 <span className="text-[10px] uppercase font-bold tracking-wider opacity-60 block mb-1">
                   Candidate Note
@@ -1101,9 +1080,8 @@ export default function Team() {
                 value={approveDeptName}
                 onChange={(e) => setApproveDeptName(e.target.value)}
                 required
-                className={`w-full border rounded-xl px-3.5 py-2.5 text-xs focus:outline-none ${
-                  isDark ? "bg-[#12131b] border-white/15 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
-                }`}
+                className={`w-full border rounded-xl px-3.5 py-2.5 text-xs focus:outline-none ${isDark ? "bg-[#12131b] border-white/15 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
+                  }`}
               >
                 {departments.map((d) => (
                   <option key={d._id} value={d.name}>
@@ -1121,9 +1099,8 @@ export default function Team() {
               <select
                 value={approveRole}
                 onChange={(e) => setApproveRole(e.target.value)}
-                className={`w-full border rounded-xl px-3.5 py-2.5 text-xs focus:outline-none ${
-                  isDark ? "bg-[#12131b] border-white/15 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
-                }`}
+                className={`w-full border rounded-xl px-3.5 py-2.5 text-xs focus:outline-none ${isDark ? "bg-[#12131b] border-white/15 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
+                  }`}
               >
                 {assignableRoles.map((r) => (
                   <option key={r.name} value={r.name}>
@@ -1140,9 +1117,8 @@ export default function Team() {
                 value={approveJobTitle}
                 onChange={(e) => setApproveJobTitle(e.target.value)}
                 placeholder="e.g. Software Engineer"
-                className={`w-full border rounded-xl px-3.5 py-2.5 text-xs focus:outline-none ${
-                  isDark ? "bg-[#12131b] border-white/15 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
-                }`}
+                className={`w-full border rounded-xl px-3.5 py-2.5 text-xs focus:outline-none ${isDark ? "bg-[#12131b] border-white/15 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
+                  }`}
               />
             </div>
 
@@ -1150,9 +1126,8 @@ export default function Team() {
               <button
                 type="button"
                 onClick={() => setReviewCandidate(null)}
-                className={`px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer ${
-                  isDark ? "bg-white/5 hover:bg-white/10 text-slate-300" : "bg-slate-100 hover:bg-slate-200 text-slate-700"
-                }`}
+                className={`px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer ${isDark ? "bg-white/5 hover:bg-white/10 text-slate-300" : "bg-slate-100 hover:bg-slate-200 text-slate-700"
+                  }`}
               >
                 Cancel
               </button>
@@ -1180,9 +1155,8 @@ export default function Team() {
         {declineCandidate && (
           <form onSubmit={handleConfirmDecline} className="space-y-4">
             <div
-              className={`p-3.5 rounded-2xl border flex items-center gap-3 ${
-                isDark ? "bg-white/[0.03] border-white/10" : "bg-slate-50 border-slate-200"
-              }`}
+              className={`p-3.5 rounded-2xl border flex items-center gap-3 ${isDark ? "bg-white/[0.03] border-white/10" : "bg-slate-50 border-slate-200"
+                }`}
             >
               <UserAvatar
                 user={declineCandidate}
@@ -1212,9 +1186,8 @@ export default function Team() {
                 onChange={(e) => setDeclineReason(e.target.value)}
                 required
                 placeholder="Enter reason shown to the applicant..."
-                className={`w-full border rounded-xl px-3.5 py-2.5 text-xs focus:outline-none ${
-                  isDark ? "bg-[#12131b] border-white/15 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
-                }`}
+                className={`w-full border rounded-xl px-3.5 py-2.5 text-xs focus:outline-none ${isDark ? "bg-[#12131b] border-white/15 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
+                  }`}
               />
               <div className="flex flex-wrap gap-1.5 mt-2">
                 {[
@@ -1226,11 +1199,10 @@ export default function Team() {
                     key={preset}
                     type="button"
                     onClick={() => setDeclineReason(preset)}
-                    className={`px-2 py-1 rounded-lg text-[10px] border cursor-pointer ${
-                      isDark
-                        ? "bg-white/[0.04] hover:bg-white/[0.08] border-white/10 text-slate-300"
-                        : "bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-700"
-                    }`}
+                    className={`px-2 py-1 rounded-lg text-[10px] border cursor-pointer ${isDark
+                      ? "bg-white/[0.04] hover:bg-white/[0.08] border-white/10 text-slate-300"
+                      : "bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-700"
+                      }`}
                   >
                     {preset}
                   </button>
@@ -1242,9 +1214,8 @@ export default function Team() {
               <button
                 type="button"
                 onClick={() => setDeclineCandidate(null)}
-                className={`px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer ${
-                  isDark ? "bg-white/5 hover:bg-white/10 text-slate-300" : "bg-slate-100 hover:bg-slate-200 text-slate-700"
-                }`}
+                className={`px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer ${isDark ? "bg-white/5 hover:bg-white/10 text-slate-300" : "bg-slate-100 hover:bg-slate-200 text-slate-700"
+                  }`}
               >
                 Cancel
               </button>

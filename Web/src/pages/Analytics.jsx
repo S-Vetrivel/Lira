@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useApp } from "../context/Appcontext";
 import { getManagerOverview } from "../services/api";
+import { subscribeRealtimeEvents } from "../services/socket";
 import { formatINR, formatNumberIN, formatDateIN, getDisplayName } from "../utils/formatters";
 import UserAvatar from "../components/common/UserAvatar";
 import { getGlassTokens } from "../styles/glassTheme";
@@ -101,6 +102,23 @@ export default function Analytics() {
 
   useEffect(() => {
     loadOverview();
+    return subscribeRealtimeEvents(
+      [
+        "task:created",
+        "task:created_global",
+        "task:updated",
+        "task:status_changed",
+        "task:deleted",
+        "project:updated",
+        "department:updated",
+        "team:updated",
+        "request:created",
+        "request:updated",
+        "rbac:updated",
+      ],
+      () => loadOverview()
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeProject?._id]);
 
   const {

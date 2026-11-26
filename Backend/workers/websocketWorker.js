@@ -1,10 +1,12 @@
+const crypto = require("crypto");
 const { Worker } = require("bullmq");
 const { redisConfig } = require("../services/queue");
-const { emitToProject, emitToUser, emitToAll, getIO } = require("../config/socket");
+const { emitTargetEvent, getIO } = require("../config/socket");
 const Redis = require("ioredis");
 
-// Redis publisher client for cluster-wide broadcast
+// Redis publisher client for cluster-wide worker -> API Socket.IO broadcast relay
 const redisPublisher = new Redis(redisConfig);
+redisPublisher.on("error", () => {});
 
 const ts = () => new Date().toISOString();
 
@@ -14,28 +16,16 @@ const websocketWorker = new Worker(
     const { room, event, data, target } = job.data;
     const io = getIO();
 
-    if (target === "user" && room) {
-      emitToUser(room, event, data);
-    } else if (target === "project" && room) {
-      emitToProject(room, event, data);
-    } else if (target === "chat" && room) {
-      if (io) {
-        const chatRoom = room.startsWith("chat_") ? room : `chat_${room}`;
-        io.to(chatRoom).emit(event, data);
-      }
-    } else if (target === "all") {
-      emitToAll(event, data);
-    } else if (io && room) {
-      io.to(room).emit(event, data);
-    }
-
-    try {
+    if (io) {
+      // Same-process mode (local dev without WORKER_ROLE): emit directly via io + Redis adapter
+      emitTargetEvent(target, room, event, data);
+    } else {
+      // Dedicated worker process: relay once through Redis Pub/Sub to live API Socket.IO server(s)
+      const deliveryId = job.id || crypto.randomUUID();
       await redisPublisher.publish(
         "CLUSTER_WEBSOCKET_CHANNEL",
-        JSON.stringify({ room, event, data, target })
+        JSON.stringify({ deliveryId, room, event, data, target })
       );
-    } catch (err) {
-      console.warn(`[${ts()}] [WebSocketWorker] Failed to publish to CLUSTER_WEBSOCKET_CHANNEL:`, err.message);
     }
 
     console.log(

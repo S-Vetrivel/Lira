@@ -21,7 +21,7 @@ import {
 import { formatINR, formatDateIN, getDisplayName } from "../utils/formatters";
 import SideDrawer from "../components/common/SideDrawer";
 import UserAvatar from "../components/common/UserAvatar";
-import { getSocket } from "../services/socket";
+import { subscribeRealtimeEvents } from "../services/socket";
 import toast from "react-hot-toast";
 import { getGlassTokens } from "../styles/glassTheme";
 
@@ -107,15 +107,8 @@ export default function Requests() {
 
   useEffect(() => {
     loadData();
-    const socket = getSocket();
-    if (!socket) return;
-    const onReqChange = () => loadData();
-    socket.on("request:created", onReqChange);
-    socket.on("request:updated", onReqChange);
-    return () => {
-      socket.off("request:created", onReqChange);
-      socket.off("request:updated", onReqChange);
-    };
+    return subscribeRealtimeEvents(["request:created", "request:updated", "department:updated"], () => loadData());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const toggleTargetUser = (uid) => {

@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { useApp } from "../context/Appcontext";
 import { getAuditOverview, getAIUsageLogsAPI } from "../services/api";
-import { getSocket } from "../services/socket";
+import { subscribeRealtimeEvents } from "../services/socket";
 import UserAvatar from "../components/common/UserAvatar";
 import SideDrawer from "../components/common/SideDrawer";
 import { formatDateIN, formatTimeIN, getDisplayName } from "../utils/formatters";
@@ -92,38 +92,27 @@ export default function AuditLogs() {
       socket.emit("presence:request");
     }
     const onConnect = () => socket.emit("presence:request");
-    const onPresence = () => {
-      // onlineUserIds in AppContext updates instantaneously; refresh summary stats in background
-      loadAudit();
-    };
-    const onDomainChange = () => {
-      loadAudit();
-      loadAiUsage();
-    };
-    socket.on("connect", onConnect);
-    socket.on("presence:update", onPresence);
-    socket.on("team:updated", onDomainChange);
-    socket.on("project:updated", onDomainChange);
-    socket.on("department:updated", onDomainChange);
-    socket.on("rbac:updated", onDomainChange);
-    socket.on("task:created_global", onDomainChange);
-    socket.on("task:updated", onDomainChange);
-    socket.on("task:deleted", onDomainChange);
-    socket.on("request:created", onDomainChange);
-    socket.on("request:updated", onDomainChange);
-    return () => {
-      socket.off("connect", onConnect);
-      socket.off("presence:update", onPresence);
-      socket.off("team:updated", onDomainChange);
-      socket.off("project:updated", onDomainChange);
-      socket.off("department:updated", onDomainChange);
-      socket.off("rbac:updated", onDomainChange);
-      socket.off("task:created_global", onDomainChange);
-      socket.off("task:updated", onDomainChange);
-      socket.off("task:deleted", onDomainChange);
-      socket.off("request:created", onDomainChange);
-      socket.off("request:updated", onDomainChange);
-    };
+    return subscribeRealtimeEvents(
+      [
+        "presence:update",
+        "team:updated",
+        "project:updated",
+        "department:updated",
+        "rbac:updated",
+        "task:created_global",
+        "task:updated",
+        "task:deleted",
+        "request:created",
+        "request:updated",
+        "ai:config-updated",
+        "ai:grants-updated",
+      ],
+      () => {
+        loadAudit();
+        loadAiUsage();
+      }
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadAudit, loadAiUsage]);
 
   if (!canViewAudit) {

@@ -1247,6 +1247,25 @@ exports.bulkUpdateTasks = async (req, res) => {
       .populate("project", "name prefix color")
       .lean();
 
+    const affectedProjectIds = Array.from(
+      new Set(updatedTasks.map((t) => t.project?._id?.toString()).filter(Boolean))
+    );
+    await Promise.all([
+      ...affectedProjectIds.map((pid) =>
+        enqueueWebSocketEvent({
+          target: "project",
+          room: pid,
+          event: "task:updated",
+          data: { bulk: true, projectId: pid, taskIds },
+        })
+      ),
+      enqueueWebSocketEvent({
+        target: "all",
+        event: "task:created_global",
+        data: { bulk: true, taskIds },
+      }),
+    ]);
+
     res.status(200).json({ success: true, count: updatedTasks.length, tasks: updatedTasks });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

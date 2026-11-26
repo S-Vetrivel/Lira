@@ -261,6 +261,16 @@ exports.assignUserRole = async (req, res) => {
       event: "rbac:user-updated",
       data: { userId: target._id, ...resolvedAccess },
     });
+    enqueueWebSocketEvent({
+      target: "all",
+      event: "rbac:updated",
+      data: { action: "user_role_assigned", userId: target._id, roleName: target.role },
+    });
+    enqueueWebSocketEvent({
+      target: "all",
+      event: "team:updated",
+      data: { action: "user_role_assigned", userId: target._id },
+    });
 
     await createNotification({
       recipient: target._id,

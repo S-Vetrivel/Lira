@@ -23,7 +23,7 @@ import {
   getChatConversations,
   logoutUser,
 } from "../services/api";
-import { initSocketClient, joinProjectRoom, leaveProjectRoom } from "../services/socket";
+import { initSocketClient, joinProjectRoom, leaveProjectRoom, emitLocalRealtimeEvent } from "../services/socket";
 
 const AppContext = createContext();
 
@@ -592,6 +592,35 @@ export const AppProvider = ({ children }) => {
       socket.on("rbac:user-updated", handleRbacUserUpdated);
       socket.on("ai:misuse-warning", handleAIMisuseWarning);
 
+      const FORWARDED_REALTIME_EVENTS = [
+        "rbac:updated",
+        "rbac:user-updated",
+        "department:updated",
+        "project:updated",
+        "team:updated",
+        "join-request:new",
+        "join-request:updated",
+        "request:created",
+        "request:updated",
+        "task:created",
+        "task:created_global",
+        "task:updated",
+        "task:status_changed",
+        "task:deleted",
+        "ai:config-updated",
+        "ai:grants-updated",
+        "ai:assistant-update",
+        "notification:new",
+        "presence:update",
+        "comment:new",
+        "activity:new",
+      ];
+      const forwarders = FORWARDED_REALTIME_EVENTS.map((evtName) => {
+        const fn = (payload) => emitLocalRealtimeEvent(evtName, payload || {});
+        socket.on(evtName, fn);
+        return [evtName, fn];
+      });
+
       return () => {
         socket.off("notification:new", handleNotification);
         socket.off("join-request:new", handleNewJoinRequest);
@@ -609,6 +638,7 @@ export const AppProvider = ({ children }) => {
         socket.off("rbac:updated", handleRbacUpdated);
         socket.off("rbac:user-updated", handleRbacUserUpdated);
         socket.off("ai:misuse-warning", handleAIMisuseWarning);
+        forwarders.forEach(([evtName, fn]) => socket.off(evtName, fn));
       };
     }
   }, [user, refreshProjects, refreshDepartments, refreshTeam, refreshRoles, refreshNotifications, refreshChatUnread, refreshPendingJoinCount, refreshTabPendingCounts, navigate, navigateFromNotification]);

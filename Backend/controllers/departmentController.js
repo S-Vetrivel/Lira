@@ -177,6 +177,10 @@ exports.deleteDepartment = async (req, res) => {
     const { id } = req.params;
     await User.updateMany({ department: id }, { department: null, departmentName: "General" });
     await Department.findByIdAndDelete(id);
+    await Promise.all([
+      enqueueWebSocketEvent({ target: "all", event: "department:updated", data: { departmentId: id, deleted: true } }),
+      enqueueWebSocketEvent({ target: "all", event: "team:updated", data: { action: "department_deleted", departmentId: id } }),
+    ]);
     res.status(200).json({ success: true, message: "Department deleted" });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

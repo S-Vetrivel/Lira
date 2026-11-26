@@ -248,6 +248,12 @@ exports.updateProject = async (req, res) => {
       return res.status(404).json({ success: false, message: "Project not found" });
     }
 
+    await enqueueWebSocketEvent({
+      target: "all",
+      event: "project:updated",
+      data: { projectId: project._id, action: "updated" },
+    });
+
     res.status(200).json({ success: true, project });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -259,6 +265,11 @@ exports.deleteProject = async (req, res) => {
     const { id } = req.params;
     await Project.findByIdAndDelete(id);
     await Task.deleteMany({ project: id });
+    await enqueueWebSocketEvent({
+      target: "all",
+      event: "project:updated",
+      data: { projectId: id, action: "deleted" },
+    });
     res.status(200).json({ success: true, message: "Project and associated tasks removed" });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -344,6 +355,12 @@ exports.removeProjectMember = async (req, res) => {
       message: `${req.user.fullname} removed you from [${project.prefix}] ${project.name}.`,
     });
 
+    await enqueueWebSocketEvent({
+      target: "all",
+      event: "project:updated",
+      data: { projectId: project._id, action: "member_removed", userId },
+    });
+
     res.status(200).json({ success: true, project });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -408,6 +425,12 @@ exports.uploadProjectFile = async (req, res) => {
       data: populated,
     });
 
+    await enqueueWebSocketEvent({
+      target: "all",
+      event: "project:updated",
+      data: { projectId: project._id, action: "file_deleted", fileId },
+    });
+
     res.status(200).json({ success: true, project: populated, files: populated.files });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -431,6 +454,12 @@ exports.deleteProjectFile = async (req, res) => {
       .populate("lead", MEMBER_FIELDS)
       .populate("members", MEMBER_FIELDS)
       .populate("files.uploadedBy", "fullname email avatar profilePicture");
+
+    await enqueueWebSocketEvent({
+      target: "all",
+      event: "project:updated",
+      data: { projectId: project._id, action: "file_deleted", fileId },
+    });
 
     res.status(200).json({ success: true, project: populated, files: populated.files });
   } catch (error) {
@@ -476,6 +505,12 @@ exports.addProjectUrl = async (req, res) => {
       room: project._id.toString(),
       event: "project:updated",
       data: populated,
+    });
+
+    await enqueueWebSocketEvent({
+      target: "all",
+      event: "project:updated",
+      data: { projectId: project._id, action: "url_deleted", urlId },
     });
 
     res.status(200).json({ success: true, project: populated, links: populated.links });
@@ -569,6 +604,12 @@ exports.removeProjectDepartment = async (req, res) => {
       return res.status(404).json({ success: false, message: "Project not found" });
     }
 
+    await enqueueWebSocketEvent({
+      target: "all",
+      event: "project:updated",
+      data: { projectId: project._id, action: "department_removed", deptId },
+    });
+
     res.status(200).json({ success: true, project });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -593,6 +634,12 @@ exports.deleteProjectUrl = async (req, res) => {
       .populate("members", MEMBER_FIELDS)
       .populate("files.uploadedBy", "fullname email avatar profilePicture")
       .populate("links.addedBy", "fullname email avatar profilePicture");
+
+    await enqueueWebSocketEvent({
+      target: "all",
+      event: "project:updated",
+      data: { projectId: project._id, action: "url_deleted", urlId },
+    });
 
     res.status(200).json({ success: true, project: populated, links: populated.links });
   } catch (error) {

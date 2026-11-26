@@ -18,7 +18,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useApp } from "../context/Appcontext";
-import { getSocket } from "../services/socket";
+import { subscribeRealtimeEvents } from "../services/socket";
 import {
   getModulesCatalog,
   getRoles,
@@ -156,17 +156,13 @@ export default function Roles() {
     } else {
       setLoading(false);
     }
-    const socket = getSocket();
-    if (!socket) return;
-    const onRefresh = () => {
-      if (canViewRoles) loadData();
-    };
-    socket.on("rbac:updated", onRefresh);
-    socket.on("department:updated", onRefresh);
-    return () => {
-      socket.off("rbac:updated", onRefresh);
-      socket.off("department:updated", onRefresh);
-    };
+    return subscribeRealtimeEvents(
+      ["rbac:updated", "rbac:user-updated", "department:updated", "team:updated", "ai:config-updated", "ai:grants-updated"],
+      () => {
+        if (canViewRoles) loadData();
+      }
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canViewRoles]);
 
   const openCreateRole = () => {

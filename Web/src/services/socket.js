@@ -89,6 +89,30 @@ export const sendSocketChatMessage = (payload) =>
     });
   });
 
+export const REALTIME_EVENT_NAME = "lira:realtime-event";
+
+export const emitLocalRealtimeEvent = (event, data = {}) => {
+  if (typeof window === "undefined" || !event) return;
+  window.dispatchEvent(new CustomEvent(REALTIME_EVENT_NAME, { detail: { event, data } }));
+};
+
+/**
+ * Subscribe safely to real-time Socket.IO events regardless of child-before-parent mount order.
+ * Receives every matching event relayed by AppProvider AND local instant refresh dispatches.
+ */
+export const subscribeRealtimeEvents = (events = [], handler) => {
+  if (typeof window === "undefined" || typeof handler !== "function") return () => {};
+  const allowed = new Set(Array.isArray(events) ? events : [events]);
+  const onCustom = (e) => {
+    const evt = e?.detail?.event;
+    if (evt && (allowed.has("*") || allowed.has(evt))) {
+      handler(e.detail.data || {}, evt);
+    }
+  };
+  window.addEventListener(REALTIME_EVENT_NAME, onCustom);
+  return () => window.removeEventListener(REALTIME_EVENT_NAME, onCustom);
+};
+
 export const disconnectSocket = () => {
   if (socket) {
     socket.disconnect();

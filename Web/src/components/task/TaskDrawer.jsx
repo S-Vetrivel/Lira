@@ -15,7 +15,7 @@ import {
   approveTask,
   requestTaskRevision,
 } from "../../services/api";
-import { getSocket } from "../../services/socket";
+import { subscribeRealtimeEvents } from "../../services/socket";
 import UserAvatar from "../common/UserAvatar";
 import { getGlassTokens } from "../../styles/glassTheme";
 import { formatDateIN, formatTimeIN, formatFileSize, getDisplayName } from "../../utils/formatters";
@@ -103,30 +103,16 @@ export default function TaskDrawer({ taskKeyOrId, onClose, onTaskUpdated }) {
   }, [taskKeyOrId]);
 
   useEffect(() => {
-    const socket = getSocket();
-    if (!socket || !task?._id) return;
-
-    const handleTaskUpdated = (updated) => {
-      if (updated._id === task._id) setTask(updated);
-    };
-    const handleCommentNew = ({ taskId, comment }) => {
-      if (taskId === task._id) setComments((prev) => [...prev, comment]);
-    };
-    const handleActivityNew = (activity) => {
-      if (activity.task === task._id || activity.task?._id === task._id) {
-        setHistory((prev) => [activity, ...prev]);
+    if (!task?._id) return;
+    return subscribeRealtimeEvents(["task:updated", "comment:new", "activity:new"], (payload, evt) => {
+      if (evt === "task:updated" && payload?._id === task._id) {
+        setTask(payload);
+      } else if (evt === "comment:new" && payload?.taskId === task._id) {
+        setComments((prev) => [...prev, payload.comment]);
+      } else if (evt === "activity:new" && (payload?.task === task._id || payload?.task?._id === task._id)) {
+        setHistory((prev) => [payload, ...prev]);
       }
-    };
-
-    socket.on("task:updated", handleTaskUpdated);
-    socket.on("comment:new", handleCommentNew);
-    socket.on("activity:new", handleActivityNew);
-
-    return () => {
-      socket.off("task:updated", handleTaskUpdated);
-      socket.off("comment:new", handleCommentNew);
-      socket.off("activity:new", handleActivityNew);
-    };
+    });
   }, [task?._id]);
 
   if (!taskKeyOrId) return null;

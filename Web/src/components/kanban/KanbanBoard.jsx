@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useApp } from "../../context/Appcontext";
 import TaskCard from "./TaskCard";
 import { getTasks, updateTaskStatus } from "../../services/api";
-import { getSocket } from "../../services/socket";
+import { subscribeRealtimeEvents } from "../../services/socket";
 import { getGlassTokens } from "../../styles/glassTheme";
 import {
   Filter,
@@ -74,50 +74,46 @@ export default function KanbanBoard({ onSelectTask }) {
     fetchTasks();
   }, [fetchTasks]);
 
-  // Real-time WebSocket subscriptions
+  // Real-time WebSocket subscriptions (never dropped even if socket connects after initial mount)
   useEffect(() => {
-    const socket = getSocket();
-    if (!socket || !activeProject?._id) return;
+    if (!activeProject?._id) return;
 
-    const handleTaskCreated = (newTask) => {
-      if (newTask.project?._id === activeProject._id || newTask.project === activeProject._id) {
-        setTasks((prev) => [newTask, ...prev.filter((t) => t._id !== newTask._id)]);
-      }
-    };
-
-    const handleTaskUpdated = (updatedTask) => {
-      setTasks((prev) =>
-        prev.map((t) => (t._id === updatedTask._id ? updatedTask : t))
-      );
-    };
-
-    const handleStatusChanged = ({ taskId, newStatus, task }) => {
-      setTasks((prev) =>
-        prev.map((t) => {
-          if (t._id === taskId) {
-            return task || { ...t, status: newStatus };
+    return subscribeRealtimeEvents(
+      ["task:created", "task:created_global", "task:updated", "task:status_changed", "task:deleted"],
+      (payload, evt) => {
+        if (evt === "task:created") {
+          if (payload.project?._id === activeProject._id || payload.project === activeProject._id) {
+            setTasks((prev) => [payload, ...prev.filter((t) => t._id !== payload._id)]);
           }
-          return t;
-        })
-      );
-    };
-
-    const handleTaskDeleted = ({ taskId }) => {
-      setTasks((prev) => prev.filter((t) => t._id !== taskId));
-    };
-
-    socket.on("task:created", handleTaskCreated);
-    socket.on("task:updated", handleTaskUpdated);
-    socket.on("task:status_changed", handleStatusChanged);
-    socket.on("task:deleted", handleTaskDeleted);
-
-    return () => {
-      socket.off("task:created", handleTaskCreated);
-      socket.off("task:updated", handleTaskUpdated);
-      socket.off("task:status_changed", handleStatusChanged);
-      socket.off("task:deleted", handleTaskDeleted);
-    };
-  }, [activeProject?._id]);
+          return;
+        }
+        if (evt === "task:updated") {
+          if (payload?.bulk) {
+            fetchTasks();
+            return;
+          }
+          if (payload?._id) {
+            setTasks((prev) => prev.map((t) => (t._id === payload._id ? payload : t)));
+          } else {
+            fetchTasks();
+          }
+          return;
+        }
+        if (evt === "task:status_changed") {
+          const { taskId, newStatus, task } = payload;
+          setTasks((prev) =>
+            prev.map((t) => (t._id === taskId ? task || { ...t, status: newStatus } : t))
+          );
+          return;
+        }
+        if (evt === "task:deleted") {
+          setTasks((prev) => prev.filter((t) => t._id !== payload.taskId));
+          return;
+        }
+        fetchTasks();
+      }
+    );
+  }, [activeProject?._id, fetchTasks]);
 
   // Drag & drop handlers
   const handleDragStart = (e, task) => {

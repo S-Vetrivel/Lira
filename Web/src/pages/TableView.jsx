@@ -12,7 +12,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { useApp } from "../context/Appcontext";
-import { getSocket } from "../services/socket";
+import { subscribeRealtimeEvents } from "../services/socket";
 import {
   getTasks,
   updateTaskStatus,
@@ -52,23 +52,11 @@ export default function TableView() {
 
   useEffect(() => {
     loadTasks();
-    const socket = getSocket();
-    if (!socket) return;
-    const onTaskChange = () => loadTasks();
-    socket.on("task:created", onTaskChange);
-    socket.on("task:created_global", onTaskChange);
-    socket.on("task:updated", onTaskChange);
-    socket.on("task:status_changed", onTaskChange);
-    socket.on("task:deleted", onTaskChange);
-    socket.on("project:updated", onTaskChange);
-    return () => {
-      socket.off("task:created", onTaskChange);
-      socket.off("task:created_global", onTaskChange);
-      socket.off("task:updated", onTaskChange);
-      socket.off("task:status_changed", onTaskChange);
-      socket.off("task:deleted", onTaskChange);
-      socket.off("project:updated", onTaskChange);
-    };
+    return subscribeRealtimeEvents(
+      ["task:created", "task:created_global", "task:updated", "task:status_changed", "task:deleted", "project:updated"],
+      () => loadTasks()
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeProject?._id]);
 
   // Filtering & Sorting
