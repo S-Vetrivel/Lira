@@ -143,7 +143,7 @@ export function SanitizedCopilotHtml({ html, isDark, onStepClick, onReplyClick }
       try {
         const parsed = JSON.parse(stepTarget.getAttribute("data-lira-step") || "{}");
         if (parsed && parsed.type) onStepClick?.(parsed);
-      } catch {}
+      } catch { }
       return;
     }
     const replyTarget = e.target.closest("[data-lira-reply]");
@@ -205,16 +205,16 @@ function WorkspaceChartCard({ artifact, isDark, g }) {
                   val <= 0
                     ? null
                     : values.filter((x) => x > 0).length === 1
-                    ? <circle key={i} cx="60" cy="60" r="48" fill={PALETTE[i % PALETTE.length]} />
-                    : (
-                      <path
-                        key={i}
-                        d={`M 60 60 L ${x1} ${y1} A 48 48 0 ${large} 1 ${x2} ${y2} Z`}
-                        fill={PALETTE[i % PALETTE.length]}
-                        stroke={isDark ? "#0e1017" : "#fff"}
-                        strokeWidth="1.5"
-                      />
-                    );
+                      ? <circle key={i} cx="60" cy="60" r="48" fill={PALETTE[i % PALETTE.length]} />
+                      : (
+                        <path
+                          key={i}
+                          d={`M 60 60 L ${x1} ${y1} A 48 48 0 ${large} 1 ${x2} ${y2} Z`}
+                          fill={PALETTE[i % PALETTE.length]}
+                          stroke={isDark ? "#0e1017" : "#fff"}
+                          strokeWidth="1.5"
+                        />
+                      );
                 return { cur: next, nodes: [...acc.nodes, path] };
               },
               { cur: -Math.PI / 2, nodes: [] }

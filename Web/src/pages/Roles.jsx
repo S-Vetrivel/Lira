@@ -328,15 +328,13 @@ export default function Roles() {
 
   return (
     <div
-      className={`flex-1 w-full h-full min-h-0 overflow-y-auto p-5 sm:p-7 space-y-6 ${
-        isDark ? "text-slate-100" : "text-slate-900"
-      }`}
+      className={`flex-1 w-full h-full min-h-0 overflow-y-auto p-5 sm:p-7 space-y-6 ${isDark ? "text-slate-100" : "text-slate-900"
+        }`}
     >
       {/* Page Header */}
       <div
-        className={`flex flex-wrap items-center justify-between gap-4 pb-4 border-b ${
-          isDark ? "border-white/[0.08]" : "border-slate-900/[0.08]"
-        }`}
+        className={`flex flex-wrap items-center justify-between gap-4 pb-4 border-b ${isDark ? "border-white/[0.08]" : "border-slate-900/[0.08]"
+          }`}
       >
         <div>
           <div className="flex items-center gap-2 mb-1">
@@ -357,11 +355,10 @@ export default function Roles() {
           <button
             type="button"
             onClick={loadData}
-            className={`p-2 rounded-full border transition-colors cursor-pointer ${
-              isDark
-                ? "bg-white/[0.05] hover:bg-white/[0.10] border-white/[0.09] text-zinc-300"
-                : "bg-white hover:bg-slate-100 border-slate-200 text-slate-700"
-            }`}
+            className={`p-2 rounded-full border transition-colors cursor-pointer ${isDark
+              ? "bg-white/[0.05] hover:bg-white/[0.10] border-white/[0.09] text-zinc-300"
+              : "bg-white hover:bg-slate-100 border-slate-200 text-slate-700"
+              }`}
             title="Refresh"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
@@ -398,13 +395,12 @@ export default function Roles() {
         <button
           type="button"
           onClick={() => setActiveTab("roles")}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-            activeTab === "roles"
-              ? "lira-btn-primary"
-              : isDark
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${activeTab === "roles"
+            ? "lira-btn-primary"
+            : isDark
               ? "text-zinc-400 hover:text-white hover:bg-white/[0.06]"
               : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
-          }`}
+            }`}
         >
           <Shield className="w-3.5 h-3.5" />
           <span>Dynamic Roles & Modules ({roles.length})</span>
@@ -413,13 +409,12 @@ export default function Roles() {
         <button
           type="button"
           onClick={() => setActiveTab("departments")}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-            activeTab === "departments"
-              ? "lira-btn-primary"
-              : isDark
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${activeTab === "departments"
+            ? "lira-btn-primary"
+            : isDark
               ? "text-zinc-400 hover:text-white hover:bg-white/[0.06]"
               : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
-          }`}
+            }`}
         >
           <Building className="w-3.5 h-3.5" />
           <span>Departments Setup ({departments.length})</span>
@@ -429,13 +424,12 @@ export default function Roles() {
           <button
             type="button"
             onClick={() => setActiveTab("ai")}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-              activeTab === "ai"
-                ? "lira-btn-primary"
-                : isDark
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${activeTab === "ai"
+              ? "lira-btn-primary"
+              : isDark
                 ? "text-zinc-400 hover:text-white hover:bg-white/[0.06]"
                 : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
-            }`}
+              }`}
           >
             <Sparkles className="w-3.5 h-3.5 text-purple-400" />
             <span>AI Models & Encrypted Vault</span>
@@ -451,15 +445,14 @@ export default function Roles() {
             return (
               <div
                 key={r._id || r.name}
-                className={`p-5 rounded-2xl border flex flex-col justify-between gap-4 transition-all ${
-                  isSystemSuper
-                    ? isDark
-                      ? "bg-purple-500/[0.06] border-purple-500/30"
-                      : "bg-purple-50 border-purple-200"
-                    : isDark
+                className={`p-5 rounded-2xl border flex flex-col justify-between gap-4 transition-all ${isSystemSuper
+                  ? isDark
+                    ? "bg-purple-500/[0.06] border-purple-500/30"
+                    : "bg-purple-50 border-purple-200"
+                  : isDark
                     ? "bg-[#14151f] border-white/10"
                     : "bg-white border-slate-200"
-                }`}
+                  }`}
               >
                 <div className="space-y-3">
                   <div className="flex items-start justify-between gap-3">
@@ -487,9 +480,8 @@ export default function Roles() {
                     </div>
 
                     <span
-                      className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold border ${
-                        isDark ? "bg-white/5 border-white/10 text-slate-300" : "bg-slate-100 border-slate-200 text-slate-700"
-                      }`}
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold border ${isDark ? "bg-white/5 border-white/10 text-slate-300" : "bg-slate-100 border-slate-200 text-slate-700"
+                        }`}
                     >
                       {r.userCount ?? 0} users
                     </span>
@@ -509,11 +501,10 @@ export default function Roles() {
                       (r.modules || []).map((modKey) => (
                         <span
                           key={modKey}
-                          className={`px-2 py-0.5 rounded-md text-[10px] font-semibold border ${
-                            isDark
-                              ? "bg-white/[0.04] border-white/10 text-slate-200"
-                              : "bg-slate-100 border-slate-200 text-slate-700"
-                          }`}
+                          className={`px-2 py-0.5 rounded-md text-[10px] font-semibold border ${isDark
+                            ? "bg-white/[0.04] border-white/10 text-slate-200"
+                            : "bg-slate-100 border-slate-200 text-slate-700"
+                            }`}
                         >
                           {modKey}
                         </span>
@@ -535,9 +526,8 @@ export default function Roles() {
                       <button
                         type="button"
                         onClick={() => openEditRole(r)}
-                        className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold flex items-center gap-1 cursor-pointer ${
-                          isDark ? "bg-white/10 hover:bg-white/15 text-white" : "bg-slate-100 hover:bg-slate-200 text-slate-800"
-                        }`}
+                        className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold flex items-center gap-1 cursor-pointer ${isDark ? "bg-white/10 hover:bg-white/15 text-white" : "bg-slate-100 hover:bg-slate-200 text-slate-800"
+                          }`}
                       >
                         <Edit2 className="w-3 h-3" />
                         <span>Configure Modules</span>
@@ -565,9 +555,8 @@ export default function Roles() {
           {departments.map((d) => (
             <div
               key={d._id}
-              className={`p-5 rounded-2xl border space-y-2.5 ${
-                isDark ? "bg-[#14151f] border-white/10" : "bg-white border-slate-200"
-              }`}
+              className={`p-5 rounded-2xl border space-y-2.5 ${isDark ? "bg-[#14151f] border-white/10" : "bg-white border-slate-200"
+                }`}
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -614,9 +603,8 @@ export default function Roles() {
                 value={roleDisplayName}
                 onChange={(e) => setRoleDisplayName(e.target.value)}
                 placeholder="e.g. QA Reviewer"
-                className={`w-full border rounded-xl px-3.5 py-2 text-xs focus:outline-none ${
-                  isDark ? "bg-[#12131b] border-white/15 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
-                }`}
+                className={`w-full border rounded-xl px-3.5 py-2 text-xs focus:outline-none ${isDark ? "bg-[#12131b] border-white/15 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
+                  }`}
               />
             </div>
 
@@ -632,9 +620,8 @@ export default function Roles() {
                 }
                 onChange={(e) => setRoleKey(e.target.value)}
                 placeholder="auto-generated e.g. qa_reviewer"
-                className={`w-full border rounded-xl px-3.5 py-2 text-xs font-mono focus:outline-none disabled:opacity-60 ${
-                  isDark ? "bg-[#12131b] border-white/15 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
-                }`}
+                className={`w-full border rounded-xl px-3.5 py-2 text-xs font-mono focus:outline-none disabled:opacity-60 ${isDark ? "bg-[#12131b] border-white/15 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
+                  }`}
               />
             </div>
           </div>
@@ -645,9 +632,8 @@ export default function Roles() {
               <select
                 value={roleDeptId}
                 onChange={(e) => setRoleDeptId(e.target.value)}
-                className={`w-full border rounded-xl px-3 py-2 text-xs focus:outline-none ${
-                  isDark ? "bg-[#12131b] border-white/15 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
-                }`}
+                className={`w-full border rounded-xl px-3 py-2 text-xs focus:outline-none ${isDark ? "bg-[#12131b] border-white/15 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
+                  }`}
               >
                 <option value="">Any Department</option>
                 {departments.map((d) => (
@@ -666,9 +652,8 @@ export default function Roles() {
                     key={c}
                     type="button"
                     onClick={() => setRoleColor(c)}
-                    className={`w-6 h-6 rounded-full cursor-pointer transition-transform ${
-                      roleColor === c ? "ring-2 ring-white scale-110" : "opacity-60 hover:opacity-100"
-                    }`}
+                    className={`w-6 h-6 rounded-full cursor-pointer transition-transform ${roleColor === c ? "ring-2 ring-white scale-110" : "opacity-60 hover:opacity-100"
+                      }`}
                     style={{ backgroundColor: c }}
                   />
                 ))}
@@ -683,9 +668,8 @@ export default function Roles() {
               value={roleDescription}
               onChange={(e) => setRoleDescription(e.target.value)}
               placeholder="Summary of responsibilities..."
-              className={`w-full border rounded-xl px-3.5 py-2 text-xs focus:outline-none ${
-                isDark ? "bg-[#12131b] border-white/15 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
-              }`}
+              className={`w-full border rounded-xl px-3.5 py-2 text-xs focus:outline-none ${isDark ? "bg-[#12131b] border-white/15 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
+                }`}
             />
           </div>
 
@@ -718,15 +702,14 @@ export default function Roles() {
                 return (
                   <div
                     key={mod.key}
-                    className={`rounded-xl border transition-all ${
-                      allChecked
-                        ? isDark
-                          ? "bg-indigo-500/[0.08] border-indigo-500/35"
-                          : "bg-indigo-50 border-indigo-300"
-                        : isDark
+                    className={`rounded-xl border transition-all ${allChecked
+                      ? isDark
+                        ? "bg-indigo-500/[0.08] border-indigo-500/35"
+                        : "bg-indigo-50 border-indigo-300"
+                      : isDark
                         ? "bg-white/[0.02] border-white/10"
                         : "bg-slate-50 border-slate-200"
-                    }`}
+                      }`}
                   >
                     <div
                       onClick={() =>
@@ -741,11 +724,10 @@ export default function Roles() {
                             e.stopPropagation();
                             toggleModuleAll(mod);
                           }}
-                          className={`w-5 h-5 rounded flex items-center justify-center border cursor-pointer shrink-0 ${
-                            allChecked || partial
-                              ? "bg-indigo-600 border-indigo-500 text-white"
-                              : "border-white/25"
-                          }`}
+                          className={`w-5 h-5 rounded flex items-center justify-center border cursor-pointer shrink-0 ${allChecked || partial
+                            ? "bg-indigo-600 border-indigo-500 text-white"
+                            : "border-white/25"
+                            }`}
                         >
                           {allChecked && <Check className="w-3 h-3" />}
                           {partial && <Minus className="w-3 h-3" />}
@@ -769,11 +751,10 @@ export default function Roles() {
                           return (
                             <label
                               key={act.slug}
-                              className={`p-2 rounded-lg border flex items-start gap-2 cursor-pointer transition-colors ${
-                                checked
-                                  ? "bg-indigo-500/15 border-indigo-500/40"
-                                  : "bg-black/15 border-white/5 hover:border-white/15"
-                              }`}
+                              className={`p-2 rounded-lg border flex items-start gap-2 cursor-pointer transition-colors ${checked
+                                ? "bg-indigo-500/15 border-indigo-500/40"
+                                : "bg-black/15 border-white/5 hover:border-white/15"
+                                }`}
                             >
                               <input
                                 type="checkbox"
@@ -834,9 +815,8 @@ export default function Roles() {
               value={deptName}
               onChange={(e) => setDeptName(e.target.value)}
               placeholder="e.g. Security Operations"
-              className={`w-full border rounded-xl px-3.5 py-2 text-xs focus:outline-none ${
-                isDark ? "bg-[#12131b] border-white/15 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
-              }`}
+              className={`w-full border rounded-xl px-3.5 py-2 text-xs focus:outline-none ${isDark ? "bg-[#12131b] border-white/15 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
+                }`}
             />
           </div>
           <div>
@@ -847,9 +827,8 @@ export default function Roles() {
               value={deptCode}
               onChange={(e) => setDeptCode(e.target.value.toUpperCase())}
               placeholder="e.g. SEC"
-              className={`w-full border rounded-xl px-3.5 py-2 text-xs font-mono uppercase focus:outline-none ${
-                isDark ? "bg-[#12131b] border-white/15 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
-              }`}
+              className={`w-full border rounded-xl px-3.5 py-2 text-xs font-mono uppercase focus:outline-none ${isDark ? "bg-[#12131b] border-white/15 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
+                }`}
             />
           </div>
           <div>
@@ -859,9 +838,8 @@ export default function Roles() {
               value={deptDesc}
               onChange={(e) => setDeptDesc(e.target.value)}
               placeholder="Department focus..."
-              className={`w-full border rounded-xl px-3.5 py-2 text-xs focus:outline-none ${
-                isDark ? "bg-[#12131b] border-white/15 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
-              }`}
+              className={`w-full border rounded-xl px-3.5 py-2 text-xs focus:outline-none ${isDark ? "bg-[#12131b] border-white/15 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
+                }`}
             />
           </div>
           <div className="flex justify-end gap-2 pt-3 border-t border-white/10">
