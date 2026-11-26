@@ -18,6 +18,7 @@ import {
   getRequests,
   getMyTasks,
   getTasks,
+  getRoles,
   markNotificationRead,
   getChatConversations,
   logoutUser,
@@ -67,9 +68,10 @@ export const AppProvider = ({ children }) => {
   const [projects, setProjects] = useState([]);
   const [activeProject, setActiveProject] = useState(null);
 
-  // Departments & staff directory
+  // Departments, Roles & staff directory
   const [departments, setDepartments] = useState([]);
   const [teamMembers, setTeamMembers] = useState([]);
+  const [roles, setRoles] = useState([]);
 
   // Notifications & Chat Unread / Presence
   const [notifications, setNotifications] = useState([]);
@@ -148,6 +150,53 @@ export const AppProvider = ({ children }) => {
     if (res.success) setTeamMembers(res.members);
   }, []);
 
+  const refreshRoles = useCallback(async () => {
+    if (!user) return;
+    const res = await getRoles();
+    if (res.success && Array.isArray(res.roles)) {
+      setRoles(res.roles);
+    }
+  }, [user]);
+
+  const isSuperAdmin = Boolean(
+    user?.isSuperAdmin ||
+      user?.role === "superadmin" ||
+      user?.role === "super_admin" ||
+      (Array.isArray(user?.permissions) && user.permissions.includes("*"))
+  );
+
+  const hasPermission = useCallback(
+    (requiredPerm) => {
+      if (!user) return false;
+      if (isSuperAdmin) return true;
+      if (!requiredPerm) return true;
+      const perms = Array.isArray(user.permissions) ? user.permissions : [];
+      if (perms.includes(`!${requiredPerm}`)) return false;
+      const [group] = String(requiredPerm).split(".");
+      if (group && perms.includes(`!${group}.*`)) return false;
+      if (perms.includes("*") || perms.includes("root")) return true;
+      if (perms.includes(requiredPerm)) return true;
+      if (group && perms.includes(`${group}.*`)) return true;
+      // Fallback for legacy role checks if permissions array empty
+      if (perms.length === 0 && (user.role === "admin" || user.role === "manager")) return true;
+      return false;
+    },
+    [user, isSuperAdmin]
+  );
+
+  const hasModule = useCallback(
+    (moduleKey) => {
+      if (!user) return false;
+      if (isSuperAdmin) return true;
+      if (!moduleKey) return true;
+      const mods = Array.isArray(user.modules) ? user.modules : [];
+      if (mods.includes("*") || mods.includes(moduleKey)) return true;
+      const perms = Array.isArray(user.permissions) ? user.permissions : [];
+      return perms.some((p) => p === "*" || p.startsWith(`${moduleKey}.`));
+    },
+    [user, isSuperAdmin]
+  );
+
   const refreshNotifications = useCallback(async () => {
     if (!user) return;
     const res = await getNotifications();
@@ -170,7 +219,7 @@ export const AppProvider = ({ children }) => {
   }, [user]);
 
   const refreshPendingJoinCount = useCallback(async () => {
-    if (!user || (user.role !== "admin" && user.role !== "manager")) {
+    if (!user || (!isSuperAdmin && !hasPermission("team.join_requests") && user.role !== "admin" && user.role !== "manager")) {
       setPendingJoinCount(0);
       return;
     }
@@ -309,6 +358,7 @@ export const AppProvider = ({ children }) => {
       refreshProjects();
       refreshDepartments();
       refreshTeam();
+      refreshRoles();
       refreshNotifications();
       refreshChatUnread();
       refreshPendingJoinCount();
@@ -423,6 +473,25 @@ export const AppProvider = ({ children }) => {
         }
       };
 
+      const handleRbacUpdated = () => {
+        refreshRoles();
+        checkAuth().then((res) => {
+          if (res.isAuthenticated) setUser(res.user);
+        });
+      };
+
+      const handleRbacUserUpdated = () => {
+        checkAuth().then((res) => {
+          if (res.isAuthenticated) {
+            setUser(res.user);
+            toast("Your workspace role & permissions were updated", {
+              id: "rbac-user-updated",
+              icon: "🛡️",
+            });
+          }
+        });
+      };
+
       socket.on("notification:new", handleNotification);
       socket.on("join-request:new", handleNewJoinRequest);
       socket.on("join-request:updated", handleUpdatedJoinRequest);
@@ -433,6 +502,8 @@ export const AppProvider = ({ children }) => {
       socket.on("task:status_changed", handleTaskEvent);
       socket.on("chat:notification", handleChatNotification);
       socket.on("presence:update", handlePresenceUpdate);
+      socket.on("rbac:updated", handleRbacUpdated);
+      socket.on("rbac:user-updated", handleRbacUserUpdated);
 
       return () => {
         socket.off("notification:new", handleNotification);
@@ -445,9 +516,11 @@ export const AppProvider = ({ children }) => {
         socket.off("task:status_changed", handleTaskEvent);
         socket.off("chat:notification", handleChatNotification);
         socket.off("presence:update", handlePresenceUpdate);
+        socket.off("rbac:updated", handleRbacUpdated);
+        socket.off("rbac:user-updated", handleRbacUserUpdated);
       };
     }
-  }, [user, refreshProjects, refreshDepartments, refreshTeam, refreshNotifications, refreshChatUnread, refreshPendingJoinCount, refreshTabPendingCounts, navigate, navigateFromNotification]);
+  }, [user, refreshProjects, refreshDepartments, refreshTeam, refreshRoles, refreshNotifications, refreshChatUnread, refreshPendingJoinCount, refreshTabPendingCounts, navigate, navigateFromNotification]);
 
   // Join active project socket room when activeProject changes
   useEffect(() => {
@@ -481,6 +554,10 @@ export const AppProvider = ({ children }) => {
       setActiveProject,
       departments,
       teamMembers,
+      roles,
+      isSuperAdmin,
+      hasPermission,
+      hasModule,
       notifications,
       unreadCount,
       unreadChatCount,
@@ -512,6 +589,7 @@ export const AppProvider = ({ children }) => {
       refreshProjects,
       refreshDepartments,
       refreshTeam,
+      refreshRoles,
       refreshNotifications,
       refreshChatUnread,
       handleLogout,
@@ -525,6 +603,10 @@ export const AppProvider = ({ children }) => {
       activeProject,
       departments,
       teamMembers,
+      roles,
+      isSuperAdmin,
+      hasPermission,
+      hasModule,
       notifications,
       unreadCount,
       unreadChatCount,
@@ -550,6 +632,7 @@ export const AppProvider = ({ children }) => {
       refreshProjects,
       refreshDepartments,
       refreshTeam,
+      refreshRoles,
       refreshNotifications,
       refreshChatUnread,
     ]

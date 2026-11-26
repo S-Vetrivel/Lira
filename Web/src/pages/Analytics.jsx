@@ -244,7 +244,12 @@ export default function Analytics() {
     );
   }
 
-  const roleMeta = {
+  const roleMeta = ({
+    superadmin: {
+      label: "Superadmin",
+      icon: ShieldCheck,
+      accent: "bg-purple-500/15 text-purple-300 border-purple-500/25",
+    },
     admin: {
       label: "Executive",
       icon: ShieldCheck,
@@ -260,7 +265,11 @@ export default function Analytics() {
       icon: User,
       accent: "bg-emerald-500/15 text-emerald-400 border-emerald-500/25",
     },
-  }[currentRole];
+  })[currentRole] || {
+    label: user?.roleDisplayName || currentRole || "Member",
+    icon: Briefcase,
+    accent: g.badge,
+  };
   const RoleIcon = roleMeta.icon;
 
   return (
@@ -286,9 +295,9 @@ export default function Analytics() {
                   </span>
                 </div>
                 <h1 className={`text-lg sm:text-xl font-display font-bold tracking-tight truncate leading-tight ${g.heading}`}>
-                  {currentRole === "admin" && `Good day, ${firstName} — Organization Overview`}
+                  {(currentRole === "superadmin" || currentRole === "admin") && `Good day, ${firstName} — Organization Overview`}
                   {currentRole === "manager" && `Good day, ${firstName} — Sprint & Team Overview`}
-                  {currentRole === "employee" && `Welcome back, ${firstName}`}
+                  {currentRole !== "superadmin" && currentRole !== "admin" && currentRole !== "manager" && `Welcome back, ${firstName}`}
                 </h1>
                 <p className={`text-[11px] ${g.muted}`}>
                   {new Date().toLocaleDateString("en-IN", {
@@ -303,7 +312,7 @@ export default function Analytics() {
 
             {/* KPI Summary Strip */}
             <div className="flex items-center gap-2 flex-wrap shrink-0">
-              {currentRole === "admin" && (
+              {(currentRole === "superadmin" || currentRole === "admin") && (
                 <>
                   <StatPill
                     label="Workspaces"
@@ -890,7 +899,7 @@ export default function Analytics() {
 
           {/* Department Capacity / Deliverables (4/12) */}
           <div className={`lg:col-span-4 lg:h-full min-h-0 rounded-2xl p-3.5 sm:p-4 border flex flex-col gap-2.5 overflow-hidden ${g.card}`}>
-            {currentRole === "admin" || currentRole === "manager" ? (
+            {currentRole === "superadmin" || currentRole === "admin" || currentRole === "manager" ? (
               <>
                 <div className="flex items-center justify-between shrink-0">
                   <div className="flex items-center gap-2.5">

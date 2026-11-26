@@ -46,8 +46,8 @@ module.exports = (passport) => {
           let user = await User.findOne({ googleId: profile.id });
           if (user) {
             console.log("User found by Google ID:", user.email);
-            if (isAdmin && user.role !== "admin") {
-              user.role = "admin";
+            if (isAdmin && user.role !== "superadmin") {
+              user.role = "superadmin";
               user.status = "active";
               user.isActive = true;
               await user.save();
@@ -72,8 +72,8 @@ module.exports = (passport) => {
               if (googlePhoto && !user.avatar) {
                 user.avatar = googlePhoto;
               }
-              if (isAdmin && user.role !== "admin") {
-                user.role = "admin";
+              if (isAdmin && user.role !== "superadmin") {
+                user.role = "superadmin";
                 user.status = "active";
                 user.isActive = true;
               }
@@ -86,7 +86,7 @@ module.exports = (passport) => {
           const randomSuffix = Math.floor(1000 + Math.random() * 9000);
           const publicId = `EMP-${randomSuffix}`;
 
-          const userRole = isAdmin ? "admin" : "employee";
+          const userRole = isAdmin ? "superadmin" : "employee";
           const userStatus = isAdmin ? "active" : "pending_approval";
           const userActive = isAdmin ? true : false;
 
@@ -102,8 +102,8 @@ module.exports = (passport) => {
             role: userRole,
             status: userStatus,
             isActive: userActive,
-            departmentName: isAdmin ? "Management" : "Engineering",
-            jobTitle: isAdmin ? "Workspace Admin" : "Team Member",
+            departmentName: isAdmin ? "Executive / IT" : "Engineering",
+            jobTitle: isAdmin ? "Platform Superadmin" : "Team Member",
             password: "google-auth-" + Date.now(),
             profilePicture: googlePhoto,
             avatar: googlePhoto,

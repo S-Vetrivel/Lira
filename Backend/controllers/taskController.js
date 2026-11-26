@@ -716,6 +716,7 @@ exports.deleteTask = async (req, res) => {
     if (!task) return res.status(404).json({ success: false, message: "Task not found" });
 
     if (
+      !req.user.isSuperAdmin &&
       req.user.role !== "admin" &&
       req.user.role !== "manager" &&
       task.reporter.toString() !== req.user._id.toString()

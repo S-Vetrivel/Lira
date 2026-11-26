@@ -9,10 +9,10 @@ const {
   rejectRequest,
 } = require("../controllers/requestController");
 
-router.get("/", protect(), getRequests);
-router.post("/", protect(), createRequest);
-router.get("/:id", protect(), getRequestById);
-router.post("/:id/approve", protect(["admin", "manager"]), approveStage);
-router.post("/:id/reject", protect(["admin", "manager"]), rejectRequest);
+router.get("/", protect("requests.view"), getRequests);
+router.post("/", protect("requests.create"), createRequest);
+router.get("/:id", protect("requests.view"), getRequestById);
+router.post("/:id/approve", protect("requests.approve"), approveStage);
+router.post("/:id/reject", protect("requests.approve"), rejectRequest);
 
 module.exports = router;

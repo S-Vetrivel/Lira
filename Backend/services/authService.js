@@ -13,8 +13,8 @@ async function findOrCreateGoogleUser(profile) {
   // 1. Check by Google ID
   let user = await User.findOne({ googleId: profile.sub });
   if (user) {
-    if (isAdmin && user.role !== "admin") {
-      user.role = "admin";
+    if (isAdmin && user.role !== "superadmin") {
+      user.role = "superadmin";
       user.status = "active";
       user.isActive = true;
       await user.save();
@@ -31,7 +31,7 @@ async function findOrCreateGoogleUser(profile) {
         user.profilePicture = profile.picture;
       }
       if (isAdmin) {
-        user.role = "admin";
+        user.role = "superadmin";
         user.status = "active";
         user.isActive = true;
       }
@@ -42,7 +42,7 @@ async function findOrCreateGoogleUser(profile) {
 
   // 3. Create New User with Public ID & Pending Join Request
   const publicId = `EMP-${Math.floor(1000 + Math.random() * 9000)}`;
-  const role = isAdmin ? "admin" : "employee";
+  const role = isAdmin ? "superadmin" : "employee";
   const status = isAdmin ? "active" : "pending_approval";
   const isActive = isAdmin;
 

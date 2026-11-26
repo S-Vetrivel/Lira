@@ -14,18 +14,18 @@ const {
 } = require("../controllers/userControllers");
 
 // Team directory & user management
-router.get("/team", protect(), getTeamMembers);
-router.post("/", protect(["admin"]), createUser);
-router.put("/:id", protect(["admin", "manager"]), updateUser);
-router.delete("/:id", protect(["admin"]), deleteUser);
+router.get("/team", protect("team.view"), getTeamMembers);
+router.post("/", protect("team.create"), createUser);
+router.put("/:id", protect("team.edit"), updateUser);
+router.delete("/:id", protect("team.delete"), deleteUser);
 
 // Team Join Request & Follow Tracking workflow
 router.get("/join-request/status", protect(), getJoinRequestStatus);
 router.post("/join-request/submit", protect(), submitJoinRequest);
 
-// Admin & Manager review of pending join requests
-router.get("/join-requests", protect(["admin", "manager"]), getPendingJoinRequests);
-router.put("/join-requests/:id/approve", protect(["admin", "manager"]), approveJoinRequest);
-router.put("/join-requests/:id/reject", protect(["admin", "manager"]), rejectJoinRequest);
+// Admin, Manager & Superadmin review of pending join requests
+router.get("/join-requests", protect("team.join_requests"), getPendingJoinRequests);
+router.put("/join-requests/:id/approve", protect("team.join_requests"), approveJoinRequest);
+router.put("/join-requests/:id/reject", protect("team.join_requests"), rejectJoinRequest);
 
 module.exports = router;

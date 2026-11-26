@@ -22,6 +22,7 @@ import {
   Users,
   Layers,
   FolderKanban,
+  Shield,
 } from "lucide-react";
 import { markNotificationRead, markAllNotificationsRead } from "../../services/api";
 import UserAvatar from "../common/UserAvatar";
@@ -35,6 +36,9 @@ export default function Header() {
     theme,
     toggleTheme,
     user,
+    isSuperAdmin,
+    hasModule,
+    hasPermission,
     projects,
     activeProject,
     setActiveProject,
@@ -76,15 +80,18 @@ export default function Header() {
   }, []);
 
   const navItems = [
-    { label: "Dashboard", path: "/", icon: LayoutDashboard, aliases: ["/analytics", "/dashboard"] },
-    { label: "Board", path: "/board", icon: Kanban, pendingCount: pendingReviewCount },
-    { label: "Grid", path: "/table", icon: Table2 },
-    { label: "Calendar", path: "/calendar", icon: CalendarDays },
-    { label: "Requests", path: "/requests", icon: FileCheck2, pendingCount: pendingRequestsCount },
-    { label: "My Day", path: "/my-work", icon: CheckSquare, pendingCount: myPendingCount },
-    { label: "Team", path: "/team", icon: Users, pendingCount: pendingJoinCount },
-    { label: "Workspaces", path: "/projects", icon: Layers },
-  ];
+    { label: "Dashboard", path: "/", icon: LayoutDashboard, aliases: ["/analytics", "/dashboard"], moduleKey: "dashboard" },
+    { label: "Board", path: "/board", icon: Kanban, pendingCount: pendingReviewCount, moduleKey: "board" },
+    { label: "Grid", path: "/table", icon: Table2, moduleKey: "board" },
+    { label: "Calendar", path: "/calendar", icon: CalendarDays, moduleKey: "board" },
+    { label: "Requests", path: "/requests", icon: FileCheck2, pendingCount: pendingRequestsCount, moduleKey: "requests" },
+    { label: "My Day", path: "/my-work", icon: CheckSquare, pendingCount: myPendingCount, moduleKey: "tasks" },
+    { label: "Team", path: "/team", icon: Users, pendingCount: pendingJoinCount, moduleKey: "team" },
+    { label: "Workspaces", path: "/projects", icon: Layers, moduleKey: "projects" },
+    ...(isSuperAdmin || hasPermission("rbac.view") || hasPermission("rbac.manage")
+      ? [{ label: "Roles", path: "/roles", icon: Shield, moduleKey: "rbac" }]
+      : []),
+  ].filter((item) => isSuperAdmin || !item.moduleKey || hasModule(item.moduleKey));
 
   const handleMarkAllRead = async () => {
     await markAllNotificationsRead();
@@ -282,6 +289,7 @@ export default function Header() {
           <div className={`h-5 w-px ${isDark ? "bg-white/[0.09]" : "bg-slate-900/[0.09]"}`} />
 
           {/* Icon-Only Office Chat Trigger */}
+          {(isSuperAdmin || hasModule("chat")) && (
           <button
             type="button"
             onClick={() => setIsChatOpen(true)}
@@ -301,6 +309,7 @@ export default function Header() {
               </span>
             )}
           </button>
+          )}
 
           {/* Theme Toggle */}
           <button

@@ -1,7 +1,22 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/userModel");
+const {
+  isSuperAdminUser,
+  resolveUserAccess,
+  hasWildcardPermission,
+} = require("../utils/roles");
 
-const protect = (allowedRoles = []) => async (req, res, next) => {
+/**
+ * Modular Authentication & Dynamic RBAC Guard Middleware.
+ *
+ * Accepts:
+ * - No args (`protect()`): Requires authenticated, active workspace member.
+ * - Permission slug string (`protect("tasks.create")`): Checks resolved user permissions + wildcard support.
+ * - Array of roles and/or permission slugs (`protect(["tasks.approve", "admin"])`): Grants if user matches any.
+ *
+ * Hardcoded `superadmin` always bypasses all permission and role checks automatically.
+ */
+const protect = (requiredAccess = []) => async (req, res, next) => {
   try {
     let token = req.cookies?.token;
 
@@ -20,7 +35,6 @@ const protect = (allowedRoles = []) => async (req, res, next) => {
       return res.status(401).json({ success: false, message: "User not found or account removed" });
     }
 
-    // Allow user to check self state and submit join-team onboarding even if pending
     const isSelfStatusRoute =
       req.path === "/me" ||
       req.path.includes("/join-request") ||
@@ -53,12 +67,38 @@ const protect = (allowedRoles = []) => async (req, res, next) => {
       });
     }
 
-    // Role checks if specified
-    if (allowedRoles.length > 0) {
-      if (!allowedRoles.includes(user.role) && user.role !== "admin") {
+    const access = await resolveUserAccess(user);
+    user.role = access.role;
+    user.modules = access.modules;
+    user.permissions = access.permissions;
+    user.isSuperAdmin = access.isSuperAdmin;
+    user.roleDisplayName = access.roleDisplayName;
+
+    // Superadmin has every module and action by default
+    if (access.isSuperAdmin || isSuperAdminUser(user)) {
+      req.user = user;
+      return next();
+    }
+
+    const requirements = Array.isArray(requiredAccess)
+      ? requiredAccess.filter(Boolean)
+      : requiredAccess
+      ? [requiredAccess]
+      : [];
+
+    if (requirements.length > 0) {
+      const authorized = requirements.some((reqItem) => {
+        if (reqItem.includes(".") || reqItem.includes("*") || reqItem.includes(":")) {
+          return hasWildcardPermission(access.permissions, reqItem);
+        }
+        return access.role === reqItem.toLowerCase();
+      });
+
+      if (!authorized) {
         return res.status(403).json({
           success: false,
-          message: `Access denied. Requires one of: ${allowedRoles.join(", ")}`,
+          code: "PERMISSION_DENIED",
+          message: `Access denied. Requires: ${requirements.join(" or ")}`,
         });
       }
     }
@@ -71,6 +111,22 @@ const protect = (allowedRoles = []) => async (req, res, next) => {
   }
 };
 
-const authorize = (...roles) => protect(roles);
+/**
+ * Superadmin-Only Guard: Only the hardcoded `superadmin` role passes this gate.
+ */
+const requireSuperAdmin = async (req, res, next) => {
+  return protect()(req, res, () => {
+    if (!req.user?.isSuperAdmin && !isSuperAdminUser(req.user)) {
+      return res.status(403).json({
+        success: false,
+        code: "SUPERADMIN_REQUIRED",
+        message: "Restricted to Superadmin only.",
+      });
+    }
+    return next();
+  });
+};
 
-module.exports = { protect, authorize };
+const authorize = (...rolesOrPerms) => protect(rolesOrPerms);
+
+module.exports = { protect, authorize, requireSuperAdmin };

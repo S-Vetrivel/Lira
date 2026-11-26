@@ -8,9 +8,9 @@ const {
   getConversations,
 } = require("../controllers/chatController");
 
-router.post("/messages", protect(), sendMessage);
-router.get("/rooms/:roomId/messages", protect(), getMessages);
-router.post("/rooms/:roomId/read", protect(), markRead);
-router.get("/conversations", protect(), getConversations);
+router.post("/messages", protect("chat.send"), sendMessage);
+router.get("/rooms/:roomId/messages", protect("chat.view"), getMessages);
+router.post("/rooms/:roomId/read", protect("chat.view"), markRead);
+router.get("/conversations", protect("chat.view"), getConversations);
 
 module.exports = router;

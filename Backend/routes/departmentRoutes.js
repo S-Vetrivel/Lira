@@ -10,13 +10,13 @@ const {
   removeDepartmentMember,
 } = require("../controllers/departmentController");
 
-router.get("/", protect(), getDepartments);
-router.post("/", protect(["admin"]), createDepartment);
-router.put("/:id", protect(["admin", "manager"]), updateDepartment);
-router.delete("/:id", protect(["admin"]), deleteDepartment);
+router.get("/", protect("departments.view"), getDepartments);
+router.post("/", protect("departments.create"), createDepartment);
+router.put("/:id", protect("departments.edit"), updateDepartment);
+router.delete("/:id", protect("departments.delete"), deleteDepartment);
 
 // Department staff management
-router.post("/:id/members", protect(["admin", "manager"]), addDepartmentMember);
-router.delete("/:id/members/:userId", protect(["admin", "manager"]), removeDepartmentMember);
+router.post("/:id/members", protect("departments.edit"), addDepartmentMember);
+router.delete("/:id/members/:userId", protect("departments.edit"), removeDepartmentMember);
 
 module.exports = router;

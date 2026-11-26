@@ -6,9 +6,12 @@ const Task = require("../models/taskModel");
 const ActivityLog = require("../models/activityLogModel");
 const Comment = require("../models/commentModel");
 const Notification = require("../models/notificationModel");
+const { ensureSystemRolesExist, isSuperAdminEmail } = require("./roles");
 
 const seedDatabase = async () => {
   try {
+    await ensureSystemRolesExist();
+
     const adminEmail = (process.env.DEFAULT_SUPERADMIN_EMAIL || "admin@incuman.com").toLowerCase();
     let existingAdmin = await User.findOne({ email: adminEmail });
     const salt = await bcrypt.genSalt(10);
@@ -20,16 +23,21 @@ const seedDatabase = async () => {
     if (!existingAdmin) {
       console.log(`👑 Creating superadmin user: ${adminEmail}`);
       existingAdmin = await User.create({
-        fullname: "Alex Vance (Admin)",
+        fullname: "Alex Vance (Superadmin)",
         email: adminEmail,
         password: superadminPass,
-        role: "admin",
+        role: "superadmin",
         departmentName: "Executive / IT",
-        jobTitle: "Head of Operations & IT",
+        jobTitle: "Platform Superadmin",
         avatar: "/avatars/alex.jpg",
         status: "active",
         publicId: "EMP-ADMIN-01",
       });
+    } else if (isSuperAdminEmail(adminEmail) && existingAdmin.role !== "superadmin") {
+      existingAdmin.role = "superadmin";
+      existingAdmin.status = "active";
+      existingAdmin.isActive = true;
+      await existingAdmin.save();
     }
 
     const deptCount = await Department.countDocuments();

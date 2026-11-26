@@ -103,7 +103,7 @@ exports.createRequest = async (req, res) => {
 
     // Notify & email approvers (managers/admins) for new approval request
     User.find({
-      role: { $in: ["admin", "manager"] },
+      role: { $in: ["superadmin", "admin", "manager"] },
       status: "active",
       isActive: true,
       _id: { $ne: req.user._id },

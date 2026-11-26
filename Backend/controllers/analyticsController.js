@@ -431,7 +431,7 @@ exports.getManagerOverview = async (req, res) => {
         overloadedMembersCount,
         totalTeamMembers: activeUsers.length,
       };
-    } else if (currentUser.role === "admin") {
+    } else if (currentUser.role === "admin" || currentUser.role === "superadmin" || currentUser.isSuperAdmin) {
       const totalDepartmentsCount = await Department.countDocuments();
       const totalUsersCount = await User.countDocuments({ isActive: true, status: "active" });
       const totalProjectsCount = await Project.countDocuments({ status: { $ne: "archived" } });

@@ -14,18 +14,18 @@ const {
   deleteProjectFile,
 } = require("../controllers/projectController");
 
-router.get("/", protect(), getProjects);
-router.get("/:id", protect(), getProjectById);
-router.post("/", protect(["admin", "manager"]), createProject);
-router.put("/:id", protect(["admin", "manager"]), updateProject);
-router.delete("/:id", protect(["admin"]), deleteProject);
+router.get("/", protect("projects.view"), getProjects);
+router.get("/:id", protect("projects.view"), getProjectById);
+router.post("/", protect("projects.create"), createProject);
+router.put("/:id", protect("projects.edit"), updateProject);
+router.delete("/:id", protect("projects.delete"), deleteProject);
 
 // Project team member management
-router.post("/:id/members", protect(["admin", "manager"]), addProjectMember);
-router.delete("/:id/members/:userId", protect(["admin", "manager"]), removeProjectMember);
+router.post("/:id/members", protect("projects.edit"), addProjectMember);
+router.delete("/:id/members/:userId", protect("projects.edit"), removeProjectMember);
 
 // Project team file sharing
-router.post("/:id/files", protect(), upload.single("file"), uploadProjectFile);
-router.delete("/:id/files/:fileId", protect(), deleteProjectFile);
+router.post("/:id/files", protect("projects.edit"), upload.single("file"), uploadProjectFile);
+router.delete("/:id/files/:fileId", protect("projects.edit"), deleteProjectFile);
 
 module.exports = router;

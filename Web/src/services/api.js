@@ -797,6 +797,67 @@ export async function getChatConversations() {
 }
 
 // ==========================================
+// ROLES & MODULES RBAC APIs
+// ==========================================
+export async function getModulesCatalog() {
+  try {
+    const res = await api.get("/roles/catalog");
+    return res.data;
+  } catch (error) {
+    return { success: false, modules: [] };
+  }
+}
+
+export async function getRoles() {
+  try {
+    const res = await api.get("/roles");
+    return res.data;
+  } catch (error) {
+    return { success: false, roles: [] };
+  }
+}
+
+export async function createRole(roleData) {
+  try {
+    const res = await api.post("/roles", roleData);
+    toast.success(`Role '${res.data.role?.displayName}' created!`);
+    return res.data;
+  } catch (error) {
+    return { success: false, message: error.response?.data?.message || "Failed to create role" };
+  }
+}
+
+export async function updateRole(id, roleData) {
+  try {
+    const res = await api.put(`/roles/${id}`, roleData);
+    toast.success(`Role '${res.data.role?.displayName}' updated!`);
+    return res.data;
+  } catch (error) {
+    return { success: false, message: error.response?.data?.message || "Failed to update role" };
+  }
+}
+
+export async function deleteRole(id) {
+  try {
+    const res = await api.delete(`/roles/${id}`);
+    toast.success("Role deleted");
+    return res.data;
+  } catch (error) {
+    return { success: false, message: error.response?.data?.message || "Failed to delete role" };
+  }
+}
+
+export async function assignUserRole(userId, payload) {
+  try {
+    const res = await api.put(`/roles/assign/${userId}`, payload);
+    toast.success(res.data.message || "User role & modules updated");
+    return res.data;
+  } catch (error) {
+    return { success: false, message: error.response?.data?.message || "Failed to assign role" };
+  }
+}
+
+// ==========================================
 // AI ASSISTANT APIs (Gemini 1.5 Flash)
 // ==========================================
 export async function getAITaskBreakdown(title, description) {

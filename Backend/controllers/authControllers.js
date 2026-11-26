@@ -2,7 +2,7 @@ const User = require("../models/userModel");
 const Department = require("../models/departmentModel");
 const bcrypt = require("bcryptjs");
 const generateTokenAndSetCookie = require("../utils/generateToken");
-const { isSuperAdminEmail } = require("../utils/roles");
+const { isSuperAdminEmail, resolveUserAccess } = require("../utils/roles");
 const { enqueueWebSocketEvent } = require("../services/queue");
 const { sendPushToAdmins } = require("../services/pushService");
 const { createNotification, notifyAdmins } = require("../utils/notificationHelper");
@@ -39,7 +39,13 @@ exports.Signup = async (req, res) => {
     }
 
     const isAdmin = isSuperAdminEmail(cleanEmail);
-    const userRole = isAdmin ? "admin" : (role || "employee");
+    let defaultRoleName = role || "employee";
+    if (!isAdmin && !role) {
+      const Role = require("../models/roleModel");
+      const defaultRole = await Role.findOne({ isDefault: true }).select("name").lean();
+      if (defaultRole?.name) defaultRoleName = defaultRole.name;
+    }
+    const userRole = isAdmin ? "superadmin" : defaultRoleName.toLowerCase();
     const userStatus = isAdmin ? "active" : "pending_approval";
     const userActive = isAdmin ? true : false;
 
@@ -80,6 +86,7 @@ exports.Signup = async (req, res) => {
     });
 
     const token = generateTokenAndSetCookie(res, newUser._id);
+    const access = await resolveUserAccess(newUser);
 
     // Notify Admins if pending approval
     if (!isAdmin) {
@@ -135,7 +142,11 @@ exports.Signup = async (req, res) => {
         publicId: newUser.publicId,
         email: newUser.email,
         fullname: newUser.fullname,
-        role: newUser.role,
+        role: access.role,
+        roleDisplayName: access.roleDisplayName,
+        isSuperAdmin: access.isSuperAdmin,
+        modules: access.modules,
+        permissions: access.permissions,
         status: newUser.status,
         isActive: newUser.isActive,
         departmentName: newUser.departmentName,
@@ -173,9 +184,9 @@ exports.Login = async (req, res) => {
       return res.status(401).json({ success: false, message: "Invalid email or password" });
     }
 
-    // Upgrade to admin if superadmin email
-    if (isSuperAdminEmail(cleanEmail) && user.role !== "admin") {
-      user.role = "admin";
+    // Upgrade to superadmin if email matches SUPERADMIN_EMAILS / DEFAULT_SUPERADMIN_EMAIL
+    if (isSuperAdminEmail(cleanEmail) && user.role !== "superadmin") {
+      user.role = "superadmin";
       user.status = "active";
       user.isActive = true;
       await user.save();
@@ -196,6 +207,7 @@ exports.Login = async (req, res) => {
     }
 
     const token = generateTokenAndSetCookie(res, user._id);
+    const access = await resolveUserAccess(user);
 
     res.status(200).json({
       success: true,
@@ -209,7 +221,11 @@ exports.Login = async (req, res) => {
         publicId: user.publicId,
         email: user.email,
         fullname: user.fullname,
-        role: user.role,
+        role: access.role,
+        roleDisplayName: access.roleDisplayName,
+        isSuperAdmin: access.isSuperAdmin,
+        modules: access.modules,
+        permissions: access.permissions,
         status: user.status,
         isActive: user.isActive,
         departmentName: user.department?.name || user.departmentName || "General",
@@ -259,6 +275,8 @@ exports.Me = async (req, res) => {
       await user.save();
     }
 
+    const access = await resolveUserAccess(user);
+
     res.status(200).json({
       success: true,
       user: {
@@ -267,7 +285,11 @@ exports.Me = async (req, res) => {
         publicId: user.publicId,
         email: user.email,
         fullname: user.fullname,
-        role: user.role,
+        role: access.role,
+        roleDisplayName: access.roleDisplayName,
+        isSuperAdmin: access.isSuperAdmin,
+        modules: access.modules,
+        permissions: access.permissions,
         status: user.status,
         isActive: user.isActive,
         departmentName: user.department?.name || user.departmentName || "General",

@@ -20,6 +20,7 @@ import MyWork from "./pages/MyWork";
 import Analytics from "./pages/Analytics";
 import Team from "./pages/Team";
 import Projects from "./pages/Projects";
+import Roles from "./pages/Roles";
 import Profile from "./pages/Profile";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
@@ -107,6 +108,7 @@ function App() {
             <Route path="/my-work" element={<MyWork />} />
             <Route path="/team" element={<Team />} />
             <Route path="/projects" element={<Projects />} />
+            <Route path="/roles" element={<Roles />} />
             <Route path="/profile" element={<Profile />} />
           </Route>
         </Route>

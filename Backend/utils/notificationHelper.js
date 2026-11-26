@@ -130,7 +130,7 @@ const notifyAdmins = async ({
 }) => {
   try {
     const admins = await User.find({
-      role: "admin",
+      role: { $in: ["superadmin", "admin"] },
       isActive: true,
       status: { $ne: "rejected" },
     })

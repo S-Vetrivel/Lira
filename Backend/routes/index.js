@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 
 router.use("/auth", require("./authRoutes"));
+router.use("/roles", require("./roleRoutes"));
 router.use("/departments", require("./departmentRoutes"));
 router.use("/projects", require("./projectRoutes"));
 router.use("/tasks", require("./taskRoutes"));

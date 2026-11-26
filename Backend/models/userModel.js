@@ -21,8 +21,19 @@ const UserSchema = new Schema(
     password: { type: String },
     role: {
       type: String,
-      enum: ["admin", "manager", "employee"],
       default: "employee",
+      lowercase: true,
+      trim: true,
+      index: true,
+    },
+    roleRef: {
+      type: Schema.Types.ObjectId,
+      ref: "Role",
+      default: null,
+    },
+    customPermissions: {
+      type: [String],
+      default: [],
     },
     department: {
       type: Schema.Types.ObjectId,
@@ -47,7 +58,7 @@ const UserSchema = new Schema(
     joinRequest: {
       requestedDepartment: { type: Schema.Types.ObjectId, ref: "Department" },
       requestedDepartmentName: { type: String, default: "Engineering" },
-      requestedRole: { type: String, enum: ["employee", "manager"], default: "employee" },
+      requestedRole: { type: String, default: "employee", lowercase: true, trim: true },
       requestedJobTitle: { type: String, default: "Team Member" },
       reason: { type: String, default: "" },
       requestedAt: { type: Date, default: Date.now },

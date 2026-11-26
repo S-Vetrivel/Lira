@@ -2,7 +2,8 @@ const User = require("../models/userModel");
 const Task = require("../models/taskModel");
 const Department = require("../models/departmentModel");
 const bcrypt = require("bcryptjs");
-const { isSuperAdminEmail } = require("../utils/roles");
+const Role = require("../models/roleModel");
+const { isSuperAdminEmail, hasWildcardPermission } = require("../utils/roles");
 const { enqueueWebSocketEvent, enqueueEmailJob } = require("../services/queue");
 const { sendPushToUser, sendPushToAdmins } = require("../services/pushService");
 const { createNotification, notifyAdmins } = require("../utils/notificationHelper");
@@ -12,7 +13,9 @@ const ts = () => new Date().toISOString();
 // Get team members with open tasks count (Admin can pass ?includeInactive=true for full user management)
 exports.getTeamMembers = async (req, res) => {
   try {
-    const includeInactive = req.query.includeInactive === "true" && req.user?.role === "admin";
+    const includeInactive =
+      req.query.includeInactive === "true" &&
+      (req.user?.isSuperAdmin || req.user?.role === "admin" || hasWildcardPermission(req.user?.permissions, "team.edit"));
     const filter = includeInactive
       ? {}
       : { isActive: true, status: { $in: ["active", "away", "on_leave"] } };
@@ -75,10 +78,13 @@ exports.createUser = async (req, res) => {
       return res.status(400).json({ success: false, message: "User with this email already exists" });
     }
 
-    let userRole = role || "employee";
+    let userRole = (role || "employee").toLowerCase().trim();
     if (isSuperAdminEmail(cleanEmail)) {
-      userRole = "admin";
+      userRole = "superadmin";
+    } else if (userRole === "superadmin" && !req.user?.isSuperAdmin) {
+      return res.status(403).json({ success: false, message: "Only Superadmin can assign the superadmin role" });
     }
+    const roleDoc = await Role.findOne({ name: userRole }).select("_id").lean();
 
     const salt = await bcrypt.genSalt(10);
     const rawPassword = password && password.trim() ? password.trim() : "Lira@2026";
@@ -101,6 +107,7 @@ exports.createUser = async (req, res) => {
       email: cleanEmail,
       password: hashedPassword,
       role: userRole,
+      roleRef: roleDoc?._id || null,
       status: "active",
       isActive: true,
       department: deptId || null,
@@ -126,14 +133,27 @@ exports.updateUser = async (req, res) => {
     const { id } = req.params;
     const { fullname, role, department, departmentName, jobTitle, phone, status, isActive, bio } = req.body;
 
-    // Only Admin can change role or active status
-    if ((role || isActive !== undefined) && req.user.role !== "admin") {
-      return res.status(403).json({ success: false, message: "Only Admins can modify user roles or active status" });
+    const canEditGovernance =
+      req.user.isSuperAdmin ||
+      req.user.role === "admin" ||
+      hasWildcardPermission(req.user.permissions, "team.edit");
+
+    // Only Admin / Superadmin / team.edit holders can change role or active status
+    if ((role || isActive !== undefined) && !canEditGovernance) {
+      return res.status(403).json({ success: false, message: "Only Administrators can modify user roles or active status" });
     }
 
     const updates = {};
     if (fullname) updates.fullname = fullname.trim();
-    if (role) updates.role = role;
+    if (role) {
+      const normalizedRole = role.trim().toLowerCase();
+      if (normalizedRole === "superadmin" && !req.user.isSuperAdmin) {
+        return res.status(403).json({ success: false, message: "Only Superadmin can assign the superadmin role" });
+      }
+      updates.role = normalizedRole;
+      const roleDoc = await Role.findOne({ name: normalizedRole }).select("_id").lean();
+      if (roleDoc) updates.roleRef = roleDoc._id;
+    }
     if (department !== undefined) {
       updates.department = department || null;
       if (department) {

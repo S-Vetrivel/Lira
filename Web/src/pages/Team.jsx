@@ -39,8 +39,16 @@ import SideDrawer from "../components/common/SideDrawer";
 
 export default function Team() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const { user, departments, refreshDepartments, refreshPendingJoinCount, theme, openDirectChat } = useApp();
+  const { user, departments, roles, isSuperAdmin, hasPermission, refreshDepartments, refreshPendingJoinCount, theme, openDirectChat } = useApp();
   const isDark = theme === "dark";
+  const assignableRoles = (roles && roles.length > 0
+    ? roles
+    : [
+        { name: "employee", displayName: "Employee" },
+        { name: "manager", displayName: "Manager" },
+        { name: "admin", displayName: "Admin" },
+      ]
+  ).filter((r) => isSuperAdmin || (!r.isSystem && r.name !== "superadmin"));
 
   const [activeTab, setActiveTab] = useState(() =>
     searchParams.get("tab") === "join-requests" ? "join-requests" : "directory"
@@ -282,7 +290,7 @@ export default function Team() {
     return true;
   });
 
-  const canManage = user?.role === "admin" || user?.role === "manager";
+  const canManage = isSuperAdmin || hasPermission("team.join_requests") || hasPermission("team.edit") || user?.role === "admin" || user?.role === "manager";
 
   return (
     <div
@@ -315,7 +323,7 @@ export default function Team() {
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
           </button>
 
-          {user?.role === "admin" && (
+          {(isSuperAdmin || hasPermission("team.create") || user?.role === "admin") && (
             <button
               onClick={() => setShowAddUserModal(true)}
               className="flex items-center gap-1.5 text-xs font-semibold px-4 py-2 rounded-full lira-btn-primary cursor-pointer"
@@ -717,9 +725,11 @@ export default function Team() {
                 className={`w-full border rounded-xl px-3.5 py-2.5 text-xs font-semibold focus:outline-none ${isDark ? "bg-[#12131b] border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
                   }`}
               >
-                <option value="employee">Employee</option>
-                <option value="manager">Manager / Lead</option>
-                <option value="admin">Admin</option>
+                {assignableRoles.map((r) => (
+                  <option key={r.name} value={r.name}>
+                    {r.displayName || r.name}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -861,13 +871,15 @@ export default function Team() {
                     <select
                       value={editRole}
                       onChange={(e) => setEditRole(e.target.value)}
-                      disabled={user?.role !== "admin"}
+                      disabled={!isSuperAdmin && !hasPermission("team.edit") && user?.role !== "admin"}
                       className={`w-full border rounded-xl px-3 py-2 text-xs focus:outline-none ${isDark ? "bg-[#12131b] border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
                         }`}
                     >
-                      <option value="employee">Employee</option>
-                      <option value="manager">Manager</option>
-                      <option value="admin">Admin</option>
+                      {assignableRoles.map((r) => (
+                        <option key={r.name} value={r.name}>
+                          {r.displayName || r.name}
+                        </option>
+                      ))}
                     </select>
                   </div>
 
@@ -1010,9 +1022,11 @@ export default function Team() {
                   isDark ? "bg-[#12131b] border-white/15 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
                 }`}
               >
-                <option value="employee">Employee (Contributor)</option>
-                <option value="manager">Manager (Team Lead)</option>
-                {user?.role === "admin" && <option value="admin">Admin (Executive)</option>}
+                {assignableRoles.map((r) => (
+                  <option key={r.name} value={r.name}>
+                    {r.displayName || r.name}
+                  </option>
+                ))}
               </select>
             </div>
 

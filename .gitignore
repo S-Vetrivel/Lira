@@ -35,3 +35,4 @@ npm-debug.log*
 Thumbs.db
 coverage/
 .eslintcache
+example/
