@@ -211,8 +211,8 @@ export default function Header() {
               {showWorkspaceMenu && (
                 <motion.div
                   initial={{ opacity: 0, y: 6, scale: 0.98 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 4, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1, pointerEvents: "auto" }}
+                  exit={{ opacity: 0, y: 4, scale: 0.98, pointerEvents: "none" }}
                   transition={{ duration: 0.14 }}
                   className={`fixed left-2.5 right-2.5 top-[60px] max-h-[calc(100dvh-76px)] overflow-y-auto sm:max-h-none sm:overflow-visible sm:top-auto sm:right-auto sm:absolute sm:left-0 sm:mt-2.5 sm:w-72 rounded-2xl border p-2 z-50 ${g.dropdown}`}
                 >
@@ -424,8 +424,8 @@ export default function Header() {
               {showNotifications && (
                 <motion.div
                   initial={{ opacity: 0, y: 6, scale: 0.98 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 4, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1, pointerEvents: "auto" }}
+                  exit={{ opacity: 0, y: 4, scale: 0.98, pointerEvents: "none" }}
                   transition={{ duration: 0.14 }}
                   className={`fixed left-2.5 right-2.5 top-[60px] max-h-[calc(100dvh-76px)] overflow-y-auto sm:max-h-none sm:overflow-visible sm:top-auto sm:left-auto sm:absolute sm:right-0 sm:mt-3 sm:w-96 rounded-2xl border p-3.5 z-50 ${g.dropdown}`}
                 >
@@ -547,6 +547,7 @@ export default function Header() {
         <div className="relative">
           <button
             type="button"
+            data-testid="header-profile-btn"
             onClick={() => {
               setShowProfileMenu((prev) => !prev);
               setShowNotifications(false);
@@ -578,8 +579,8 @@ export default function Header() {
             {showProfileMenu && (
               <motion.div
                 initial={{ opacity: 0, y: 6, scale: 0.98 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 4, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1, pointerEvents: "auto" }}
+                exit={{ opacity: 0, y: 4, scale: 0.98, pointerEvents: "none" }}
                 transition={{ duration: 0.14 }}
                 className={`fixed left-2.5 right-2.5 top-[60px] max-h-[calc(100dvh-76px)] overflow-y-auto sm:max-h-none sm:overflow-visible sm:top-auto sm:left-auto sm:absolute sm:right-0 sm:mt-2.5 sm:w-64 rounded-2xl border p-3.5 z-50 space-y-2.5 ${g.dropdown}`}
               >
@@ -792,6 +793,11 @@ export default function Header() {
           <Link
             key={item.path}
             to={item.path}
+            onClick={() => {
+              setShowWorkspaceMenu(false);
+              setShowNotifications(false);
+              setShowProfileMenu(false);
+            }}
             className={`relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[11px] font-semibold whitespace-nowrap shrink-0 transition-colors border ${
               isActive
                 ? `${g.navActivePill} ${isDark ? "text-white border-white/15" : "text-slate-950 border-slate-900/15"}`

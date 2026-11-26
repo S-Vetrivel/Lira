@@ -396,32 +396,32 @@ export default function Roles() {
       </div>
 
       {/* Tabs */}
-      <div className={`flex items-center gap-2 border-b pb-2 ${isDark ? "border-white/[0.08]" : "border-slate-900/[0.08]"}`}>
+      <div className={`flex items-center gap-2 border-b pb-2 overflow-x-auto no-scrollbar ${isDark ? "border-white/[0.08]" : "border-slate-900/[0.08]"}`}>
         <button
           type="button"
           onClick={() => setActiveTab("roles")}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${activeTab === "roles"
+          className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${activeTab === "roles"
             ? "lira-btn-primary"
             : isDark
               ? "text-zinc-400 hover:text-white hover:bg-white/[0.06]"
               : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
             }`}
         >
-          <Shield className="w-3.5 h-3.5" />
+          <Shield className="w-3.5 h-3.5 shrink-0" />
           <span>Dynamic Roles & Modules ({roles.length})</span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab("departments")}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${activeTab === "departments"
+          className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${activeTab === "departments"
             ? "lira-btn-primary"
             : isDark
               ? "text-zinc-400 hover:text-white hover:bg-white/[0.06]"
               : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
             }`}
         >
-          <Building className="w-3.5 h-3.5" />
+          <Building className="w-3.5 h-3.5 shrink-0" />
           <span>Departments Setup ({departments.length})</span>
         </button>
 
@@ -429,14 +429,14 @@ export default function Roles() {
           <button
             type="button"
             onClick={() => setActiveTab("ai")}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${activeTab === "ai"
+            className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${activeTab === "ai"
               ? "lira-btn-primary"
               : isDark
                 ? "text-zinc-400 hover:text-white hover:bg-white/[0.06]"
                 : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
               }`}
           >
-            <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+            <Sparkles className="w-3.5 h-3.5 text-purple-400 shrink-0" />
             <span>AI Models & Encrypted Vault</span>
           </button>
         )}

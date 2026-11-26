@@ -300,9 +300,9 @@ export default function Landing() {
               <div className={`rounded-2xl overflow-hidden ${glowPanelBg}`}>
                 {/* Preview Chrome Bar */}
                 <div
-                  className={`px-4 py-3 border-b flex flex-wrap items-center justify-between gap-2 backdrop-blur-xl ${g.subHeader}`}
+                  className={`px-3 sm:px-4 py-2.5 sm:py-3 border-b flex flex-wrap items-center justify-between gap-2 backdrop-blur-xl ${g.subHeader}`}
                 >
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar max-w-full">
                     {PREVIEW_TABS.map((tab) => {
                       const Icon = tab.icon;
                       const active = activePreview === tab.id;
@@ -311,7 +311,7 @@ export default function Landing() {
                           key={tab.id}
                           type="button"
                           onClick={() => setActivePreview(tab.id)}
-                          className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all cursor-pointer ${
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                             active ? g.pillActive : g.pillInactive
                           }`}
                         >

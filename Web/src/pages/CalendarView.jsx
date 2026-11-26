@@ -52,6 +52,7 @@ export default function CalendarView() {
   const [loading, setLoading] = useState(true);
   const [activeTaskKey, setActiveTaskKey] = useState(null);
   const [selectedDay, setSelectedDay] = useState(null); // day number in active month/year
+  const [showDayDrawer, setShowDayDrawer] = useState(false);
   const [showUnscheduledDrawer, setShowUnscheduledDrawer] = useState(false);
 
   const loadTasks = async () => {
@@ -78,13 +79,14 @@ export default function CalendarView() {
     const onCloseAll = (e) => {
       if (e?.detail?.except !== "task" && e?.detail?.except !== "task-drawer") setActiveTaskKey(null);
       setSelectedDay(null);
+      setShowDayDrawer(false);
       setShowUnscheduledDrawer(false);
     };
     const onOtherSidebar = (e) => {
       const id = e?.detail?.id;
       if (!id) return;
       if (id !== "task-drawer") setActiveTaskKey(null);
-      if (id !== "calendar-day") setSelectedDay(null);
+      if (id !== "calendar-day") setShowDayDrawer(false);
       if (id !== "calendar-unscheduled") setShowUnscheduledDrawer(false);
     };
     window.addEventListener("lira:close-all-sidebars", onCloseAll);
@@ -106,16 +108,19 @@ export default function CalendarView() {
 
   const prevMonth = () => {
     setSelectedDay(null);
+    setShowDayDrawer(false);
     setCurrentDate(new Date(year, month - 1, 1));
   };
   const nextMonth = () => {
     setSelectedDay(null);
+    setShowDayDrawer(false);
     setCurrentDate(new Date(year, month + 1, 1));
   };
   const goToToday = () => {
     const d = new Date();
     setCurrentDate(d);
     setSelectedDay(d.getDate());
+    setShowDayDrawer(false);
   };
 
   const monthNames = [
@@ -145,7 +150,7 @@ export default function CalendarView() {
 
   const handleScheduleForDate = (dayNum) => {
     const targetDateStr = toYMD(year, month, dayNum);
-    setSelectedDay(null);
+    setShowDayDrawer(false);
     setShowUnscheduledDrawer(false);
     setAiPrefillDraft({
       type: "create_task",
@@ -271,7 +276,10 @@ export default function CalendarView() {
                   <button
                     key={`m-day-${day}`}
                     type="button"
-                    onClick={() => setSelectedDay(day)}
+                    onClick={() => {
+                      setSelectedDay(day);
+                      setShowDayDrawer(false);
+                    }}
                     className={`h-11 border-r border-b flex flex-col items-center justify-center gap-0.5 text-xs font-semibold cursor-pointer ${g.border} ${
                       isSel
                         ? "bg-purple-500/20 text-purple-300 ring-1 ring-inset ring-purple-400/60"
@@ -391,13 +399,17 @@ export default function CalendarView() {
               return (
                 <div
                   key={`day-${day}`}
-                  onClick={() => setSelectedDay(day)}
+                  onClick={() => {
+                    setSelectedDay(day);
+                    setShowDayDrawer(true);
+                  }}
                   role="button"
                   tabIndex={0}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault();
                       setSelectedDay(day);
+                      setShowDayDrawer(true);
                     }
                   }}
                   className={`p-2 min-h-[108px] border-r border-b flex flex-col justify-between transition-colors cursor-pointer text-left ${g.border} ${
@@ -476,11 +488,14 @@ export default function CalendarView() {
         </div>
       </div>
 
-      {/* Selected Calendar Day Schedule Sidebar */}
+      {/* Selected Calendar Day Schedule Sidebar (Desktop matrix click) */}
       <SideDrawer
         sidebarId="calendar-day"
-        isOpen={selectedDay !== null}
-        onClose={() => setSelectedDay(null)}
+        isOpen={selectedDay !== null && showDayDrawer}
+        onClose={() => {
+          setShowDayDrawer(false);
+          setSelectedDay(null);
+        }}
         title={selectedDay ? `${monthNames[month]} ${selectedDay}, ${year}` : "Schedule"}
         subtitle={`${selectedDayTasks.length} scheduled task${selectedDayTasks.length === 1 ? "" : "s"}`}
         icon={CalendarIcon}

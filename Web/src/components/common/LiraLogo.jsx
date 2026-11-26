@@ -17,6 +17,7 @@ export function LiraLogoMark({
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       className={className}
+      data-lira-logo="true"
       aria-hidden="true"
     >
       {/* Architectural L-frame */}
