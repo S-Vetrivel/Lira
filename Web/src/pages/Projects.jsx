@@ -118,7 +118,17 @@ export default function Projects() {
   const [deptCode, setDeptCode] = useState("");
   const [deptDesc, setDeptDesc] = useState("");
   const [deptColor, setDeptColor] = useState("#6366f1");
+  const [deptLead, setDeptLead] = useState("");
+  const [deptInitialMembers, setDeptInitialMembers] = useState([]);
   const [submittingDept, setSubmittingDept] = useState(false);
+
+  // Edit Department Form
+  const [isEditingDept, setIsEditingDept] = useState(false);
+  const [editDeptName, setEditDeptName] = useState("");
+  const [editDeptCode, setEditDeptCode] = useState("");
+  const [editDeptDesc, setEditDeptDesc] = useState("");
+  const [editDeptColor, setEditDeptColor] = useState("#6366f1");
+  const [savingDeptEdit, setSavingDeptEdit] = useState(false);
 
   // Department Staff assignment state
   const [assignUserId, setAssignUserId] = useState("");
@@ -211,6 +221,8 @@ export default function Projects() {
       code: deptCode.trim().toUpperCase(),
       description: deptDesc.trim(),
       color: deptColor,
+      lead: deptLead || user._id,
+      members: deptInitialMembers,
     });
     setSubmittingDept(false);
 
@@ -219,7 +231,9 @@ export default function Projects() {
       setDeptName("");
       setDeptCode("");
       setDeptDesc("");
-      refreshDepartments();
+      setDeptLead("");
+      setDeptInitialMembers([]);
+      await Promise.all([refreshDepartments(), refreshTeam()]);
     }
   };
 
@@ -227,6 +241,34 @@ export default function Projects() {
   const liveDept = selectedDept
     ? departments.find((d) => d._id === selectedDept._id) || selectedDept
     : null;
+
+  useEffect(() => {
+    if (liveDept) {
+      setEditDeptName(liveDept.name || "");
+      setEditDeptCode(liveDept.code || "");
+      setEditDeptDesc(liveDept.description || "");
+      setEditDeptColor(liveDept.color || "#6366f1");
+      setIsEditingDept(false);
+    }
+  }, [liveDept?._id]);
+
+  const handleSaveDeptEdit = async (e) => {
+    e.preventDefault();
+    if (!liveDept || !editDeptName.trim()) return;
+    setSavingDeptEdit(true);
+    const res = await updateDepartment(liveDept._id, {
+      name: editDeptName.trim(),
+      code: editDeptCode.trim().toUpperCase(),
+      description: editDeptDesc.trim(),
+      color: editDeptColor,
+    });
+    setSavingDeptEdit(false);
+    if (res.success) {
+      setIsEditingDept(false);
+      setSelectedDept(res.department);
+      await Promise.all([refreshDepartments(), refreshProjects(), refreshTeam()]);
+    }
+  };
 
   const liveProj = selectedProj
     ? projects.find((p) => p._id === selectedProj._id) || selectedProj
@@ -857,36 +899,118 @@ export default function Projects() {
       >
         {liveDept && (
           <div className="space-y-6">
-            {/* Description & Department Lead */}
-            <div className={`p-4 rounded-2xl border space-y-3 ${subtleBg} ${borderCol}`}>
-              <p className={`text-xs leading-relaxed ${mutedText}`}>
-                {liveDept.description || "Department operations and team coordination."}
-              </p>
-
-              <div className="flex items-center justify-between gap-3 pt-2 border-t border-white/[0.06]">
-                <span className={`text-xs font-semibold ${mutedText}`}>Department Lead</span>
-                {canManage ? (
-                  <select
-                    value={liveDept.lead?._id || liveDept.lead || ""}
-                    onChange={(e) => handleDeptLeadChange(e.target.value)}
-                    className={`rounded-lg px-2.5 py-1.5 text-xs border focus:outline-none ${isDark ? "bg-[#0f1016] border-white/10 text-white" : "bg-white border-slate-200 text-slate-900"
+            {/* Description & Department Lead (+ Inline Edit Details) */}
+            {!isEditingDept ? (
+              <div className={`p-4 rounded-2xl border space-y-3 ${subtleBg} ${borderCol}`}>
+                <div className="flex items-start justify-between gap-2">
+                  <p className={`text-xs leading-relaxed ${mutedText}`}>
+                    {liveDept.description || "Department operations and team coordination."}
+                  </p>
+                  {canEditDept && (
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingDept(true)}
+                      className={`px-2.5 py-1 rounded-lg border text-[11px] font-semibold flex items-center gap-1 shrink-0 cursor-pointer ${
+                        isDark ? "border-white/15 hover:bg-white/10" : "border-slate-200 hover:bg-slate-200"
                       }`}
-                  >
-                    <option value="">Unassigned</option>
-                    {teamMembers.map((m) => (
-                      <option key={m._id} value={m._id}>
-                        {m.fullname}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <span className="text-xs font-semibold">{getDisplayName(liveDept.lead, "Unassigned")}</span>
-                )}
+                    >
+                      <Edit2 className="w-3 h-3" />
+                      <span>Edit Details</span>
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between gap-3 pt-2 border-t border-white/[0.06]">
+                  <span className={`text-xs font-semibold ${mutedText}`}>Department Lead</span>
+                  {canEditDept ? (
+                    <select
+                      value={liveDept.lead?._id || liveDept.lead || ""}
+                      onChange={(e) => handleDeptLeadChange(e.target.value)}
+                      className={`rounded-lg px-2.5 py-1.5 text-xs border focus:outline-none ${isDark ? "bg-[#0f1016] border-white/10 text-white" : "bg-white border-slate-200 text-slate-900"
+                        }`}
+                    >
+                      <option value="">Unassigned</option>
+                      {teamMembers.map((m) => (
+                        <option key={m._id} value={m._id}>
+                          {m.fullname}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <span className="text-xs font-semibold">{getDisplayName(liveDept.lead, "Unassigned")}</span>
+                  )}
+                </div>
               </div>
-            </div>
+            ) : (
+              <form onSubmit={handleSaveDeptEdit} className={`p-4 rounded-2xl border space-y-3 ${subtleBg} ${borderCol}`}>
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold">Edit Department Details</h4>
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingDept(false)}
+                    className="text-[11px] opacity-60 hover:opacity-100 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                </div>
+                <div className="grid grid-cols-3 gap-2.5">
+                  <div className="col-span-2">
+                    <label className="text-[11px] font-semibold block mb-1">Department Name</label>
+                    <input
+                      type="text"
+                      required
+                      value={editDeptName}
+                      onChange={(e) => setEditDeptName(e.target.value)}
+                      className={inputClass}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-semibold block mb-1">Code</label>
+                    <input
+                      type="text"
+                      required
+                      maxLength={5}
+                      value={editDeptCode}
+                      onChange={(e) => setEditDeptCode(e.target.value.toUpperCase())}
+                      className={`${inputClass} font-mono font-bold uppercase`}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-[11px] font-semibold block mb-1">Description</label>
+                  <textarea
+                    rows={3}
+                    value={editDeptDesc}
+                    onChange={(e) => setEditDeptDesc(e.target.value)}
+                    placeholder="Department responsibilities and mission..."
+                    className={inputClass}
+                  />
+                </div>
+                <div className="flex items-center justify-between pt-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-semibold">Accent</span>
+                    <input
+                      type="color"
+                      value={editDeptColor}
+                      onChange={(e) => setEditDeptColor(e.target.value)}
+                      className="w-8 h-7 rounded-lg border border-white/10 bg-transparent cursor-pointer"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={savingDeptEdit}
+                    className={`px-4 py-1.5 rounded-xl text-xs font-bold cursor-pointer ${
+                      isDark ? "bg-white text-slate-950" : "bg-slate-900 text-white"
+                    }`}
+                  >
+                    {savingDeptEdit ? "Saving..." : "Save Changes"}
+                  </button>
+                </div>
+              </form>
+            )}
 
             {/* Assign Staff to Department */}
-            {canManage && (
+            {canEditDept && (
               <form onSubmit={handleAssignDeptMember} className={`p-4 rounded-2xl border space-y-3 ${cardBg} ${borderCol}`}>
                 <h4 className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
                   <UserPlus className="w-3.5 h-3.5 text-indigo-400" />
@@ -1992,6 +2116,47 @@ export default function Projects() {
               onChange={(e) => setDeptDesc(e.target.value)}
               className={inputClass}
             />
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold block mb-1">Department Lead</label>
+            <select value={deptLead} onChange={(e) => setDeptLead(e.target.value)} className={inputClass}>
+              <option value="">Current User ({getDisplayName(user)})</option>
+              {teamMembers.map((m) => (
+                <option key={m._id} value={m._id}>
+                  {getDisplayName(m)} ({m.departmentName || "General"})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold block mb-1.5">
+              Add Initial Members ({deptInitialMembers.length})
+            </label>
+            <div className={`max-h-36 overflow-y-auto rounded-xl border p-2 space-y-1 ${subtleBg} ${borderCol}`}>
+              {teamMembers.map((m) => {
+                const checked = deptInitialMembers.includes(m._id);
+                return (
+                  <label
+                    key={m._id}
+                    className={`flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg text-xs cursor-pointer ${g.rowHover}`}
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleArrItem(setDeptInitialMembers, m._id)}
+                        className="accent-indigo-500"
+                      />
+                      <UserAvatar user={m} className="w-5 h-5 rounded-full" textClass="text-[8px]" />
+                      <span className="truncate font-medium">{getDisplayName(m)}</span>
+                    </div>
+                    <span className={`text-[10px] truncate ${mutedText}`}>{m.departmentName || "General"}</span>
+                  </label>
+                );
+              })}
+            </div>
           </div>
 
           <div className={`pt-4 flex justify-end gap-2 border-t ${borderCol}`}>

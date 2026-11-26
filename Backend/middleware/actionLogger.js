@@ -18,6 +18,13 @@ function sanitizePayload(obj) {
     "refreshtoken",
     "accesstoken",
     "apikey",
+    "api_key",
+    "secretkey",
+    "encryptedkey",
+    "openaikey",
+    "anthropickey",
+    "geminikey",
+    "key",
   ]);
 
   if (Array.isArray(obj)) {
@@ -77,11 +84,37 @@ function inferActionName(req) {
     return "FILE_READ";
   }
 
+  // Requests, Departments, Roles, Audit
+  if (path.includes("/requests")) {
+    if (path.includes("/approve")) return "REQUEST_APPROVE";
+    if (path.includes("/reject")) return "REQUEST_REJECT";
+    if (method === "POST") return "REQUEST_CREATE";
+    return "REQUEST_READ";
+  }
+  if (path.includes("/departments")) {
+    if (path.includes("/members")) return method === "DELETE" ? "DEPT_MEMBER_REMOVE" : "DEPT_MEMBER_ADD";
+    if (method === "POST") return "DEPT_CREATE";
+    if (method === "PUT" || method === "PATCH") return "DEPT_UPDATE";
+    if (method === "DELETE") return "DEPT_DELETE";
+    return "DEPT_READ";
+  }
+  if (path.includes("/roles")) {
+    if (path.includes("/assign")) return "ROLE_ASSIGN_USER";
+    if (method === "POST") return "ROLE_CREATE";
+    if (method === "PUT" || method === "PATCH") return "ROLE_UPDATE";
+    if (method === "DELETE") return "ROLE_DELETE";
+    return "ROLE_READ";
+  }
+  if (path.includes("/audit")) return "AUDIT_QUERY";
+
   // Comments & Chat
   if (path.includes("/comments")) return `COMMENT_${method}`;
+  if (path.includes("/chat/messages") && path.includes("/pin")) return "CHAT_PIN_TOGGLE";
   if (path.includes("/chat")) return `CHAT_${method}`;
 
   // Users & Admin
+  if (path.includes("/users/join-requests") && path.includes("/approve")) return "JOIN_REQUEST_APPROVE";
+  if (path.includes("/users/join-requests") && path.includes("/reject")) return "JOIN_REQUEST_REJECT";
   if (path.includes("/users")) return `USER_${method}`;
   if (path.includes("/admin")) return `ADMIN_${method}`;
   if (path.includes("/analytics")) return "ANALYTICS_QUERY";
@@ -95,6 +128,16 @@ function inferActionName(req) {
  * and passes enriched action data to the batched logger for timed disk and DB preservation.
  */
 function actionLoggerMiddleware(req, res, next) {
+  const pathUrl = req.path || req.originalUrl || "/";
+  // Skip high-frequency health/polling read endpoints to keep audit log high-signal
+  if (
+    pathUrl.endsWith("/ping") ||
+    pathUrl.endsWith("/health") ||
+    (req.method === "GET" && (pathUrl.includes("/notifications") || pathUrl.includes("/chat/conversations") || pathUrl.includes("/audit")))
+  ) {
+    return next();
+  }
+
   const startTime = process.hrtime.bigint();
   const actionId = crypto.randomUUID();
 
@@ -119,6 +162,8 @@ function actionLoggerMiddleware(req, res, next) {
 
       const user = req.user?._id || req.user?.id || null;
       const userEmail = req.user?.email || null;
+      const userName = req.user?.fullname || null;
+      const userPublicId = req.user?.publicId || null;
       const userRole = req.user?.role || "guest";
 
       const statusCode = res.statusCode;
@@ -143,6 +188,8 @@ function actionLoggerMiddleware(req, res, next) {
         userAgent,
         user,
         userEmail,
+        userName,
+        userPublicId,
         userRole,
         status,
         details,

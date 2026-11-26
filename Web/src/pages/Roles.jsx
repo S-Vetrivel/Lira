@@ -26,6 +26,7 @@ import {
   createDepartment,
 } from "../services/api";
 import SideDrawer from "../components/common/SideDrawer";
+import AIVaultPanel from "../components/admin/AIVaultPanel";
 import toast from "react-hot-toast";
 
 const ROLE_COLORS = [
@@ -350,6 +351,23 @@ export default function Roles() {
           <Building className="w-3.5 h-3.5" />
           <span>Departments Setup ({departments.length})</span>
         </button>
+
+        {(isSuperAdmin || hasPermission("ai.manage")) && (
+          <button
+            type="button"
+            onClick={() => setActiveTab("ai")}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              activeTab === "ai"
+                ? "lira-btn-primary"
+                : isDark
+                ? "text-zinc-400 hover:text-white hover:bg-white/[0.06]"
+                : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+            <span>AI Models & Encrypted Vault</span>
+          </button>
+        )}
       </div>
 
       {/* TAB 1: ROLES & MODULES */}
@@ -496,6 +514,11 @@ export default function Roles() {
             </div>
           ))}
         </div>
+      )}
+
+      {/* TAB 3: SUPERADMIN AI MODELS & ENCRYPTED KEY VAULT */}
+      {activeTab === "ai" && (isSuperAdmin || hasPermission("ai.manage")) && (
+        <AIVaultPanel isDark={isDark} />
       )}
 
       {/* Role & Module Mapping SideDrawer */}

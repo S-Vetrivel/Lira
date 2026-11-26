@@ -23,6 +23,7 @@ import Analytics from "./pages/Analytics";
 import Team from "./pages/Team";
 import Projects from "./pages/Projects";
 import Roles from "./pages/Roles";
+import AuditLogs from "./pages/AuditLogs";
 import Profile from "./pages/Profile";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
@@ -129,6 +130,9 @@ function App() {
             </Route>
             <Route element={<ModuleRoute moduleKeys={["rbac"]} />}>
               <Route path="/roles" element={<Roles />} />
+            </Route>
+            <Route element={<ModuleRoute moduleKeys={["audit"]} />}>
+              <Route path="/audit" element={<AuditLogs />} />
             </Route>
             <Route path="/profile" element={<Profile />} />
           </Route>

@@ -959,16 +959,33 @@ exports.submitForReview = async (req, res) => {
     await createNotification({
       recipient: task.reporter,
       sender: req.user._id,
+      publicId: req.user?.publicId,
       type: "task_updated",
-      title: "Task Submitted for Review",
+      title: `Review Requested (${task.key})`,
       message: `${req.user.fullname} submitted ${task.key} for your approval.`,
       task: task._id,
       project: task.project,
+      alsoEmail: true,
+      emailType: "task_approval_request",
+      emailData: {
+        code: task.key,
+        title: task.title,
+        requesterName: req.user.fullname || req.user.email,
+        stageName: "Review Verification",
+      },
+      actionUrl: "/board",
     });
 
     await enqueueWebSocketEvent({
       target: "project",
       room: task.project.toString(),
+      event: "task:status_changed",
+      data: { taskId: task._id, newStatus: "submitted_for_review", task },
+    });
+
+    await enqueueWebSocketEvent({
+      target: "all",
+      room: "global",
       event: "task:status_changed",
       data: { taskId: task._id, newStatus: "submitted_for_review", task },
     });
@@ -1000,21 +1017,47 @@ exports.approveTask = async (req, res) => {
       details: note || "Manager verified and approved task completion",
     });
 
-    if (task.assignee) {
-      await createNotification({
-        recipient: task.assignee,
-        sender: req.user._id,
-        type: "task_updated",
-        title: "Work Approved ✅",
-        message: `${task.key} has been reviewed and approved by ${req.user.fullname}.`,
-        task: task._id,
-        project: task.project,
-      });
-    }
+    const approveRecipients = Array.from(
+      new Set([
+        ...(task.assignee ? [task.assignee.toString()] : []),
+        ...(task.assignees || []).map((a) => a.toString()),
+      ])
+    );
+    await Promise.all(
+      approveRecipients.map((uid) =>
+        createNotification({
+          recipient: uid,
+          sender: req.user._id,
+          publicId: req.user?.publicId,
+          type: "task_updated",
+          title: `Work Approved (${task.key})`,
+          message: `${task.key} has been reviewed and approved by ${req.user.fullname}.`,
+          task: task._id,
+          project: task.project,
+          alsoEmail: true,
+          emailType: "task_approval_decision",
+          emailData: {
+            code: task.key,
+            title: task.title,
+            decision: "Approved",
+            reviewerName: req.user.fullname || req.user.email,
+            comment: note || "Approved",
+          },
+          actionUrl: "/board",
+        })
+      )
+    );
 
     await enqueueWebSocketEvent({
       target: "project",
       room: task.project.toString(),
+      event: "task:status_changed",
+      data: { taskId: task._id, newStatus: "done", task },
+    });
+
+    await enqueueWebSocketEvent({
+      target: "all",
+      room: "global",
       event: "task:status_changed",
       data: { taskId: task._id, newStatus: "done", task },
     });
@@ -1054,21 +1097,47 @@ exports.requestRevision = async (req, res) => {
       details: `Revision requested: "${feedback.trim()}"`,
     });
 
-    if (task.assignee) {
-      await createNotification({
-        recipient: task.assignee,
-        sender: req.user._id,
-        type: "task_updated",
-        title: "Revision Requested 🔄",
-        message: `${req.user.fullname} requested redo on ${task.key}: "${feedback.trim()}"`,
-        task: task._id,
-        project: task.project,
-      });
-    }
+    const redoRecipients = Array.from(
+      new Set([
+        ...(task.assignee ? [task.assignee.toString()] : []),
+        ...(task.assignees || []).map((a) => a.toString()),
+      ])
+    );
+    await Promise.all(
+      redoRecipients.map((uid) =>
+        createNotification({
+          recipient: uid,
+          sender: req.user._id,
+          publicId: req.user?.publicId,
+          type: "task_updated",
+          title: `Revision Requested (${task.key})`,
+          message: `${req.user.fullname} requested redo on ${task.key}: "${feedback.trim()}"`,
+          task: task._id,
+          project: task.project,
+          alsoEmail: true,
+          emailType: "task_approval_decision",
+          emailData: {
+            code: task.key,
+            title: task.title,
+            decision: "Revision Requested",
+            reviewerName: req.user.fullname || req.user.email,
+            comment: feedback.trim(),
+          },
+          actionUrl: "/board",
+        })
+      )
+    );
 
     await enqueueWebSocketEvent({
       target: "project",
       room: task.project.toString(),
+      event: "task:status_changed",
+      data: { taskId: task._id, newStatus: "redo_requested", task },
+    });
+
+    await enqueueWebSocketEvent({
+      target: "all",
+      room: "global",
       event: "task:status_changed",
       data: { taskId: task._id, newStatus: "redo_requested", task },
     });

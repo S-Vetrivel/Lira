@@ -260,14 +260,14 @@ export const AppProvider = ({ children }) => {
         canTasks ? getTasks({ status: "review" }) : Promise.resolve({ success: false }),
       ]);
       if (reqsRes.status === "fulfilled" && reqsRes.value?.success) {
-        const myActionableReqs = (reqsRes.value.requests || []).filter((r) => {
-          if (r.status !== "submitted" && r.status !== "in_review") return false;
-          const stage = r.stages?.[r.currentStageIndex];
-          if (!stage || stage.status !== "pending") return false;
-          if (user.role === "admin") return true;
-          if (user.role === "manager") return stage.roleRequired === "manager";
-          return false;
-        });
+        const canApproveReqs = isSuperAdmin || hasPermission("requests.approve");
+        const myActionableReqs = canApproveReqs
+          ? (reqsRes.value.requests || []).filter((r) => {
+              if (r.status !== "submitted" && r.status !== "in_review") return false;
+              const stage = r.stages?.[r.currentStageIndex];
+              return Boolean(stage && stage.status === "pending");
+            })
+          : [];
         setPendingRequestsCount(myActionableReqs.length);
       }
       if (myRes.status === "fulfilled" && myRes.value?.success) {
@@ -424,7 +424,7 @@ export const AppProvider = ({ children }) => {
       };
 
       const handleNewJoinRequest = ({ user: applicant }) => {
-        if (!applicant || (user.role !== "admin" && user.role !== "manager")) return;
+        if (!applicant || (!isSuperAdmin && !hasPermission("team.join_requests"))) return;
         setPendingJoinCount((c) => c + 1);
         toast(
           (t) => (
@@ -520,6 +520,9 @@ export const AppProvider = ({ children }) => {
       socket.on("join-request:updated", handleUpdatedJoinRequest);
       socket.on("request:created", handleRequestEvent);
       socket.on("request:updated", handleRequestEvent);
+      socket.on("department:updated", refreshDepartments);
+      socket.on("project:updated", refreshProjects);
+      socket.on("team:updated", refreshTeam);
       socket.on("task:created_global", handleTaskEvent);
       socket.on("task:updated", handleTaskEvent);
       socket.on("task:status_changed", handleTaskEvent);

@@ -914,13 +914,84 @@ export async function assignUserRole(userId, payload) {
 }
 
 // ==========================================
-// AI ASSISTANT APIs (Gemini 1.5 Flash)
+// AI ENGINE, MODELS CATALOG & ENCRYPTED KEY VAULT APIs
 // ==========================================
-export async function getAITaskBreakdown(title, description) {
+export async function getAITaskBreakdown(title, description, options = {}) {
   try {
-    const res = await api.post("/ai/breakdown", { title, description });
-    return { success: true, aiSuggestion: res.data.aiSuggestion };
+    const res = await api.post("/ai/breakdown", { title, description, ...options });
+    return {
+      success: true,
+      aiSuggestion: res.data.aiSuggestion,
+      provider: res.data.provider,
+      model: res.data.model,
+    };
   } catch (error) {
     return { success: false };
+  }
+}
+
+export async function getAIModelsSummary() {
+  try {
+    const res = await api.get("/ai/models");
+    return res.data;
+  } catch (error) {
+    return { success: false, providers: [] };
+  }
+}
+
+export async function getAIAdminConfig() {
+  try {
+    const res = await api.get("/ai/config");
+    return res.data;
+  } catch (error) {
+    return { success: false, providers: [] };
+  }
+}
+
+export async function updateAIAdminConfig(provider, payload) {
+  try {
+    const res = await api.put(`/ai/config/${provider}`, payload);
+    toast.success(res.data.message || "AI provider settings saved");
+    return res.data;
+  } catch (error) {
+    toast.error(error.response?.data?.message || "Failed to update AI provider");
+    return { success: false };
+  }
+}
+
+export async function revokeAIAdminKey(provider) {
+  try {
+    const res = await api.delete(`/ai/config/${provider}/key`);
+    toast.success(res.data.message || "Encrypted key removed");
+    return res.data;
+  } catch (error) {
+    return { success: false };
+  }
+}
+
+export async function testAIProviderConnection(provider, payload = {}) {
+  try {
+    const res = await api.post(`/ai/config/${provider}/test`, payload);
+    if (res.data.success) {
+      toast.success(res.data.message || "AI Connection verified");
+    } else {
+      toast.error(res.data.message || "Connection test failed");
+    }
+    return res.data;
+  } catch (error) {
+    toast.error(error.response?.data?.message || "Connection test failed");
+    return { success: false };
+  }
+}
+
+// ==========================================
+// SUPERADMIN AUDIT LOG & SYSTEM MONITOR APIs
+// ==========================================
+export async function getAuditOverview(params = {}) {
+  try {
+    const res = await api.get("/audit/overview", { params });
+    return res.data;
+  } catch (error) {
+    return { success: false, auditLogs: [], onlineUsers: [], offlineUsers: [], teamsOverview: [] };
   }
 }

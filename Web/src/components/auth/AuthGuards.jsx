@@ -152,6 +152,7 @@ const MODULE_FALLBACK_ORDER = [
   { moduleKey: "departments", path: "/projects" },
   { moduleKey: "team", path: "/team" },
   { moduleKey: "rbac", path: "/roles" },
+  { moduleKey: "audit", path: "/audit" },
 ];
 
 export function getFirstAllowedRoute({ isSuperAdmin, hasModule }) {

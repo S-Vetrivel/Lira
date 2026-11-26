@@ -137,7 +137,7 @@ export default function Team() {
   };
 
   const fetchJoinRequests = async () => {
-    if (user?.role === "admin" || user?.role === "manager") {
+    if (isSuperAdmin || hasPermission("team.join_requests") || user?.role === "admin" || user?.role === "manager") {
       const res = await getPendingJoinRequests();
       if (res.success) {
         setPendingRequests(res.requests || []);
@@ -600,16 +600,37 @@ export default function Team() {
 
                   {/* Footer & Controls */}
                   <div className={`pt-4 mt-3 border-t flex items-center justify-between gap-2 ${isDark ? "border-white/[0.06]" : "border-slate-100"}`}>
-                    <span
-                      className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full border ${member.role === "admin"
-                        ? isDark ? "bg-white/[0.08] text-zinc-100 border-white/[0.15]" : "bg-zinc-900 text-white border-zinc-900"
-                        : member.role === "manager"
-                          ? isDark ? "bg-amber-500/10 text-amber-300 border-amber-500/20" : "bg-amber-50 text-amber-700 border-amber-200"
-                          : "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
-                        }`}
-                    >
-                      <span>{member.role === "admin" ? "Admin" : member.role === "manager" ? "Manager" : "Member"}</span>
-                    </span>
+                    {(() => {
+                      const roleObj = roles?.find((r) => r.name === member.role);
+                      const roleLabel =
+                        roleObj?.displayName ||
+                        (member.role === "superadmin"
+                          ? "Superadmin"
+                          : member.role === "admin"
+                            ? "Admin"
+                            : member.role === "manager"
+                              ? "Manager"
+                              : member.role || "Member");
+                      return (
+                        <span
+                          className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full border ${
+                            member.role === "superadmin"
+                              ? "bg-purple-500/15 text-purple-300 border-purple-500/30"
+                              : member.role === "admin"
+                                ? isDark
+                                  ? "bg-white/[0.08] text-zinc-100 border-white/[0.15]"
+                                  : "bg-zinc-900 text-white border-zinc-900"
+                                : member.role === "manager"
+                                  ? isDark
+                                    ? "bg-amber-500/10 text-amber-300 border-amber-500/20"
+                                    : "bg-amber-50 text-amber-700 border-amber-200"
+                                  : "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
+                          }`}
+                        >
+                          <span>{roleLabel}</span>
+                        </span>
+                      );
+                    })()}
 
                     <div className="flex items-center gap-1.5">
                       <button
@@ -638,7 +659,7 @@ export default function Team() {
                         </button>
                       )}
 
-                      {user?.role === "admin" && member._id !== user._id && (
+                      {(isSuperAdmin || hasPermission("team.delete") || user?.role === "admin") && member._id !== user._id && (
                         <button
                           onClick={() => handleDeactivateUser(member._id, member.fullname)}
                           className="text-xs text-rose-400 hover:text-rose-300 p-1.5 rounded-lg hover:bg-rose-500/10 transition-colors cursor-pointer"

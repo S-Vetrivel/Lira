@@ -52,6 +52,17 @@ const RequestSchema = new Schema(
       ref: "Department",
       index: true,
     },
+    targetProject: {
+      type: Schema.Types.ObjectId,
+      ref: "Project",
+      index: true,
+    },
+    targetUsers: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
     requester: {
       type: Schema.Types.ObjectId,
       ref: "User",

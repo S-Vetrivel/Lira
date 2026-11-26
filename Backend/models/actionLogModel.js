@@ -52,6 +52,13 @@ const ActionLogSchema = new Schema(
       type: String,
       index: true,
     },
+    userName: {
+      type: String,
+    },
+    userPublicId: {
+      type: String,
+      index: true,
+    },
     userRole: {
       type: String,
       default: "guest",

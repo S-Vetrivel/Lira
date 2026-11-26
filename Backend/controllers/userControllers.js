@@ -113,13 +113,32 @@ exports.createUser = async (req, res) => {
       department: deptId || null,
       departmentName: deptName || "General",
       jobTitle: jobTitle || "Team Member",
-      phone: phone || "",
+      ...(phone && phone.trim() ? { phone: phone.trim() } : {}),
       avatar: "",
     });
 
     const populated = await User.findById(newUser._id)
       .select("-password")
       .populate("department");
+
+    await createNotification({
+      recipient: newUser._id,
+      sender: req.user._id,
+      allowSelf: true,
+      publicId,
+      type: "system",
+      title: "Welcome to Lira Workspace",
+      message: `${req.user.fullname} created your workspace account (${userRole} • ${deptName || "General"}).`,
+      alsoEmail: true,
+      recipientEmail: cleanEmail,
+      actionUrl: "/",
+    });
+
+    enqueueWebSocketEvent({
+      target: "all",
+      event: "team:updated",
+      data: { action: "user_created", user: populated },
+    });
 
     res.status(201).json({ success: true, user: populated });
   } catch (error) {
@@ -165,7 +184,7 @@ exports.updateUser = async (req, res) => {
     }
     if (departmentName) updates.departmentName = departmentName;
     if (jobTitle !== undefined) updates.jobTitle = jobTitle;
-    if (phone !== undefined) updates.phone = phone;
+    if (phone !== undefined && phone.trim()) updates.phone = phone.trim();
     if (bio !== undefined) updates.bio = bio;
     if (status) updates.status = status;
     if (isActive !== undefined) updates.isActive = isActive;
@@ -180,11 +199,28 @@ exports.updateUser = async (req, res) => {
       await createNotification({
         recipient: user._id,
         sender: req.user._id,
+        publicId: user.publicId,
         type: "system",
         title: "Account Updated",
         message: `${req.user.fullname} updated your account details (${user.role} • ${user.departmentName}).`,
+        alsoEmail: true,
+        recipientEmail: user.email,
+        actionUrl: "/",
+      });
+
+      enqueueWebSocketEvent({
+        target: "user",
+        room: user._id.toString(),
+        event: "rbac:user-updated",
+        data: { userId: user._id },
       });
     }
+
+    enqueueWebSocketEvent({
+      target: "all",
+      event: "team:updated",
+      data: { action: "user_updated", userId: user._id },
+    });
 
     res.status(200).json({ success: true, user });
   } catch (error) {
@@ -365,7 +401,9 @@ exports.approveJoinRequest = async (req, res) => {
       }
     }
 
-    user.role = role || user.joinRequest?.requestedRole || "employee";
+    user.role = (role || user.joinRequest?.requestedRole || "employee").toLowerCase().trim();
+    const matchedRole = await Role.findOne({ name: user.role }).select("_id").lean();
+    if (matchedRole) user.roleRef = matchedRole._id;
     user.status = "active";
     user.isActive = true;
     user.department = deptId;

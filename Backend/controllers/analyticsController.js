@@ -2,9 +2,12 @@ const Task = require("../models/taskModel");
 const Project = require("../models/projectModel");
 const User = require("../models/userModel");
 const Department = require("../models/departmentModel");
+const Role = require("../models/roleModel");
 const ActionLog = require("../models/actionLogModel");
 const ActivityLog = require("../models/activityLogModel");
 const batchLogger = require("../services/batchLogger");
+const { getOnlineUserIds } = require("../config/socket");
+const { isSuperAdminUser, hasWildcardPermission } = require("../utils/roles");
 
 const HOURLY_RATE_INR = 1500;
 
@@ -360,82 +363,96 @@ exports.getManagerOverview = async (req, res) => {
       .limit(10)
       .lean();
 
-    // 10. Role-Specific Personal Data
-    let userRoleData = {
+    // 10. Dynamic Module/Permission-Driven Role Metrics (supports any dynamic role created by Superadmin)
+    const hasOrgScope =
+      isSuperAdminUser(currentUser) ||
+      hasWildcardPermission(currentUser.permissions, "projects.view") ||
+      hasWildcardPermission(currentUser.permissions, "team.view") ||
+      hasWildcardPermission(currentUser.permissions, "departments.view") ||
+      hasWildcardPermission(currentUser.permissions, "dashboard.logs");
+
+    const userRoleData = {
       role: currentUser.role,
+      roleDisplayName: currentUser.roleDisplayName || currentUser.role,
+      isSuperAdmin: isSuperAdminUser(currentUser),
+      hasOrgScope,
       userId: currentUser._id,
       fullname: currentUser.fullname,
     };
 
-    if (currentUser.role === "employee") {
-      const myTasks = await Task.find({ ...taskFilter, assignee: currentUser._id }).lean();
-      const myDone = myTasks.filter((t) => t.status === "done").length;
-      const myInProgress = myTasks.filter((t) =>
-        ["in_progress", "redo_requested"].includes(t.status)
-      ).length;
-      const myReview = myTasks.filter((t) =>
-        ["review", "submitted_for_review"].includes(t.status)
-      ).length;
-      const myTodo = myTasks.filter((t) => t.status === "todo").length;
-      const myOverdue = myTasks.filter(
-        (t) => t.status !== "done" && t.dueDate && new Date(t.dueDate) < now
-      ).length;
+    const myOrFilter = [{ assignee: currentUser._id }, { assignees: currentUser._id }];
+    if (currentUser.department) {
+      myOrFilter.push({ assignedDepartments: currentUser.department });
+    }
+    const myTasks = await Task.find({ ...taskFilter, $or: myOrFilter }).lean();
+    const myDone = myTasks.filter((t) => t.status === "done").length;
+    const myInProgress = myTasks.filter((t) =>
+      ["in_progress", "redo_requested"].includes(t.status)
+    ).length;
+    const myReview = myTasks.filter((t) =>
+      ["review", "submitted_for_review"].includes(t.status)
+    ).length;
+    const myTodo = myTasks.filter((t) => t.status === "todo").length;
+    const myOverdue = myTasks.filter(
+      (t) => t.status !== "done" && t.dueDate && new Date(t.dueDate) < now
+    ).length;
 
-      let myLoggedHours = 0;
-      let myEstimatedHours = 0;
-      myTasks.forEach((t) => {
-        myEstimatedHours += Number(t.estimatedHours) || 0;
-        myLoggedHours += Number(t.loggedHours) || 0;
-      });
+    let myLoggedHours = 0;
+    let myEstimatedHours = 0;
+    myTasks.forEach((t) => {
+      myEstimatedHours += Number(t.estimatedHours) || 0;
+      myLoggedHours += Number(t.loggedHours) || 0;
+    });
 
-      userRoleData.myMetrics = {
-        totalTasks: myTasks.length,
-        doneTasks: myDone,
-        inProgressTasks: myInProgress,
-        reviewTasks: myReview,
-        todoTasks: myTodo,
-        overdueCount: myOverdue,
-        loggedHours: Math.round(myLoggedHours * 10) / 10,
-        estimatedHours: Math.round(myEstimatedHours * 10) / 10,
-        completionRate: myTasks.length > 0 ? Math.round((myDone / myTasks.length) * 100) : 0,
-      };
+    userRoleData.myMetrics = {
+      totalTasks: myTasks.length,
+      doneTasks: myDone,
+      inProgressTasks: myInProgress,
+      reviewTasks: myReview,
+      todoTasks: myTodo,
+      overdueCount: myOverdue,
+      loggedHours: Math.round(myLoggedHours * 10) / 10,
+      estimatedHours: Math.round(myEstimatedHours * 10) / 10,
+      completionRate: myTasks.length > 0 ? Math.round((myDone / myTasks.length) * 100) : 0,
+    };
 
-      userRoleData.myStatusBreakdown = {
-        inProgress: {
-          count: myInProgress,
-          percentage: myTasks.length > 0 ? Math.round((myInProgress / myTasks.length) * 100) : 0,
-        },
-        done: {
-          count: myDone,
-          percentage: myTasks.length > 0 ? Math.round((myDone / myTasks.length) * 100) : 0,
-        },
-        review: {
-          count: myReview,
-          percentage: myTasks.length > 0 ? Math.round((myReview / myTasks.length) * 100) : 0,
-        },
-        todo: {
-          count: myTodo,
-          percentage: myTasks.length > 0 ? Math.round((myTodo / myTasks.length) * 100) : 0,
-        },
-      };
-    } else if (currentUser.role === "manager") {
+    userRoleData.myStatusBreakdown = {
+      inProgress: {
+        count: myInProgress,
+        percentage: myTasks.length > 0 ? Math.round((myInProgress / myTasks.length) * 100) : 0,
+      },
+      done: {
+        count: myDone,
+        percentage: myTasks.length > 0 ? Math.round((myDone / myTasks.length) * 100) : 0,
+      },
+      review: {
+        count: myReview,
+        percentage: myTasks.length > 0 ? Math.round((myReview / myTasks.length) * 100) : 0,
+      },
+      todo: {
+        count: myTodo,
+        percentage: myTasks.length > 0 ? Math.round((myTodo / myTasks.length) * 100) : 0,
+      },
+    };
+
+    if (hasOrgScope) {
       const unassignedTasksCount = await Task.countDocuments({
         ...taskFilter,
         assignee: null,
+        $or: [{ assignees: { $exists: false } }, { assignees: { $size: 0 } }],
       });
-
       const overloadedMembersCount = teamWorkload.filter((m) => m.isOverloaded).length;
+      const [totalDepartmentsCount, totalUsersCount, totalProjectsCount] = await Promise.all([
+        Department.countDocuments(),
+        User.countDocuments({ isActive: true, status: "active" }),
+        Project.countDocuments({ status: { $ne: "archived" } }),
+      ]);
 
       userRoleData.managerMetrics = {
         unassignedTasksCount,
         overloadedMembersCount,
         totalTeamMembers: activeUsers.length,
       };
-    } else if (currentUser.role === "admin" || currentUser.role === "superadmin" || currentUser.isSuperAdmin) {
-      const totalDepartmentsCount = await Department.countDocuments();
-      const totalUsersCount = await User.countDocuments({ isActive: true, status: "active" });
-      const totalProjectsCount = await Project.countDocuments({ status: { $ne: "archived" } });
-
       userRoleData.adminMetrics = {
         totalDepartmentsCount,
         totalUsersCount,
@@ -479,15 +496,19 @@ exports.getManagerOverview = async (req, res) => {
 // ==============================================
 exports.getActionLogs = async (req, res) => {
   try {
-    const { page = 1, limit = 50, action, status, search } = req.query;
+    await batchLogger.flush().catch(() => {});
+    const { page = 1, limit = 50, action, status, userId, search } = req.query;
     const query = {};
 
     if (action) query.action = action;
     if (status) query.status = status;
+    if (userId) query.user = userId;
     if (search) {
       query.$or = [
         { path: { $regex: search, $options: "i" } },
         { userEmail: { $regex: search, $options: "i" } },
+        { userName: { $regex: search, $options: "i" } },
+        { userPublicId: { $regex: search, $options: "i" } },
         { action: { $regex: search, $options: "i" } },
       ];
     }
@@ -497,7 +518,7 @@ exports.getActionLogs = async (req, res) => {
       .sort({ timestamp: -1 })
       .skip(skip)
       .limit(Number(limit))
-      .populate("user", "fullname email role avatar")
+      .populate("user", "fullname email role avatar publicId departmentName")
       .lean();
 
     const total = await ActionLog.countDocuments(query);
@@ -526,6 +547,168 @@ exports.getActionLogStats = async (req, res) => {
       metrics,
       totalCount,
       recentErrors,
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ==============================================
+// 3. SUPERADMIN AUDIT + ONLINE USERS + TEAMS OVERVIEW
+// ==============================================
+exports.getAuditOverview = async (req, res) => {
+  try {
+    await batchLogger.flush().catch(() => {});
+
+    const { page = 1, limit = 40, action, status, userId, search } = req.query;
+    const query = {};
+    if (action) query.action = action;
+    if (status) query.status = status;
+    if (userId) query.user = userId;
+    if (search) {
+      query.$or = [
+        { path: { $regex: search, $options: "i" } },
+        { userEmail: { $regex: search, $options: "i" } },
+        { userName: { $regex: search, $options: "i" } },
+        { userPublicId: { $regex: search, $options: "i" } },
+        { action: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    const onlineIds = getOnlineUserIds();
+    const onlineSet = new Set(onlineIds.map(String));
+
+    const [
+      allUsers,
+      departments,
+      projects,
+      roles,
+      auditLogs,
+      totalLogs,
+      errorLogsCount,
+      domainActivity,
+      openTasks,
+    ] = await Promise.all([
+      User.find({ isActive: true, status: { $ne: "rejected" } })
+        .select("fullname email publicId role department departmentName jobTitle avatar profilePicture status updatedAt")
+        .sort({ fullname: 1 })
+        .lean(),
+      Department.find()
+        .populate("lead", "fullname email publicId avatar")
+        .sort({ name: 1 })
+        .lean(),
+      Project.find({ status: { $ne: "archived" } })
+        .populate("department", "name code")
+        .populate("departments", "name code")
+        .lean(),
+      Role.find().select("name displayName color isSystem modules permissions").lean(),
+      ActionLog.find(query)
+        .sort({ timestamp: -1 })
+        .skip((Number(page) - 1) * Number(limit))
+        .limit(Number(limit))
+        .populate("user", "fullname email role avatar publicId departmentName")
+        .lean(),
+      ActionLog.countDocuments(query),
+      ActionLog.countDocuments({ statusCode: { $gte: 400 } }),
+      ActivityLog.find()
+        .sort({ createdAt: -1 })
+        .limit(30)
+        .populate("user", "fullname email publicId role avatar")
+        .populate("task", "key title status")
+        .populate("project", "name prefix")
+        .lean(),
+      Task.find().select("project department assignedDepartments status dueDate").lean(),
+    ]);
+
+    const now = new Date();
+    const onlineUsers = allUsers
+      .filter((u) => onlineSet.has(u._id.toString()))
+      .map((u) => ({ ...u, isOnline: true }));
+
+    const offlineUsers = allUsers
+      .filter((u) => !onlineSet.has(u._id.toString()))
+      .map((u) => ({ ...u, isOnline: false }));
+
+    const teamsOverview = departments.map((dept) => {
+      const deptId = dept._id.toString();
+      const members = allUsers.filter(
+        (u) => String(u.department) === deptId || u.departmentName === dept.name
+      );
+      const onlineMembers = members.filter((m) => onlineSet.has(m._id.toString()));
+      const linkedProjects = projects.filter(
+        (p) =>
+          String(p.department?._id || p.department) === deptId ||
+          (p.departments || []).some((pd) => String(pd._id || pd) === deptId)
+      );
+      const deptTasks = openTasks.filter(
+        (t) =>
+          String(t.department) === deptId ||
+          (t.assignedDepartments || []).some((td) => String(td) === deptId)
+      );
+      return {
+        _id: dept._id,
+        name: dept.name,
+        code: dept.code,
+        color: dept.color,
+        description: dept.description,
+        lead: dept.lead,
+        membersCount: members.length,
+        onlineCount: onlineMembers.length,
+        projectsCount: linkedProjects.length,
+        totalTasks: deptTasks.length,
+        doneTasks: deptTasks.filter((t) => t.status === "done").length,
+        overdueTasks: deptTasks.filter(
+          (t) => t.status !== "done" && t.dueDate && new Date(t.dueDate) < now
+        ).length,
+        members: members.map((m) => ({ ...m, isOnline: onlineSet.has(m._id.toString()) })),
+      };
+    });
+
+    const projectsOverview = projects.map((p) => {
+      const pTasks = openTasks.filter((t) => String(t.project) === String(p._id));
+      const doneCount = pTasks.filter((t) => t.status === "done").length;
+      return {
+        _id: p._id,
+        name: p.name,
+        prefix: p.prefix,
+        status: p.status,
+        membersCount: p.members?.length || 0,
+        departmentsCount:
+          (p.departments?.length || 0) > 0 ? p.departments.length : p.department ? 1 : 0,
+        totalTasks: pTasks.length,
+        doneTasks: doneCount,
+        progressPercent: pTasks.length > 0 ? Math.round((doneCount / pTasks.length) * 100) : 0,
+      };
+    });
+
+    const pendingJoinRequests = allUsers.filter((u) => u.status === "pending_approval").length;
+
+    res.status(200).json({
+      success: true,
+      summary: {
+        totalActiveUsers: allUsers.length,
+        onlineCount: onlineUsers.length,
+        teamsCount: departments.length,
+        projectsCount: projects.length,
+        rolesCount: roles.length,
+        totalLogs,
+        errorLogsCount,
+        pendingJoinRequests,
+      },
+      onlineUsers,
+      offlineUsers,
+      teamsOverview,
+      projectsOverview,
+      rolesSummary: roles.map((r) => ({
+        ...r,
+        usersCount: allUsers.filter((u) => u.role === r.name).length,
+      })),
+      auditLogs,
+      total: totalLogs,
+      page: Number(page),
+      totalPages: Math.ceil(totalLogs / Number(limit)),
+      domainActivity,
+      metrics: batchLogger.getMetrics(),
     });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });

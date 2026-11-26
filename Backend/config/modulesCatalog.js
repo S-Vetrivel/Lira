@@ -105,11 +105,12 @@ const MODULES_CATALOG = [
   },
   {
     key: "ai",
-    name: "AI Task Assistant",
-    description: "Gemini-powered task breakdown and effort estimation",
+    name: "AI Task Assistant & Vault",
+    description: "Multi-provider AI assistants (OpenAI, Claude, Gemini) and encrypted Superadmin/user API keys",
     route: "#ai",
     actions: [
-      { slug: "ai.use", label: "Use AI Breakdown", description: "Generate subtasks and estimates using Gemini AI" },
+      { slug: "ai.use", label: "Use AI Assistants", description: "Run AI task breakdowns and module assistants" },
+      { slug: "ai.manage", label: "Manage AI Providers & Encrypted Keys", description: "Configure global AI models, invoke encrypted keys, and test connections" },
     ],
   },
   {
@@ -120,6 +121,15 @@ const MODULES_CATALOG = [
     actions: [
       { slug: "rbac.view", label: "View Roles & Modules", description: "Inspect configured dynamic roles and module permissions" },
       { slug: "rbac.manage", label: "Manage Roles & Modules", description: "Create/edit roles, departments, and assign modules" },
+    ],
+  },
+  {
+    key: "audit",
+    name: "Audit & System Monitor",
+    description: "Superadmin audit trail of user actions, live online sessions, and teams overview",
+    route: "/audit",
+    actions: [
+      { slug: "audit.view", label: "View Audit & Online Overview", description: "Inspect user actions, online users, and org-wide team status" },
     ],
   },
 ];

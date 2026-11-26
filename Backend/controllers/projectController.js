@@ -196,9 +196,18 @@ exports.createProject = async (req, res) => {
     await notifyUsers({
       recipients: memberIds,
       sender: req.user._id,
+      publicId: req.user?.publicId,
       type: "project_update",
-      title: "Added to Project",
+      title: `Added to Project [${cleanPrefix}]`,
       message: `${req.user.fullname} added you to project [${cleanPrefix}] ${name.trim()}.`,
+      alsoEmail: true,
+      actionUrl: "/projects",
+    });
+
+    await enqueueWebSocketEvent({
+      target: "all",
+      event: "project:updated",
+      data: populated,
     });
 
     res.status(201).json({ success: true, project: populated });
@@ -282,14 +291,23 @@ exports.addProjectMember = async (req, res) => {
     await createNotification({
       recipient: userId,
       sender: req.user._id,
+      publicId: req.user?.publicId,
       type: "project_update",
-      title: "Project Access Granted",
+      title: `Project Access Granted [${project.prefix}]`,
       message: `${req.user.fullname} added you to [${project.prefix}] ${project.name}.`,
+      alsoEmail: true,
+      actionUrl: "/projects",
     });
 
     await enqueueWebSocketEvent({
       target: "project",
       room: project._id.toString(),
+      event: "project:updated",
+      data: project,
+    });
+
+    await enqueueWebSocketEvent({
+      target: "all",
       event: "project:updated",
       data: project,
     });
@@ -509,9 +527,12 @@ exports.invokeProjectDepartment = async (req, res) => {
       await notifyUsers({
         recipients: userIds,
         sender: req.user._id,
+        publicId: req.user?.publicId,
         type: "project_update",
-        title: "Team Invoked to Project",
+        title: `Team Invoked to [${project.prefix}]`,
         message: `${req.user.fullname} invoked your team into project [${project.prefix}] ${project.name}.`,
+        alsoEmail: true,
+        actionUrl: "/projects",
       });
     }
 

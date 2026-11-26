@@ -3,8 +3,21 @@ const Department = require("../models/departmentModel");
 const Task = require("../models/taskModel");
 const Project = require("../models/projectModel");
 const User = require("../models/userModel");
-const { createNotification } = require("../utils/notificationHelper");
+const {
+  createNotification,
+  notifyUsers,
+  notifyPermissionHolders,
+} = require("../utils/notificationHelper");
 const { enqueueWebSocketEvent, enqueueEmailJob } = require("../services/queue");
+
+const REQUEST_POPULATE = [
+  { path: "requester", select: "fullname email avatar jobTitle role publicId" },
+  { path: "department", select: "name code color" },
+  { path: "targetDepartment", select: "name code color" },
+  { path: "targetProject", select: "name prefix color" },
+  { path: "targetUsers", select: "fullname email avatar publicId role jobTitle" },
+  { path: "stages.approver", select: "fullname email avatar publicId" },
+];
 
 exports.createRequest = async (req, res) => {
   try {
@@ -14,6 +27,9 @@ exports.createRequest = async (req, res) => {
       description,
       departmentId,
       targetDepartmentId,
+      targetProjectId,
+      project,
+      targetUsers = [],
       priority,
       amount,
       currency,
@@ -22,8 +38,16 @@ exports.createRequest = async (req, res) => {
       customStages,
     } = req.body;
 
-    let targetDeptId = targetDepartmentId || req.body.targetDepartment;
-    let deptId = departmentId || req.user?.department;
+    let targetDeptId = targetDepartmentId || req.body.targetDepartment || null;
+    let deptId = departmentId || req.user?.department || null;
+    const targetProjId = targetProjectId || req.body.targetProject || project || null;
+    const cleanTargetUsers = Array.from(
+      new Set(
+        (Array.isArray(targetUsers) ? targetUsers : [req.body.targetUser])
+          .filter(Boolean)
+          .map(String)
+      )
+    );
 
     if (!deptId) {
       if (targetDeptId) {
@@ -31,7 +55,7 @@ exports.createRequest = async (req, res) => {
       } else {
         const defaultDept = await Department.findOne();
         deptId = defaultDept?._id;
-        targetDeptId = defaultDept?._id;
+        if (!targetDeptId) targetDeptId = defaultDept?._id;
       }
     }
     if (!targetDeptId) targetDeptId = deptId;
@@ -46,16 +70,16 @@ exports.createRequest = async (req, res) => {
       stages = [
         {
           stageNumber: 1,
-          stageName: "Department Review",
+          stageName: "Team / Lead Review",
           roleRequired: "manager",
-          department: deptId,
+          department: targetDeptId || deptId,
           status: "pending",
         },
         {
           stageNumber: 2,
           stageName: "Final Sign-off",
           roleRequired: "admin",
-          department: targetDeptId,
+          department: targetDeptId || deptId,
           status: "pending",
         },
       ];
@@ -68,6 +92,8 @@ exports.createRequest = async (req, res) => {
       description: description || "",
       department: deptId,
       targetDepartment: targetDeptId,
+      targetProject: targetProjId,
+      targetUsers: cleanTargetUsers,
       requester: req.user._id,
       priority: priority || "medium",
       amount: Number(amount) || 0,
@@ -82,17 +108,58 @@ exports.createRequest = async (req, res) => {
     await newRequest.save();
 
     const populatedRequest = await Request.findById(newRequest._id)
-      .populate("requester", "fullname email avatar jobTitle role")
-      .populate("department", "name code color")
-      .populate("targetDepartment", "name code color")
+      .populate(REQUEST_POPULATE)
       .lean();
 
+    // Notify requester + target individuals + dynamic `requests.approve` approvers + Superadmins
     await createNotification({
       recipient: req.user._id,
       sender: req.user._id,
-      type: "task_created",
-      title: "Request Submitted",
-      message: `Your request ${requestCode} (${title}) has been registered for approval.`,
+      allowSelf: true,
+      publicId: req.user?.publicId,
+      type: "approval_request",
+      title: `Request Submitted (${requestCode})`,
+      message: `Your request ${requestCode} ("${title}") has been dispatched to ${populatedRequest?.targetDepartment?.name || "Approvers"}.`,
+      alsoEmail: true,
+      recipientEmail: req.user?.email,
+      actionUrl: "/requests",
+    });
+
+    if (cleanTargetUsers.length > 0) {
+      await notifyUsers({
+        recipients: cleanTargetUsers,
+        sender: req.user._id,
+        publicId: req.user?.publicId,
+        type: "approval_request",
+        title: `New Request Targeted to You (${requestCode})`,
+        message: `${req.user.fullname} targeted request ${requestCode}: "${title}".`,
+        alsoEmail: true,
+        emailType: "task_approval_request",
+        emailData: {
+          code: requestCode,
+          title,
+          requesterName: req.user.fullname || req.user.email,
+          stageName: stages[0]?.stageName || "Review",
+        },
+        actionUrl: "/requests",
+      });
+    }
+
+    await notifyPermissionHolders({
+      permissionSlug: "requests.approve",
+      sender: req.user._id,
+      publicId: req.user?.publicId,
+      type: "approval_request",
+      title: `Approval Required (${requestCode})`,
+      message: `${req.user.fullname} (${req.user?.publicId || "Staff"}) submitted ${requestCode}: "${title}" for ${populatedRequest?.targetDepartment?.name || "Workspace"}.`,
+      emailType: "task_approval_request",
+      emailData: {
+        code: requestCode,
+        title,
+        requesterName: req.user.fullname || req.user.email,
+        stageName: stages[0]?.stageName || "Team / Lead Review",
+      },
+      actionUrl: "/requests",
     });
 
     enqueueWebSocketEvent({
@@ -100,33 +167,6 @@ exports.createRequest = async (req, res) => {
       event: "request:created",
       data: { request: populatedRequest },
     });
-
-    // Notify & email approvers (managers/admins) for new approval request
-    User.find({
-      role: { $in: ["superadmin", "admin", "manager"] },
-      status: "active",
-      isActive: true,
-      _id: { $ne: req.user._id },
-    })
-      .select("email fullname")
-      .lean()
-      .then((approvers) => {
-        approvers.forEach((approver) => {
-          if (approver.email) {
-            enqueueEmailJob({
-              to: approver.email,
-              type: "task_approval_request",
-              data: {
-                code: requestCode,
-                title,
-                requesterName: req.user.fullname || req.user.email,
-                stageName: stages[0]?.stageName || "Department Review",
-              },
-            });
-          }
-        });
-      })
-      .catch(() => {});
 
     res.status(201).json({ success: true, request: populatedRequest });
   } catch (err) {
@@ -136,18 +176,17 @@ exports.createRequest = async (req, res) => {
 
 exports.getRequests = async (req, res) => {
   try {
-    const { department, status, type, requester } = req.query;
+    const { department, targetDepartment, targetProject, status, type, requester } = req.query;
     const filter = {};
     if (department) filter.department = department;
+    if (targetDepartment) filter.targetDepartment = targetDepartment;
+    if (targetProject) filter.targetProject = targetProject;
     if (status) filter.status = status;
     if (type) filter.requestType = type;
     if (requester) filter.requester = requester;
 
     const requests = await Request.find(filter)
-      .populate("requester", "fullname email avatar jobTitle role")
-      .populate("department", "name code color")
-      .populate("targetDepartment", "name code color")
-      .populate("stages.approver", "fullname email avatar")
+      .populate(REQUEST_POPULATE)
       .sort({ createdAt: -1 })
       .lean();
 
@@ -160,10 +199,7 @@ exports.getRequests = async (req, res) => {
 exports.getRequestById = async (req, res) => {
   try {
     const request = await Request.findById(req.params.id)
-      .populate("requester", "fullname email avatar jobTitle role")
-      .populate("department", "name code color")
-      .populate("targetDepartment", "name code color")
-      .populate("stages.approver", "fullname email avatar")
+      .populate(REQUEST_POPULATE)
       .populate("createdTask");
 
     if (!request) {
@@ -199,13 +235,19 @@ exports.approveStage = async (req, res) => {
     if (isLastStage) {
       request.status = "approved";
 
-      let defaultProject = await Project.findOne();
-      if (defaultProject) {
-        const taskCount = await Task.countDocuments({ project: defaultProject._id });
+      let targetProj = request.targetProject
+        ? await Project.findById(request.targetProject)
+        : await Project.findOne();
+      if (targetProj) {
+        targetProj.taskSequence = (targetProj.taskSequence || 100) + 1;
+        await targetProj.save();
         const newTask = new Task({
-          key: `${defaultProject.prefix}-${taskCount + 101}`,
-          project: defaultProject._id,
-          department: request.department,
+          key: `${targetProj.prefix}-${targetProj.taskSequence}`,
+          project: targetProj._id,
+          department: request.targetDepartment || request.department,
+          assignees: request.targetUsers || [],
+          assignee: request.targetUsers?.[0] || null,
+          assignedDepartments: request.targetDepartment ? [request.targetDepartment] : [],
           title: `[Approved ${request.requestCode}] ${request.title}`,
           description: `Action item originated from ${request.requestCode}:\n${request.description}`,
           type: "approval",
@@ -224,43 +266,36 @@ exports.approveStage = async (req, res) => {
     }
 
     await request.save();
+    const populatedRequest = await Request.findById(request._id)
+      .populate(REQUEST_POPULATE)
+      .lean();
 
     await createNotification({
       recipient: request.requester,
       sender: req.user._id,
-      type: "task_updated",
-      title: isLastStage ? "Request Fully Approved" : "Request Stage Approved",
-      message: `${request.requestCode} passed ${currentStage.stageName} sign-off.`,
+      publicId: populatedRequest?.requester?.publicId,
+      type: "approval_request",
+      title: isLastStage ? `Request Approved (${request.requestCode})` : `Stage Approved (${request.requestCode})`,
+      message: `${req.user.fullname} signed off ${currentStage.stageName} on ${request.requestCode}.`,
+      alsoEmail: true,
+      emailType: "task_approval_decision",
+      emailData: {
+        code: request.requestCode,
+        title: request.title,
+        decision: isLastStage ? "Approved" : `Stage Approved (${currentStage.stageName})`,
+        reviewerName: req.user.fullname || req.user.email,
+        comment: approvalComment,
+      },
+      actionUrl: "/requests",
     });
 
     enqueueWebSocketEvent({
       target: "all",
       event: "request:updated",
-      data: { request },
+      data: { request: populatedRequest },
     });
 
-    // Send approval email update to requester
-    User.findById(request.requester)
-      .select("email fullname")
-      .lean()
-      .then((requester) => {
-        if (requester?.email) {
-          enqueueEmailJob({
-            to: requester.email,
-            type: "task_approval_decision",
-            data: {
-              code: request.requestCode,
-              title: request.title,
-              decision: isLastStage ? "Approved" : `Stage Approved (${currentStage.stageName})`,
-              reviewerName: req.user.fullname || req.user.email,
-              comment: approvalComment,
-            },
-          });
-        }
-      })
-      .catch(() => {});
-
-    res.status(200).json({ success: true, request });
+    res.status(200).json({ success: true, request: populatedRequest });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -286,42 +321,36 @@ exports.rejectRequest = async (req, res) => {
     request.rejectionReason = rejectionText;
     await request.save();
 
+    const populatedRequest = await Request.findById(request._id)
+      .populate(REQUEST_POPULATE)
+      .lean();
+
     await createNotification({
       recipient: request.requester,
       sender: req.user._id,
-      type: "task_updated",
-      title: "Request Declined",
-      message: `${request.requestCode} was declined: "${rejectionText}"`,
+      publicId: populatedRequest?.requester?.publicId,
+      type: "approval_request",
+      title: `Request Declined (${request.requestCode})`,
+      message: `${req.user.fullname} declined ${request.requestCode}: "${rejectionText}"`,
+      alsoEmail: true,
+      emailType: "task_approval_decision",
+      emailData: {
+        code: request.requestCode,
+        title: request.title,
+        decision: "Declined",
+        reviewerName: req.user.fullname || req.user.email,
+        comment: rejectionText,
+      },
+      actionUrl: "/requests",
     });
 
     enqueueWebSocketEvent({
       target: "all",
       event: "request:updated",
-      data: { request },
+      data: { request: populatedRequest },
     });
 
-    // Send declined email update to requester
-    User.findById(request.requester)
-      .select("email fullname")
-      .lean()
-      .then((requester) => {
-        if (requester?.email) {
-          enqueueEmailJob({
-            to: requester.email,
-            type: "task_approval_decision",
-            data: {
-              code: request.requestCode,
-              title: request.title,
-              decision: "Declined",
-              reviewerName: req.user.fullname || req.user.email,
-              comment: rejectionText,
-            },
-          });
-        }
-      })
-      .catch(() => {});
-
-    res.status(200).json({ success: true, request });
+    res.status(200).json({ success: true, request: populatedRequest });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

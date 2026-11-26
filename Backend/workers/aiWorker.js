@@ -1,32 +1,28 @@
 const { Worker } = require("bullmq");
 const { redisConfig, enqueueWebSocketEvent } = require("../services/queue");
-const axios = require("axios");
+const { queryAI } = require("../services/aiService");
 
 const aiWorker = new Worker(
   "ai-processing-queue",
   async (job) => {
-    const { taskId, title, description, userId } = job.data;
-    const apiKey = process.env.GOOGLE_AI_API_KEY;
-
-    if (!apiKey) return { skipped: true, reason: "No API key" };
+    const { taskId, title, description, userId, provider, model } = job.data;
 
     const prompt = `Analyze task: "${title}".
 Description: "${description || "None"}"
 Provide 3 concise subtask strings in JSON: {"subtasks": ["string1", "string2", "string3"]}`;
 
     try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-      const response = await axios.post(
-        url,
-        {
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.2, maxOutputTokens: 300 },
-        },
-        { timeout: 8000 }
-      );
+      const aiRes = await queryAI({
+        prompt,
+        provider,
+        model,
+        taskType: "global_task",
+        moduleKey: "tasks",
+        maxOutputTokens: 300,
+      });
 
-      let text = response.data?.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
-      text = text.trim().replace(/^```json/i, "").replace(/^```/, "").replace(/```$/, "").trim();
+      let text = (aiRes.text || "{}").trim();
+      text = text.replace(/^```json/i, "").replace(/^```/, "").replace(/```$/, "").trim();
       const parsed = JSON.parse(text);
 
       if (userId) {
@@ -34,14 +30,19 @@ Provide 3 concise subtask strings in JSON: {"subtasks": ["string1", "string2", "
           target: "user",
           room: userId.toString(),
           event: "ai:task_breakdown_ready",
-          data: { taskId, suggestions: parsed.subtasks || [] },
+          data: {
+            taskId,
+            suggestions: parsed.subtasks || [],
+            provider: aiRes.provider,
+            model: aiRes.model,
+          },
         });
       }
 
-      return { processed: true, taskId, suggestions: parsed.subtasks };
+      return { processed: true, taskId, suggestions: parsed.subtasks, provider: aiRes.provider };
     } catch (err) {
       console.warn("[AI Worker] Warning:", err.message);
-      return { fallback: true };
+      return { fallback: true, reason: err.message };
     }
   },
   {

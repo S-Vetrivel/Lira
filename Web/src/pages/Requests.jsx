@@ -20,13 +20,25 @@ import {
 } from "../services/api";
 import { formatINR, formatDateIN, getDisplayName } from "../utils/formatters";
 import SideDrawer from "../components/common/SideDrawer";
+import UserAvatar from "../components/common/UserAvatar";
+import { getSocket } from "../services/socket";
 import toast from "react-hot-toast";
 import { getGlassTokens } from "../styles/glassTheme";
 
 export default function Requests() {
-  const { user, activeProject, theme } = useApp();
+  const {
+    user,
+    activeProject,
+    projects,
+    teamMembers,
+    isSuperAdmin,
+    hasPermission,
+    theme,
+  } = useApp();
   const isDark = theme === "dark";
   const g = getGlassTokens(isDark);
+  const canCreateReq = isSuperAdmin || hasPermission("requests.create");
+  const canApproveReq = isSuperAdmin || hasPermission("requests.approve");
 
   const [requests, setRequests] = useState([]);
   const [departments, setDepartments] = useState([]);
@@ -44,6 +56,8 @@ export default function Requests() {
   const [description, setDescription] = useState("");
   const [requestType, setRequestType] = useState("budget_approval");
   const [targetDepartment, setTargetDepartment] = useState("");
+  const [targetProject, setTargetProject] = useState("");
+  const [targetUsers, setTargetUsers] = useState([]);
   const [amount, setAmount] = useState("");
   const [urgency, setUrgency] = useState("medium");
   const [submitting, setSubmitting] = useState(false);
@@ -63,12 +77,27 @@ export default function Requests() {
 
   useEffect(() => {
     loadData();
+    const socket = getSocket();
+    if (!socket) return;
+    const onReqChange = () => loadData();
+    socket.on("request:created", onReqChange);
+    socket.on("request:updated", onReqChange);
+    return () => {
+      socket.off("request:created", onReqChange);
+      socket.off("request:updated", onReqChange);
+    };
   }, []);
+
+  const toggleTargetUser = (uid) => {
+    setTargetUsers((prev) =>
+      prev.includes(uid) ? prev.filter((id) => id !== uid) : [...prev, uid]
+    );
+  };
 
   const handleCreateRequest = async (e) => {
     e.preventDefault();
-    if (!title.trim() || !targetDepartment) {
-      toast.error("Please fill title and target department");
+    if (!title.trim() || (!targetDepartment && !targetProject && targetUsers.length === 0)) {
+      toast.error("Please fill title and select a target team, project, or member");
       return;
     }
 
@@ -77,11 +106,12 @@ export default function Requests() {
       title: title.trim(),
       description: description.trim(),
       requestType,
-      targetDepartment,
+      targetDepartment: targetDepartment || null,
+      targetProjectId: targetProject || null,
+      targetUsers,
       amount: amount ? Number(amount) : 0,
       currency: "INR",
       priority: urgency,
-      project: activeProject?._id,
     });
     setSubmitting(false);
 
@@ -90,6 +120,8 @@ export default function Requests() {
       setTitle("");
       setDescription("");
       setAmount("");
+      setTargetProject("");
+      setTargetUsers([]);
       loadData();
     }
   };
@@ -163,13 +195,15 @@ export default function Requests() {
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
           </button>
 
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className={`px-4 py-2 rounded-full font-semibold text-xs flex items-center gap-1.5 cursor-pointer ${g.btnPrimary}`}
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>New Request</span>
-          </button>
+          {canCreateReq && (
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className={`px-4 py-2 rounded-full font-semibold text-xs flex items-center gap-1.5 cursor-pointer ${g.btnPrimary}`}
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>New Request</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -250,11 +284,27 @@ export default function Requests() {
                     </strong>
                   </span>
                   <span>
-                    Target:{" "}
+                    Target Team:{" "}
                     <strong className={g.heading}>
                       {req.targetDepartment?.name || req.department?.name || "Operations"}
                     </strong>
                   </span>
+                  {req.targetProject && (
+                    <span>
+                      Project:{" "}
+                      <strong className={g.heading}>
+                        [{req.targetProject.prefix}] {req.targetProject.name}
+                      </strong>
+                    </span>
+                  )}
+                  {Array.isArray(req.targetUsers) && req.targetUsers.length > 0 && (
+                    <span>
+                      Target Staff:{" "}
+                      <strong className={g.heading}>
+                        {req.targetUsers.map((u) => getDisplayName(u)).join(", ")}
+                      </strong>
+                    </span>
+                  )}
                   {req.amount > 0 && (
                     <span className="text-emerald-500 font-bold font-mono flex items-center gap-0.5">
                       {formatINR(req.amount)}
@@ -291,8 +341,8 @@ export default function Requests() {
                 ))}
               </div>
 
-              {/* Action Buttons for Managers / Admins */}
-              {isPending && (user?.role === "manager" || user?.role === "admin") && (
+              {/* Action Buttons for Dynamic Approvers & Superadmin */}
+              {isPending && canApproveReq && (
                 <div className="flex items-center gap-2 shrink-0">
                   <button
                     onClick={() => {
@@ -374,19 +424,62 @@ export default function Requests() {
 
             <div>
               <label className={`block font-semibold mb-1.5 ${g.heading}`}>
-                Target Department
+                Target Team / Department
               </label>
               <select
                 value={targetDepartment}
                 onChange={(e) => setTargetDepartment(e.target.value)}
                 className={`w-full border rounded-xl px-3 py-2.5 focus:outline-none ${g.input}`}
               >
+                <option value="" className={isDark ? "bg-[#14151a]" : "bg-white"}>Any / Workspace Wide</option>
                 {departments.map((dept) => (
                   <option key={dept._id} value={dept._id} className={isDark ? "bg-[#14151a]" : "bg-white"}>
-                    {dept.name}
+                    {dept.code ? `[${dept.code}] ` : ""}{dept.name}
                   </option>
                 ))}
               </select>
+            </div>
+          </div>
+
+          <div>
+            <label className={`block font-semibold mb-1.5 ${g.heading}`}>
+              Target Project Workspace (Optional)
+            </label>
+            <select
+              value={targetProject}
+              onChange={(e) => setTargetProject(e.target.value)}
+              className={`w-full border rounded-xl px-3 py-2.5 focus:outline-none ${g.input}`}
+            >
+              <option value="" className={isDark ? "bg-[#14151a]" : "bg-white"}>None / Non-project request</option>
+              {projects.map((p) => (
+                <option key={p._id} value={p._id} className={isDark ? "bg-[#14151a]" : "bg-white"}>
+                  [{p.prefix}] {p.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className={`block font-semibold mb-1.5 ${g.heading}`}>
+              Target Team Members / Individuals ({targetUsers.length} selected)
+            </label>
+            <div className={`max-h-28 overflow-y-auto flex flex-wrap gap-1.5 p-2 rounded-xl border ${g.subtleSurface}`}>
+              {teamMembers.map((m) => {
+                const selected = targetUsers.includes(m._id);
+                return (
+                  <button
+                    key={m._id}
+                    type="button"
+                    onClick={() => toggleTargetUser(m._id)}
+                    className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[11px] font-medium cursor-pointer transition-all ${
+                      selected ? "bg-indigo-600 border-indigo-500 text-white" : g.btnSecondary
+                    }`}
+                  >
+                    <UserAvatar user={m} className="w-4 h-4 rounded-full" textClass="text-[7px]" />
+                    <span>{getDisplayName(m)}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 

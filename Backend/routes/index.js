@@ -11,6 +11,7 @@ router.use("/notifications", require("./notificationRoutes"));
 router.use("/users", require("./userRoutes"));
 router.use("/profile", require("./profileRoutes"));
 router.use("/analytics", require("./analyticsRoutes"));
+router.use("/audit", require("./auditRoutes"));
 router.use("/requests", require("./requestRoutes"));
 router.use("/files", require("./fileRoutes"));
 router.use("/chat", require("./chatRoutes"));

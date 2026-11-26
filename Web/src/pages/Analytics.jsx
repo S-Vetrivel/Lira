@@ -135,6 +135,13 @@ export default function Analytics() {
 
   const currentRole = user?.role || "employee";
   const firstName = getDisplayName(user, "there").split(" ")[0];
+  const hasOrgScope = Boolean(
+    isSuperAdmin ||
+      userRoleData?.hasOrgScope ||
+      hasModule("projects") ||
+      hasModule("team") ||
+      hasModule("departments")
+  );
 
   const visibleCurve = useMemo(() => {
     if (!throughputCurve?.length) return [];
@@ -151,11 +158,11 @@ export default function Analytics() {
   }, [topPriorityTickets, selectedTaskType]);
 
   const activeStatusBreakdown = useMemo(() => {
-    if (currentRole === "employee" && userRoleData?.myStatusBreakdown) {
+    if (!hasOrgScope && userRoleData?.myStatusBreakdown) {
       return userRoleData.myStatusBreakdown;
     }
     return statusBreakdown;
-  }, [currentRole, userRoleData, statusBreakdown]);
+  }, [hasOrgScope, userRoleData, statusBreakdown]);
 
   const svgPathData = useMemo(() => {
     if (!visibleCurve?.length) return null;
@@ -298,9 +305,9 @@ export default function Analytics() {
                   </span>
                 </div>
                 <h1 className={`text-lg sm:text-xl font-display font-bold tracking-tight truncate leading-tight ${g.heading}`}>
-                  {(currentRole === "superadmin" || currentRole === "admin") && `Good day, ${firstName} — Organization Overview`}
-                  {currentRole === "manager" && `Good day, ${firstName} — Sprint & Team Overview`}
-                  {currentRole !== "superadmin" && currentRole !== "admin" && currentRole !== "manager" && `Welcome back, ${firstName}`}
+                  {hasOrgScope
+                    ? `Good day, ${firstName} — Organization Overview`
+                    : `Welcome back, ${firstName}`}
                 </h1>
                 <p className={`text-[11px] ${g.muted}`}>
                   {new Date().toLocaleDateString("en-IN", {
@@ -313,51 +320,38 @@ export default function Analytics() {
               </div>
             </div>
 
-            {/* KPI Summary Strip */}
+            {/* KPI Summary Strip (adapts dynamically to role capabilities & modules) */}
             <div className="flex items-center gap-2 flex-wrap shrink-0">
-              {(currentRole === "superadmin" || currentRole === "admin") && (
+              {hasOrgScope ? (
                 <>
-                  <StatPill
-                    label="Workspaces"
-                    value={formatNumberIN(userRoleData.adminMetrics?.totalProjectsCount ?? projectProgress.length)}
-                    accent={g.subtleSurface}
-                  />
-                  <StatPill
-                    label="Staff"
-                    value={formatNumberIN(userRoleData.adminMetrics?.totalUsersCount ?? teamWorkload.length)}
-                    accent={g.subtleSurface}
-                  />
-                  <StatPill
-                    label="Depts"
-                    value={formatNumberIN(userRoleData.adminMetrics?.totalDepartmentsCount ?? departmentBreakdown.length)}
-                    accent={g.subtleSurface}
-                  />
-                  <StatPill
-                    label="Completion"
-                    value={`${summary.completionRate}%`}
-                    accent={isDark ? "bg-emerald-500/15 border-emerald-500/25 text-emerald-300" : "bg-emerald-50 border-emerald-200 text-emerald-700"}
-                  />
-                </>
-              )}
-              {currentRole === "manager" && (
-                <>
-                  <StatPill label="Tickets" value={formatNumberIN(summary.totalTasks)} accent={g.subtleSurface} />
-                  <StatPill label="Logged" value={`${summary.totalLoggedHours || 0}h`} accent={g.subtleSurface} />
-                  <StatPill
-                    label="Completion"
-                    value={`${summary.completionRate}%`}
-                    accent={isDark ? "bg-emerald-500/15 border-emerald-500/25 text-emerald-300" : "bg-emerald-50 border-emerald-200 text-emerald-700"}
-                  />
-                  {(userRoleData.managerMetrics?.unassignedTasksCount || 0) > 0 && (
+                  {(isSuperAdmin || hasModule("projects")) && (
                     <StatPill
-                      label="Unassigned"
-                      value={formatNumberIN(userRoleData.managerMetrics?.unassignedTasksCount ?? 0)}
-                      accent={isDark ? "bg-amber-500/15 border-amber-500/25 text-amber-300" : "bg-amber-50 border-amber-200 text-amber-700"}
+                      label="Workspaces"
+                      value={formatNumberIN(userRoleData.adminMetrics?.totalProjectsCount ?? projectProgress.length)}
+                      accent={g.subtleSurface}
                     />
                   )}
+                  {(isSuperAdmin || hasModule("team")) && (
+                    <StatPill
+                      label="Staff"
+                      value={formatNumberIN(userRoleData.adminMetrics?.totalUsersCount ?? teamWorkload.length)}
+                      accent={g.subtleSurface}
+                    />
+                  )}
+                  {(isSuperAdmin || hasModule("departments")) && (
+                    <StatPill
+                      label="Depts"
+                      value={formatNumberIN(userRoleData.adminMetrics?.totalDepartmentsCount ?? departmentBreakdown.length)}
+                      accent={g.subtleSurface}
+                    />
+                  )}
+                  <StatPill
+                    label="Completion"
+                    value={`${summary.completionRate}%`}
+                    accent={isDark ? "bg-emerald-500/15 border-emerald-500/25 text-emerald-300" : "bg-emerald-50 border-emerald-200 text-emerald-700"}
+                  />
                 </>
-              )}
-              {currentRole === "employee" && (
+              ) : (
                 <>
                   <StatPill label="My Tasks" value={formatNumberIN(userRoleData.myMetrics?.totalTasks || 0)} accent={g.subtleSurface} />
                   <StatPill
@@ -916,7 +910,7 @@ export default function Analytics() {
 
           {/* Department Capacity / Deliverables (4/12) */}
           <div className={`lg:col-span-4 lg:h-full min-h-0 rounded-2xl p-3.5 sm:p-4 border flex flex-col gap-2.5 overflow-hidden ${g.card}`}>
-            {currentRole === "superadmin" || currentRole === "admin" || currentRole === "manager" ? (
+            {hasOrgScope ? (
               <>
                 <div className="flex items-center justify-between shrink-0">
                   <div className="flex items-center gap-2.5">

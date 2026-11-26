@@ -9,6 +9,7 @@ const {
   invalidateRolesCache,
 } = require("../utils/roles");
 const { enqueueWebSocketEvent } = require("../services/queue");
+const { createNotification } = require("../utils/notificationHelper");
 
 const ts = () => new Date().toISOString();
 
@@ -259,6 +260,18 @@ exports.assignUserRole = async (req, res) => {
       room: target._id.toString(),
       event: "rbac:user-updated",
       data: { userId: target._id, ...resolvedAccess },
+    });
+
+    await createNotification({
+      recipient: target._id,
+      sender: req.user._id,
+      publicId: target.publicId,
+      type: "system",
+      title: "Workspace Role & Access Updated",
+      message: `${req.user.fullname} assigned you role '${resolvedAccess.roleDisplayName}' (${target.departmentName}).`,
+      alsoEmail: true,
+      recipientEmail: target.email,
+      actionUrl: "/",
     });
 
     res.status(200).json({

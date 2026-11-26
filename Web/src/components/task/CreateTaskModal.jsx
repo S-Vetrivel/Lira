@@ -240,17 +240,19 @@ export default function CreateTaskModal({ isOpen, onClose, onCreated }) {
                 Task Title *
               </label>
 
-              {/* Gemini AI Breakdown Button */}
-              <button
-                type="button"
-                onClick={handleAIBreakdown}
-                disabled={loadingAI}
-                className={`flex items-center gap-1.5 text-xs px-3 py-1 rounded-xl transition-all cursor-pointer ${g.btnSecondary}`}
-                title="Auto-generate description and subtask checklist"
-              >
-                <Sparkles className="w-3.5 h-3.5 animate-pulse" />
-                <span>{loadingAI ? "Generating..." : "Smart Breakdown"}</span>
-              </button>
+              {/* AI Breakdown Button — gated by ai.use module action */}
+              {(isSuperAdmin || hasPermission("ai.use")) && (
+                <button
+                  type="button"
+                  onClick={handleAIBreakdown}
+                  disabled={loadingAI}
+                  className={`flex items-center gap-1.5 text-xs px-3 py-1 rounded-xl transition-all cursor-pointer ${g.btnSecondary}`}
+                  title="Auto-generate description and subtask checklist via active AI provider"
+                >
+                  <Sparkles className="w-3.5 h-3.5 animate-pulse" />
+                  <span>{loadingAI ? "Generating..." : "Smart Breakdown"}</span>
+                </button>
+              )}
             </div>
             <input
               type="text"

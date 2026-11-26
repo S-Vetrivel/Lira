@@ -85,6 +85,8 @@ class BatchedLogger {
       userAgent: entry.userAgent || "Unknown",
       user: entry.user || null,
       userEmail: entry.userEmail || null,
+      userName: entry.userName || null,
+      userPublicId: entry.userPublicId || null,
       userRole: entry.userRole || "guest",
       status: entry.status || (entry.statusCode >= 400 ? "FAILURE" : "SUCCESS"),
       details: entry.details || {},

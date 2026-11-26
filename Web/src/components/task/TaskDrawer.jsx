@@ -393,8 +393,8 @@ export default function TaskDrawer({ taskKeyOrId, onClose, onTaskUpdated }) {
                   </button>
                 )}
 
-                {(user?.role === "admin" ||
-                  user?.role === "manager" ||
+                {(isSuperAdmin ||
+                  hasPermission("tasks.delete") ||
                   task.reporter?._id === user?._id) && (
                   <button
                     onClick={handleDeleteTask}
@@ -485,7 +485,7 @@ export default function TaskDrawer({ taskKeyOrId, onClose, onTaskUpdated }) {
                       <RotateCcw className="w-3.5 h-3.5" />
                       Pending Manager Verification
                     </span>
-                    {(user?.role === "admin" || user?.role === "manager") && (
+                    {(isSuperAdmin || hasPermission("tasks.approve")) && (
                       <div className="flex items-center gap-2">
                         <button
                           onClick={handleApprove}

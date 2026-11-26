@@ -177,6 +177,28 @@ function buildEmailTemplate({ type, data = {} }) {
       return { subject, text, html };
     }
 
+    case "workspace_event": {
+      const title = data.title || "Workspace Activity Update";
+      const message = data.message || "There is a new update in your workspace.";
+      const publicId = data.publicId;
+      const targetUrl = data.actionUrl ? `${appUrl}${data.actionUrl}` : appUrl;
+      const subject = `[${brand}] ${title}${publicId ? ` (${publicId})` : ""}`;
+      const text = `${title}${publicId ? ` [${publicId}]` : ""}\n\n${message}\n\nOpen: ${targetUrl}`;
+      const html = `
+        <div style="font-family:Inter,Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px;background:#0f1117;color:#f4f4f5;border-radius:12px;border:1px solid #27272a;">
+          <div style="display:inline-block;padding:4px 10px;border-radius:999px;background:#1e1b4b;color:#a5b4fc;font-size:11px;font-weight:700;margin-bottom:12px;">
+            ${brand}${publicId ? ` • ${publicId}` : ""}
+          </div>
+          <h2 style="margin:0 0 10px;font-size:18px;color:#ffffff;">${title}</h2>
+          <p style="margin:0 0 18px;font-size:14px;line-height:1.6;color:#d4d4d8;">${message}</p>
+          <a href="${targetUrl}" style="display:inline-block;padding:10px 18px;background:#ffffff;color:#09090b;text-decoration:none;border-radius:8px;font-weight:600;font-size:13px;">
+            Open Workspace
+          </a>
+        </div>
+      `;
+      return { subject, text, html };
+    }
+
     default: {
       const subject = data.subject || `[${brand}] Workspace Notification`;
       const text = data.text || data.message || "You have a new notification in Lira Workspace.";

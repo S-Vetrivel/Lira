@@ -23,6 +23,7 @@ import {
   Layers,
   FolderKanban,
   Shield,
+  Activity,
 } from "lucide-react";
 import { markNotificationRead, markAllNotificationsRead } from "../../services/api";
 import UserAvatar from "../common/UserAvatar";
@@ -90,6 +91,9 @@ export default function Header() {
     { label: "Workspaces", path: "/projects", icon: Layers, moduleKeys: ["projects", "departments"] },
     ...(isSuperAdmin || hasPermission("rbac.view") || hasPermission("rbac.manage")
       ? [{ label: "Roles", path: "/roles", icon: Shield, moduleKey: "rbac" }]
+      : []),
+    ...(isSuperAdmin || hasPermission("audit.view") || hasPermission("dashboard.logs")
+      ? [{ label: "Audit", path: "/audit", icon: Activity, moduleKey: "audit" }]
       : []),
   ].filter((item) => {
     if (isSuperAdmin) return true;
@@ -222,7 +226,7 @@ export default function Header() {
 
       {/* 2. Center: Spacious Modern Floating Glass Navigation Tray */}
       <nav
-        className={`hidden md:flex items-center p-1 rounded-2xl border relative gap-0.5 min-w-0 ${g.navRail}`}
+        className={`hidden md:flex items-center p-1 rounded-2xl border relative gap-0.5 min-w-0 flex-1 max-w-fit overflow-x-auto no-scrollbar ${g.navRail}`}
       >
         {navItems.map((item) => {
           const isActive =
@@ -234,7 +238,7 @@ export default function Header() {
             <Link
               key={item.path}
               to={item.path}
-              className={`relative flex items-center gap-1.5 px-2.5 xl:px-3 py-2 rounded-xl text-[11px] xl:text-xs font-medium tracking-tight transition-colors duration-150 select-none whitespace-nowrap ${isActive
+              className={`relative flex items-center gap-1.5 px-2 xl:px-2.5 py-2 rounded-xl text-[11px] xl:text-xs font-medium tracking-tight transition-colors duration-150 select-none whitespace-nowrap shrink-0 ${isActive
                 ? isDark
                   ? "text-white font-semibold"
                   : "text-slate-950 font-semibold"
