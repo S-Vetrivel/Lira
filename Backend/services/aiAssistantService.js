@@ -400,6 +400,7 @@ async function buildScopedWebsiteContext({ user, currentRoute = "/", activeProje
       : { members: user._id, status: { $ne: "archived" } };
   const accessibleProjects = await Project.find(projectFilter)
     .select("_id name prefix description department")
+    .sort({ createdAt: -1 })
     .limit(20)
     .lean();
   const accessibleProjIds = accessibleProjects.map((p) => p._id);
@@ -536,6 +537,7 @@ async function executeSingleStep(step, user, chainState = {}) {
         isSuperAdminUser(user) ? { status: { $ne: "archived" } } : { members: user._id }
       )
         .select("_id")
+        .sort({ createdAt: -1 })
         .lean();
       projectId = firstProj?._id;
     }
@@ -1005,9 +1007,12 @@ function runLocalCopilotFallback({ prompt, scopedCtx, history = [] }) {
     return parts.some((tok) => lower.includes(tok)) || lower.includes(full);
   });
 
-  const matchedProj = (scopedCtx.projects || []).find(
-    (p) => lower.includes(p.name.toLowerCase()) || lower.includes(p.prefix.toLowerCase())
-  ) || scopedCtx.projects?.[0];
+  const matchedProj =
+    (scopedCtx.projects || []).find(
+      (p) => lower.includes(p.name.toLowerCase()) || lower.includes(p.prefix.toLowerCase())
+    ) ||
+    (scopedCtx.projects || []).find((p) => String(p.id) === String(scopedCtx.activeProjectId || "")) ||
+    scopedCtx.projects?.[0];
 
   const recentTaskKey = [...history].reverse().find((h) => h.taskKey)?.taskKey || "";
 
