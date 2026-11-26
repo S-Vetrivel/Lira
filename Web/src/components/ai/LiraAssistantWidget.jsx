@@ -772,15 +772,19 @@ export default function LiraAssistantWidget() {
 
   const pebbleXY = useMemo(() => {
     if (dragPos) return dragPos;
-    const maxX = Math.max(20, viewport.w - 76);
-    const maxY = Math.max(82, viewport.h - 76);
+    const isMobile = viewport.w < 640;
+    const orbSize = isMobile ? 48 : 56;
+    const margin = isMobile ? 14 : 20;
+    const topSafe = isMobile ? 106 : 82;
+    const maxX = Math.max(margin, viewport.w - orbSize - margin);
+    const maxY = Math.max(topSafe, viewport.h - orbSize - margin);
     switch (corner) {
       case "top-left":
-        return { x: 20, y: 82 };
+        return { x: margin, y: topSafe };
       case "top-right":
-        return { x: maxX, y: 82 };
+        return { x: maxX, y: topSafe };
       case "bottom-left":
-        return { x: 20, y: maxY };
+        return { x: margin, y: maxY };
       case "bottom-right":
       default:
         return { x: maxX, y: maxY };
@@ -910,7 +914,7 @@ export default function LiraAssistantWidget() {
           onPointerDown={handlePebblePointerDown}
           title="Open Lira Assistant (Cmd+J) — drag to any corner"
           aria-label="Open Lira Workspace Assistant"
-          className="fixed top-0 left-0 z-30 w-14 h-14 rounded-full flex items-center justify-center cursor-grab active:cursor-grabbing backdrop-blur-2xl border select-none touch-none transition-shadow overflow-hidden"
+          className="fixed top-0 left-0 z-30 w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center cursor-grab active:cursor-grabbing backdrop-blur-2xl border select-none touch-none transition-shadow overflow-hidden"
           style={{
             background: isDark
               ? "radial-gradient(135% 135% at 28% 18%, rgba(255,255,255,0.22) 0%, rgba(161,161,170,0.16) 44%, rgba(14,16,21,0.95) 100%)"
@@ -1116,7 +1120,7 @@ export default function LiraAssistantWidget() {
                       hasHydratedPrefsRef.current = true;
                       setSelectedModelKey(e.target.value);
                     }}
-                    className={`max-w-[230px] rounded-lg px-2.5 py-1 text-[11px] border focus:outline-none truncate ${g.input}`}
+                    className={`flex-1 min-w-0 max-w-full sm:max-w-[230px] rounded-lg px-2.5 py-1 text-[11px] border focus:outline-none truncate ${g.input}`}
                     title="Choose your available AI model or key"
                   >
                     {hasExternalAccess && (

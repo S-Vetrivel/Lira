@@ -193,7 +193,7 @@ export default function Requests() {
     >
       {/* Top Sub-Header */}
       <div
-        className={`px-6 py-3.5 border-b flex flex-wrap items-center justify-between gap-3 shrink-0 ${g.subHeader}`}
+        className={`px-3.5 sm:px-6 py-3 sm:py-3.5 border-b flex flex-wrap items-center justify-between gap-2.5 sm:gap-3 shrink-0 ${g.subHeader}`}
       >
         <div className="flex items-center gap-3">
           <div className={`w-9 h-9 rounded-xl border flex items-center justify-center ${g.badge}`}>
@@ -233,7 +233,7 @@ export default function Requests() {
 
       {/* Filter Bar */}
       <div
-        className={`px-6 py-2.5 border-b flex flex-wrap items-center justify-between gap-3 shrink-0 ${g.subtleSurface}`}
+        className={`px-3.5 sm:px-6 py-2.5 border-b flex flex-wrap items-center justify-between gap-2.5 sm:gap-3 shrink-0 ${g.subtleSurface}`}
       >
         <div className="flex items-center gap-1.5 text-xs overflow-x-auto">
           {[
@@ -259,7 +259,7 @@ export default function Requests() {
       </div>
 
       {/* Requests Feed */}
-      <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-3">
+      <div className="flex-1 overflow-y-auto p-3.5 sm:p-6 space-y-3">
         {filteredRequests.map((req) => {
           const isPending = req.status === "submitted" || req.status === "in_review";
           return (
@@ -429,7 +429,7 @@ export default function Requests() {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className={`block font-semibold mb-1.5 ${g.heading}`}>
                 Request Type
@@ -509,7 +509,7 @@ export default function Requests() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className={`block font-semibold mb-1.5 ${g.heading}`}>
                 Amount (₹ INR)

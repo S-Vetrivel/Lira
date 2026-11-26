@@ -358,8 +358,8 @@ export default function TaskDrawer({ taskKeyOrId, onClose, onTaskUpdated }) {
         ) : (
           <>
             {/* Minimal Header */}
-            <div className={`px-6 py-3.5 border-b flex items-center justify-between shrink-0 ${borderCol}`}>
-              <div className="flex items-center gap-2">
+            <div className={`px-4 sm:px-6 py-3 sm:py-3.5 border-b flex flex-wrap items-center justify-between gap-2 shrink-0 ${borderCol}`}>
+              <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
                 <span
                   className={`font-mono text-xs font-semibold px-2.5 py-1 rounded-md border ${
                     isDark
@@ -442,7 +442,7 @@ export default function TaskDrawer({ taskKeyOrId, onClose, onTaskUpdated }) {
             {/* Main 2-Column Body */}
             <div className={`flex-1 overflow-y-auto grid grid-cols-1 md:grid-cols-12 divide-y md:divide-y-0 md:divide-x ${borderCol}`}>
               {/* Left Canvas */}
-              <div className="md:col-span-8 p-6 space-y-6">
+              <div className="md:col-span-8 p-4 sm:p-6 space-y-5 sm:space-y-6">
                 {/* Status Callouts */}
                 {task.status === "redo_requested" && (
                   <div

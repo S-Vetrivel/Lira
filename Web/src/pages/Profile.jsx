@@ -467,7 +467,7 @@ export default function Profile() {
 
   return (
     <div
-      className={`flex-1 w-full h-full min-h-0 overflow-y-auto p-5 sm:p-7 space-y-6 transition-colors duration-150 ${
+      className={`flex-1 w-full h-full min-h-0 overflow-y-auto p-3.5 sm:p-7 space-y-5 sm:space-y-6 transition-colors duration-150 ${
         isDark ? "text-slate-100" : "text-slate-900"
       }`}
     >
@@ -1103,7 +1103,7 @@ export default function Profile() {
           {/* Filter & Action Toolbar */}
           <div className={`${cardClass} p-4 flex flex-wrap items-center justify-between gap-3`}>
             <div className="flex flex-wrap items-center gap-2.5 flex-1">
-              <div className="relative min-w-[220px] flex-1 max-w-sm">
+              <div className="relative min-w-0 w-full sm:min-w-[220px] flex-1 max-w-sm">
                 <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
@@ -1327,7 +1327,7 @@ export default function Profile() {
         <div className="space-y-4">
           <div className={`${cardClass} p-4 flex flex-wrap items-center justify-between gap-3`}>
             <div className="flex flex-wrap items-center gap-2.5 flex-1">
-              <div className="relative min-w-[240px] flex-1 max-w-md">
+              <div className="relative min-w-0 w-full sm:min-w-[240px] flex-1 max-w-md">
                 <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
@@ -1549,7 +1549,7 @@ export default function Profile() {
               className={inputClass}
             />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="font-semibold block mb-1.5">Role</label>
               <select
@@ -1656,7 +1656,7 @@ export default function Profile() {
               )}
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="font-semibold block mb-1.5">Full Name</label>
                 <input
@@ -1678,7 +1678,7 @@ export default function Profile() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="font-semibold block mb-1.5">Role</label>
                 <select
@@ -1718,7 +1718,7 @@ export default function Profile() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="font-semibold block mb-1.5">Job Title</label>
                 <input

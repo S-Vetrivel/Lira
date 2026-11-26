@@ -179,7 +179,7 @@ export default function AuditLogs() {
   const offlineList = allUsersMerged.filter((u) => !u.isLiveOnline);
 
   return (
-    <div className={`flex-1 w-full h-full min-h-0 overflow-y-auto p-5 sm:p-7 space-y-6 ${isDark ? "text-slate-100" : "text-slate-900"}`}>
+    <div className={`flex-1 w-full h-full min-h-0 overflow-y-auto p-3.5 sm:p-7 space-y-5 sm:space-y-6 ${isDark ? "text-slate-100" : "text-slate-900"}`}>
       {/* Header */}
       <div className={`flex flex-wrap items-center justify-between gap-4 pb-4 border-b ${g.border}`}>
         <div className="flex items-center gap-3">
@@ -257,7 +257,7 @@ export default function AuditLogs() {
       {tab === "logs" && (
         <div className="space-y-4">
           <div className="flex flex-wrap items-center gap-2.5">
-            <div className="relative flex-1 min-w-[220px]">
+            <div className="relative flex-1 min-w-0 w-full sm:min-w-[220px]">
               <Search className={`w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 ${g.muted}`} />
               <input
                 type="text"
@@ -283,7 +283,7 @@ export default function AuditLogs() {
               value={actionFilter}
               onChange={(e) => setActionFilter(e.target.value.toUpperCase())}
               placeholder="Action e.g. TASK_CREATE"
-              className={`rounded-xl px-3 py-2 text-xs border focus:outline-none w-44 font-mono ${g.input}`}
+              className={`rounded-xl px-3 py-2 text-xs border focus:outline-none w-full sm:w-44 font-mono ${g.input}`}
             />
 
             <button
@@ -627,7 +627,7 @@ export default function AuditLogs() {
                   </span>
                 </div>
 
-                <div className={`grid grid-cols-4 gap-2 p-2.5 rounded-xl border text-center ${g.subtleSurface}`}>
+                <div className={`grid grid-cols-2 sm:grid-cols-4 gap-2 p-2.5 rounded-xl border text-center ${g.subtleSurface}`}>
                   <div>
                     <p className="text-[10px] opacity-60">Staff</p>
                     <p className="text-xs font-bold font-mono">{dept.membersCount}</p>
@@ -838,7 +838,7 @@ export default function AuditLogs() {
 
           {/* Filters */}
           <div className="flex flex-wrap items-center gap-2.5">
-            <div className="relative flex-1 min-w-[200px]">
+            <div className="relative flex-1 min-w-0 w-full sm:min-w-[200px]">
               <Search className={`w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 ${g.muted}`} />
               <input
                 type="text"

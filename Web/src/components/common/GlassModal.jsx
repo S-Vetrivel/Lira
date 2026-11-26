@@ -144,7 +144,7 @@ export default function GlassModal({
             exit={{ opacity: 0, scale: 0.96, y: 6 }}
             transition={{ type: "spring", damping: 28, stiffness: 420, mass: 0.7 }}
             onClick={(e) => e.stopPropagation()}
-            className={`relative z-10 w-full ${SIZE_MAP[size] || SIZE_MAP.sm} rounded-2xl border shadow-2xl overflow-hidden ${g.drawer} ${vStyle.border} ${className}`}
+            className={`relative z-10 w-full ${SIZE_MAP[size] || SIZE_MAP.sm} max-h-[calc(100dvh-2rem)] flex flex-col rounded-2xl border shadow-2xl overflow-hidden ${g.drawer} ${vStyle.border} ${className}`}
           >
             {(title || Icon || headerIcon || showCloseButton || headerActions) && (
               <div className={`px-5 py-4 border-b flex items-start justify-between gap-3 ${g.subHeader}`}>
@@ -191,10 +191,10 @@ export default function GlassModal({
               </div>
             )}
 
-            {children && <div className="px-5 py-4 text-xs sm:text-sm">{children}</div>}
+            {children && <div className="px-4 sm:px-5 py-4 text-xs sm:text-sm overflow-y-auto flex-1 min-h-0">{children}</div>}
 
             {footer && (
-              <div className={`px-5 py-3.5 border-t flex items-center justify-end gap-2 ${g.subHeader}`}>
+              <div className={`px-4 sm:px-5 py-3.5 border-t flex flex-wrap items-center justify-end gap-2 shrink-0 ${g.subHeader}`}>
                 {footer}
               </div>
             )}

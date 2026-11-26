@@ -163,7 +163,7 @@ export default function CalendarView() {
     >
       {/* Top Sub-Header */}
       <div
-        className={`px-6 py-3.5 border-b flex flex-wrap items-center justify-between gap-3 shrink-0 ${g.subHeader}`}
+        className={`px-3.5 sm:px-6 py-3 sm:py-3.5 border-b flex flex-wrap items-center justify-between gap-2.5 sm:gap-3 shrink-0 ${g.subHeader}`}
       >
         <div className="flex items-center gap-3">
           <div className={`w-9 h-9 rounded-xl border flex items-center justify-center ${g.badge}`}>
@@ -252,7 +252,105 @@ export default function CalendarView() {
 
       {/* Calendar Wrapper */}
       <div className="flex-1 min-h-0 flex flex-col overflow-auto">
-        <div className="min-w-[720px] flex-1 flex flex-col">
+        {/* Mobile Portrait Compact Calendar + Selected Day Agenda */}
+        <div className="md:hidden p-3 space-y-3">
+          <div className={`rounded-2xl border overflow-hidden ${g.card}`}>
+            <div className={`grid grid-cols-7 border-b text-center py-2 text-[10px] font-bold uppercase tracking-wider ${g.subHeader} ${g.muted}`}>
+              <span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span>
+            </div>
+            <div className="grid grid-cols-7">
+              {Array.from({ length: firstDayIndex }).map((_, i) => (
+                <div key={`m-empty-${i}`} className={`h-11 border-r border-b ${g.border} opacity-35`} />
+              ))}
+              {Array.from({ length: daysInMonth }).map((_, i) => {
+                const day = i + 1;
+                const dayTasks = tasksByDay[day] || [];
+                const isToday = day === now.getDate() && month === now.getMonth() && year === now.getFullYear();
+                const isSel = selectedDay === day;
+                return (
+                  <button
+                    key={`m-day-${day}`}
+                    type="button"
+                    onClick={() => setSelectedDay(day)}
+                    className={`h-11 border-r border-b flex flex-col items-center justify-center gap-0.5 text-xs font-semibold cursor-pointer ${g.border} ${
+                      isSel
+                        ? "bg-purple-500/20 text-purple-300 ring-1 ring-inset ring-purple-400/60"
+                        : isToday
+                        ? g.selectedRow
+                        : g.rowHover
+                    }`}
+                  >
+                    <span className={isToday ? "font-bold underline" : ""}>{day}</span>
+                    {dayTasks.length > 0 && (
+                      <span className="flex items-center gap-0.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                        {dayTasks.length > 1 && (
+                          <span className="text-[8px] font-mono opacity-75">{dayTasks.length}</span>
+                        )}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+              {Array.from({ length: trailingBlankCells }).map((_, i) => (
+                <div key={`m-end-${i}`} className={`h-11 border-r border-b ${g.border} opacity-35`} />
+              ))}
+            </div>
+          </div>
+
+          {(() => {
+            const mobileFocusDay = selectedDay || (month === now.getMonth() && year === now.getFullYear() ? now.getDate() : 1);
+            const focusTasks = tasksByDay[mobileFocusDay] || [];
+            return (
+              <div className={`rounded-2xl border p-3.5 space-y-2.5 ${g.card}`}>
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <p className={`text-xs font-bold ${g.heading}`}>
+                      {monthNames[month]} {mobileFocusDay}, {year}
+                    </p>
+                    <p className={`text-[11px] ${g.muted}`}>
+                      {focusTasks.length} scheduled task{focusTasks.length === 1 ? "" : "s"}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleScheduleForDate(mobileFocusDay)}
+                    className={`px-3 py-1.5 rounded-xl text-[11px] font-semibold flex items-center gap-1 cursor-pointer ${g.btnPrimary}`}
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>Schedule</span>
+                  </button>
+                </div>
+
+                {focusTasks.length === 0 ? (
+                  <p className={`text-xs py-3 text-center ${g.muted}`}>No tasks due on this date.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {focusTasks.map((t) => (
+                      <button
+                        key={`m-task-${t._id}`}
+                        type="button"
+                        onClick={() => setActiveTaskKey(t.key || t._id)}
+                        className={`w-full text-left p-3 rounded-xl border flex items-center justify-between gap-2 cursor-pointer ${g.subtleSurface}`}
+                      >
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border ${g.badge}`}>{t.key}</span>
+                            <span className={`text-[10px] uppercase ${g.muted}`}>{String(t.status || "").replace(/_/g, " ")}</span>
+                          </div>
+                          <p className={`text-xs font-semibold truncate mt-1 ${g.heading}`}>{t.title}</p>
+                        </div>
+                        <ArrowUpRight className="w-4 h-4 shrink-0 opacity-60" />
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+        </div>
+
+        <div className="hidden md:flex min-w-[720px] flex-1 flex-col">
           {/* Weekday Labels */}
           <div
             className={`grid grid-cols-7 border-b text-center py-2 text-[10px] font-bold uppercase tracking-wider shrink-0 ${g.subHeader} ${g.muted}`}

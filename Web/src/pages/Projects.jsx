@@ -696,7 +696,7 @@ export default function Projects() {
 
   return (
     <div
-      className={`flex-1 w-full h-full min-h-0 overflow-y-auto p-5 sm:p-7 space-y-8 transition-colors duration-150 ${isDark ? "text-slate-100" : "text-slate-900"
+      className={`flex-1 w-full h-full min-h-0 overflow-y-auto p-3.5 sm:p-7 space-y-6 sm:space-y-8 transition-colors duration-150 ${isDark ? "text-slate-100" : "text-slate-900"
         }`}
     >
       {/* Header Banner */}
@@ -1020,7 +1020,7 @@ export default function Projects() {
                     Cancel
                   </button>
                 </div>
-                <div className="grid grid-cols-3 gap-2.5">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                   <div className="col-span-2">
                     <label className="text-[11px] font-semibold block mb-1">Department Name</label>
                     <input
@@ -1297,7 +1297,7 @@ export default function Projects() {
                         className={inputClass}
                       />
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
                         <label className="text-[11px] font-semibold block mb-1">Department</label>
                         <select
@@ -1757,7 +1757,7 @@ export default function Projects() {
             {projDrawerTab === "chat" && canUseChat && (() => {
               const pinnedProjMsgs = projChatMessages.filter((m) => m.isPinned);
               return (
-                <div className={`flex flex-col h-[460px] rounded-2xl border overflow-hidden ${borderCol}`}>
+                <div className={`flex flex-col h-[380px] sm:h-[460px] rounded-2xl border overflow-hidden ${borderCol}`}>
                   {/* Pinned Messages Strip */}
                   {pinnedProjMsgs.length > 0 && (
                     <div className={`px-3 py-2 border-b text-xs ${subtleBg} ${borderCol}`}>
@@ -2150,7 +2150,7 @@ export default function Projects() {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-semibold block mb-1">Department Code *</label>
               <input

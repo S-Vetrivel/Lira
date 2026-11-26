@@ -174,7 +174,7 @@ export default function TableView() {
     >
       {/* Top Sub-Header */}
       <div
-        className={`px-6 py-3.5 border-b flex flex-wrap items-center justify-between gap-3 shrink-0 ${g.subHeader}`}
+        className={`px-3.5 sm:px-6 py-3 sm:py-3.5 border-b flex flex-wrap items-center justify-between gap-2.5 sm:gap-3 shrink-0 ${g.subHeader}`}
       >
         <div className="flex items-center gap-3">
           <div className={`w-9 h-9 rounded-xl border flex items-center justify-center ${g.badge}`}>
@@ -220,10 +220,10 @@ export default function TableView() {
 
       {/* Filter & Bulk Actions Bar */}
       <div
-        className={`px-6 py-2.5 border-b flex flex-wrap items-center justify-between gap-3 shrink-0 ${g.subtleSurface}`}
+        className={`px-3.5 sm:px-6 py-2.5 border-b flex flex-wrap items-center justify-between gap-2.5 sm:gap-3 shrink-0 ${g.subtleSurface}`}
       >
-        <div className="flex items-center gap-2 flex-1 min-w-[240px] flex-wrap">
-          <div className="relative flex-1 max-w-xs min-w-[180px]">
+        <div className="flex items-center gap-2 flex-1 min-w-0 w-full sm:min-w-[240px] flex-wrap">
+          <div className="relative flex-1 min-w-[150px] sm:max-w-xs sm:min-w-[180px]">
             <Search className={`w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 ${g.muted}`} />
             <input
               type="text"
@@ -286,9 +286,97 @@ export default function TableView() {
         )}
       </div>
 
-      {/* Grid Table */}
+      {/* Grid Table (Desktop) + Responsive Task Cards (Mobile Portrait) */}
       <div className="flex-1 overflow-auto">
-        <table className="w-full text-left text-xs border-collapse">
+        <div className="md:hidden p-3 space-y-2.5">
+          {filteredTasks.map((t) => {
+            const isSelected = selectedTaskIds.has(t._id);
+            const list =
+              Array.isArray(t.assignees) && t.assignees.length > 0
+                ? t.assignees
+                : t.assignee
+                  ? [t.assignee]
+                  : [];
+            return (
+              <div
+                key={`mobile-row-${t._id}`}
+                className={`p-3.5 rounded-2xl border space-y-2.5 transition-all ${
+                  isSelected ? g.selectedRow : g.card
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => toggleSelectTask(t._id)}
+                      className="rounded accent-zinc-500 cursor-pointer shrink-0"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setActiveTaskKey(t.key || t._id)}
+                      className={`font-mono text-xs font-bold hover:underline flex items-center gap-1 cursor-pointer ${g.heading}`}
+                    >
+                      <span>{t.key}</span>
+                      {t.isConfidential && <Shield className="w-3 h-3 text-rose-400" />}
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTaskKey(t.key || t._id)}
+                    className={`px-2.5 py-1 rounded-xl text-[11px] font-semibold cursor-pointer ${g.btnSecondary}`}
+                  >
+                    Open
+                  </button>
+                </div>
+
+                <div
+                  onClick={() => setActiveTaskKey(t.key || t._id)}
+                  className={`text-sm font-semibold leading-snug cursor-pointer ${g.heading}`}
+                >
+                  {t.title}
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <select
+                    value={t.status}
+                    onChange={(e) => handleQuickStatusChange(t._id, e.target.value)}
+                    className={`w-full border rounded-xl px-2.5 py-1.5 text-xs focus:outline-none cursor-pointer ${g.input}`}
+                  >
+                    <option value="todo" className={isDark ? "bg-[#14151a] text-white" : "bg-white text-slate-900"}>To Do</option>
+                    <option value="in_progress" className={isDark ? "bg-[#14151a] text-white" : "bg-white text-slate-900"}>In Progress</option>
+                    <option value="review" className={isDark ? "bg-[#14151a] text-white" : "bg-white text-slate-900"}>In Review</option>
+                    <option value="submitted_for_review" className={isDark ? "bg-[#14151a] text-white" : "bg-white text-slate-900"}>Submitted</option>
+                    <option value="redo_requested" className={isDark ? "bg-[#14151a] text-white" : "bg-white text-slate-900"}>Revision</option>
+                    <option value="done" className={isDark ? "bg-[#14151a] text-white" : "bg-white text-slate-900"}>Completed</option>
+                  </select>
+                  <select
+                    value={t.priority}
+                    onChange={(e) => handleQuickPriorityChange(t._id, e.target.value)}
+                    className={`w-full border rounded-xl px-2.5 py-1.5 text-xs focus:outline-none cursor-pointer ${g.input}`}
+                  >
+                    <option value="urgent" className={isDark ? "bg-[#14151a] text-white" : "bg-white text-slate-900"}>Urgent</option>
+                    <option value="high" className={isDark ? "bg-[#14151a] text-white" : "bg-white text-slate-900"}>High</option>
+                    <option value="medium" className={isDark ? "bg-[#14151a] text-white" : "bg-white text-slate-900"}>Medium</option>
+                    <option value="low" className={isDark ? "bg-[#14151a] text-white" : "bg-white text-slate-900"}>Low</option>
+                  </select>
+                </div>
+
+                <div className={`flex items-center justify-between gap-2 text-[11px] pt-1 ${g.muted}`}>
+                  <span className="truncate">
+                    {list.length > 0 ? list.map((u) => getDisplayName(u)).join(", ") : getDisplayName(t.assignee, "Unassigned")}
+                  </span>
+                  <span className="font-mono shrink-0 flex items-center gap-1">
+                    <Clock className="w-3 h-3" />
+                    {t.dueDate ? formatDateIN(t.dueDate, { day: "2-digit", month: "short" }) : "No date"}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <table className="hidden md:table w-full text-left text-xs border-collapse">
           <thead
             className={`sticky top-0 border-b font-bold uppercase tracking-wider text-[10px] z-10 ${g.subHeader} ${g.muted}`}
           >

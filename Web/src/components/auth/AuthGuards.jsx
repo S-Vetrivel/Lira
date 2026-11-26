@@ -25,7 +25,7 @@ export function AuthLoadingScreen() {
 
   return (
     <div
-      className={`h-screen w-screen flex items-center justify-center lira-canvas-bg ${
+      className={`h-dvh w-full flex items-center justify-center px-4 lira-canvas-bg ${
         isDark ? "text-white" : "text-slate-900"
       }`}
     >

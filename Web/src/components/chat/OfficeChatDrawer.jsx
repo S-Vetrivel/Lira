@@ -577,7 +577,7 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
     return (
       <div
         key={att._id || att.url || att.originalName}
-        className={`mt-1.5 p-2.5 rounded-xl border flex flex-col gap-2 max-w-[270px] ${
+        className={`mt-1.5 p-2.5 rounded-xl border flex flex-col gap-2 max-w-full sm:max-w-[270px] ${
           isMe
             ? "bg-white/15 border-white/25 text-white"
             : isDark
@@ -1165,7 +1165,7 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
               {canSendChat ? (
                 <form
                   onSubmit={handleSendMessage}
-                  className={`p-3 border-t flex items-center gap-2 shrink-0 ${g.subHeader}`}
+                  className={`p-2.5 sm:p-3 border-t flex items-center gap-1.5 sm:gap-2 min-w-0 shrink-0 ${g.subHeader}`}
                 >
                   <input
                     ref={quickFileInputRef}
@@ -1181,7 +1181,7 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
                   <button
                     type="button"
                     onClick={() => quickFileInputRef.current?.click()}
-                    className={`p-2 rounded-xl transition-colors cursor-pointer ${g.iconBtn}`}
+                    className={`p-2 rounded-xl transition-colors cursor-pointer shrink-0 ${g.iconBtn}`}
                     title="Attach & share file immediately"
                   >
                     <Paperclip className="w-4 h-4" />
@@ -1193,14 +1193,14 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
                     value={inputText}
                     onChange={handleInputChange}
                     placeholder={`Message ${isDirect ? selectedRoom?.name : `#${selectedRoom?.name}`}...`}
-                    className={`flex-1 rounded-xl px-3.5 py-2 text-xs border focus:outline-none transition-colors font-medium ${g.input}`}
+                    className={`flex-1 min-w-0 rounded-xl px-3 sm:px-3.5 py-2 text-xs border focus:outline-none transition-colors font-medium ${g.input}`}
                   />
 
                   <button
                     type="submit"
                     data-ai-target="chat-send-btn"
                     disabled={!inputText.trim() || sending}
-                    className={`px-3.5 py-2 rounded-xl disabled:opacity-30 text-xs transition-all flex items-center gap-1.5 cursor-pointer ${g.btnPrimary}`}
+                    className={`px-3 sm:px-3.5 py-2 rounded-xl disabled:opacity-30 text-xs transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${g.btnPrimary}`}
                   >
                     <Send className="w-3.5 h-3.5" />
                     <span className="hidden sm:inline">Send</span>

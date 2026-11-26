@@ -364,7 +364,7 @@ export default function Team() {
 
   return (
     <div
-      className={`flex-1 w-full h-full min-h-0 overflow-y-auto p-5 sm:p-7 space-y-6 transition-colors duration-150 ${isDark ? "text-slate-100" : "text-slate-900"
+      className={`flex-1 w-full h-full min-h-0 overflow-y-auto p-3.5 sm:p-7 space-y-5 sm:space-y-6 transition-colors duration-150 ${isDark ? "text-slate-100" : "text-slate-900"
         }`}
     >
       {/* Header Banner */}
@@ -809,7 +809,7 @@ export default function Team() {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-semibold block mb-1.5">Role</label>
               <select
@@ -959,7 +959,7 @@ export default function Team() {
                   Manage Assignment & Role
                 </h4>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs font-semibold block mb-1.5">Role</label>
                     <select
@@ -995,7 +995,7 @@ export default function Team() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs font-semibold block mb-1.5">Job Title</label>
                     <input

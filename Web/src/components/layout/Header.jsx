@@ -26,6 +26,8 @@ import {
   Activity,
   KeyRound,
   Maximize2,
+  Menu,
+  X,
 } from "lucide-react";
 import { markNotificationRead, markAllNotificationsRead } from "../../services/api";
 import UserAvatar from "../common/UserAvatar";
@@ -70,6 +72,7 @@ export default function Header() {
   const [showNotificationsSidebar, setShowNotificationsSidebar] = useState(false);
   const [notifFilter, setNotifFilter] = useState("all");
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [showMobileNav, setShowMobileNav] = useState(false);
 
   const headerRef = useRef(null);
 
@@ -86,10 +89,14 @@ export default function Header() {
       setShowNotifications(false);
       setShowNotificationsSidebar(false);
       setShowProfileMenu(false);
+      setShowMobileNav(false);
     };
     const onSidebarOpened = (e) => {
       if (e?.detail?.id && e.detail.id !== "notifications") {
         setShowNotificationsSidebar(false);
+      }
+      if (e?.detail?.id && e.detail.id !== "mobile-nav") {
+        setShowMobileNav(false);
       }
     };
     document.addEventListener("mousedown", handleOutside);
@@ -140,14 +147,31 @@ export default function Header() {
   const displayName = getDisplayName(user, "Member");
 
   return (
+    <div ref={headerRef} className="w-full z-40 shrink-0 select-none">
     <header
-      ref={headerRef}
-      className={`w-full h-[68px] border-b px-3 sm:px-5 xl:px-6 flex items-center justify-between gap-2 xl:gap-3 z-40 shrink-0 select-none transition-colors duration-150 ${g.header}`}
+      className={`w-full h-14 md:h-[68px] border-b px-2.5 sm:px-5 xl:px-6 flex items-center justify-between gap-1.5 sm:gap-2 xl:gap-3 transition-colors duration-150 ${g.header}`}
     >
-      {/* 1. Left: Brand + Modern Frosted Workspace Switcher Tray */}
-      <div className="flex items-center gap-2.5 shrink-0 min-w-0">
+      {/* 1. Left: Mobile Menu + Brand + Modern Frosted Workspace Switcher Tray */}
+      <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0 min-w-0">
+        <button
+          type="button"
+          data-testid="mobile-nav-menu-btn"
+          onClick={() => {
+            setShowWorkspaceMenu(false);
+            setShowNotifications(false);
+            setShowProfileMenu(false);
+            setShowMobileNav(true);
+          }}
+          className={`md:hidden w-8 h-8 rounded-xl border flex items-center justify-center shrink-0 transition-colors cursor-pointer ${g.btnSecondary}`}
+          title="Open Navigation Menu"
+          aria-label="Open Navigation Menu"
+        >
+          <Menu className="w-4 h-4" />
+        </button>
+
         <Link to="/" className="flex items-center group shrink-0" title="Go to Dashboard Home">
-          <LiraLogo size="md" isDark={isDark} />
+          <LiraLogo size="sm" isDark={isDark} className="sm:hidden" />
+          <LiraLogo size="md" isDark={isDark} className="hidden sm:inline-flex" />
         </Link>
 
         <div className={`hidden sm:block h-5 w-px shrink-0 ${isDark ? "bg-white/12" : "bg-slate-900/12"}`} />
@@ -162,11 +186,11 @@ export default function Header() {
                 setShowNotifications(false);
                 setShowProfileMenu(false);
               }}
-              className={`h-10 flex items-center gap-2 px-2.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${g.btnSecondary}`}
+              className={`h-8 sm:h-10 flex items-center gap-1 sm:gap-2 px-1.5 sm:px-2.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${g.btnSecondary}`}
               title="Switch active project workspace"
             >
               <span
-                className={`px-2 py-0.5 rounded-md text-[10px] font-mono font-bold tracking-wide border ${g.badge}`}
+                className={`px-1.5 sm:px-2 py-0.5 rounded-md text-[10px] font-mono font-bold tracking-wide border ${g.badge}`}
               >
                 {activeProject?.prefix || "ALL"}
               </span>
@@ -174,7 +198,7 @@ export default function Header() {
                 {activeProject?.name || "Select Workspace"}
               </span>
               <ChevronDown
-                className={`w-3.5 h-3.5 shrink-0 transition-transform duration-150 ${g.muted} ${showWorkspaceMenu ? "rotate-180" : ""
+                className={`hidden sm:block w-3.5 h-3.5 shrink-0 transition-transform duration-150 ${g.muted} ${showWorkspaceMenu ? "rotate-180" : ""
                   }`}
               />
             </button>
@@ -186,7 +210,7 @@ export default function Header() {
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 4, scale: 0.98 }}
                   transition={{ duration: 0.14 }}
-                  className={`absolute left-0 mt-2.5 w-72 rounded-2xl border p-2 z-50 ${g.dropdown}`}
+                  className={`fixed left-2.5 right-2.5 top-[60px] sm:top-auto sm:right-auto sm:absolute sm:left-0 sm:mt-2.5 sm:w-72 rounded-2xl border p-2 z-50 ${g.dropdown}`}
                 >
                   <div className={`px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-widest ${g.muted}`}>
                     Project Workspaces ({projects.length})
@@ -299,18 +323,19 @@ export default function Header() {
       </nav>
 
       {/* 3. Right: Modern Spacious Action & System Tray */}
-      <div className="flex items-center gap-2 shrink-0">
+      <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
         {/* Grouped Frosted System Utility Tray */}
-        <div className={`flex items-center gap-1 p-1 rounded-2xl border ${g.utilityTray}`}>
+        <div className={`flex items-center gap-0.5 sm:gap-1 p-0.5 sm:p-1 rounded-xl sm:rounded-2xl border ${g.utilityTray}`}>
           {/* Spotlight Search Trigger */}
           <button
             type="button"
             onClick={() => setIsCommandPaletteOpen(true)}
-            className={`group h-9 flex items-center gap-1.5 px-2.5 rounded-xl text-xs font-medium transition-all duration-150 cursor-pointer border border-transparent ${isDark
+            className={`group h-8 w-8 sm:w-auto sm:h-9 flex items-center justify-center sm:gap-1.5 sm:px-2.5 rounded-lg sm:rounded-xl text-xs font-medium transition-all duration-150 cursor-pointer border border-transparent ${isDark
               ? "text-zinc-300 hover:text-white hover:bg-white/[0.08]"
               : "text-slate-600 hover:text-slate-950 hover:bg-white/90"
               }`}
             title="Quick Search (⌘K or Ctrl+K)"
+            aria-label="Quick Search"
           >
             <Search className="w-4 h-4 opacity-80 group-hover:opacity-100" />
             <kbd
@@ -320,14 +345,14 @@ export default function Header() {
             </kbd>
           </button>
 
-          <div className={`h-5 w-px ${isDark ? "bg-white/[0.09]" : "bg-slate-900/[0.09]"}`} />
+          <div className={`hidden sm:block h-5 w-px ${isDark ? "bg-white/[0.09]" : "bg-slate-900/[0.09]"}`} />
 
           {/* Icon-Only Office Chat Trigger */}
           {(isSuperAdmin || hasModule("chat")) && (
           <button
             type="button"
             onClick={() => setIsChatOpen(true)}
-            className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all cursor-pointer relative ${isChatOpen
+            className={`w-8 h-8 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl flex items-center justify-center transition-all cursor-pointer relative ${isChatOpen
               ? g.selectedRow
               : isDark
                 ? "text-zinc-300 hover:text-white hover:bg-white/[0.09]"
@@ -336,21 +361,21 @@ export default function Header() {
             title="Office Chat & File Sharing"
             aria-label="Office Chat"
           >
-            <MessageSquare className="w-[17px] h-[17px]" />
+            <MessageSquare className="w-[16px] h-[16px] sm:w-[17px] sm:h-[17px]" />
             {unreadChatCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 min-w-[17px] h-[17px] px-1 rounded-full bg-emerald-500 text-white text-[9px] font-mono font-bold flex items-center justify-center shadow-sm">
+              <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] px-1 rounded-full bg-emerald-500 text-white text-[9px] font-mono font-bold flex items-center justify-center shadow-sm">
                 {unreadChatCount > 9 ? "9+" : unreadChatCount}
               </span>
             )}
           </button>
           )}
 
-          {/* Theme Toggle */}
+          {/* Theme Toggle (desktop header + available in mobile drawer) */}
           <button
             type="button"
             data-ai-target="theme-toggle-btn"
             onClick={toggleTheme}
-            className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all cursor-pointer ${isDark
+            className={`hidden sm:flex w-9 h-9 rounded-xl items-center justify-center transition-all cursor-pointer ${isDark
               ? "text-zinc-300 hover:text-white hover:bg-white/[0.09]"
               : "text-slate-700 hover:text-slate-950 hover:bg-white"
               }`}
@@ -374,7 +399,7 @@ export default function Header() {
                 setShowProfileMenu(false);
                 setShowWorkspaceMenu(false);
               }}
-              className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all cursor-pointer relative ${showNotifications
+              className={`w-8 h-8 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl flex items-center justify-center transition-all cursor-pointer relative ${showNotifications
                 ? g.selectedRow
                 : isDark
                   ? "text-zinc-300 hover:text-white hover:bg-white/[0.09]"
@@ -383,9 +408,9 @@ export default function Header() {
               title="Notifications"
               aria-label="Notifications"
             >
-              <Bell className="w-[17px] h-[17px]" />
+              <Bell className="w-[16px] h-[16px] sm:w-[17px] sm:h-[17px]" />
               {unreadCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 min-w-[17px] h-[17px] px-1 rounded-full bg-rose-500 text-white text-[9px] font-mono font-bold flex items-center justify-center shadow-sm">
+                <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] px-1 rounded-full bg-rose-500 text-white text-[9px] font-mono font-bold flex items-center justify-center shadow-sm">
                   {unreadCount > 9 ? "9+" : unreadCount}
                 </span>
               )}
@@ -398,7 +423,7 @@ export default function Header() {
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 4, scale: 0.98 }}
                   transition={{ duration: 0.14 }}
-                  className={`absolute right-0 mt-3 w-80 sm:w-96 rounded-2xl border p-3.5 z-50 ${g.dropdown}`}
+                  className={`fixed left-2.5 right-2.5 top-[60px] sm:top-auto sm:left-auto sm:absolute sm:right-0 sm:mt-3 sm:w-96 rounded-2xl border p-3.5 z-50 ${g.dropdown}`}
                 >
                   <div className={`flex items-center justify-between pb-2.5 border-b mb-2.5 ${g.border}`}>
                     <div className="flex items-center gap-2">
@@ -504,8 +529,9 @@ export default function Header() {
             type="button"
             data-ai-target="header-new-task-btn"
             onClick={() => setIsCreateTaskModalOpen(true)}
-            className={`h-10 flex items-center gap-1.5 text-xs px-3 xl:px-3.5 rounded-xl transition-all active:scale-95 cursor-pointer ${g.btnPrimary}`}
+            className={`h-8 w-8 sm:h-10 sm:w-auto flex items-center justify-center gap-1.5 text-xs sm:px-3 xl:px-3.5 rounded-xl transition-all active:scale-95 cursor-pointer ${g.btnPrimary}`}
             title="Create New Task"
+            aria-label="Create New Task"
           >
             <Plus className="w-4 h-4 shrink-0" />
             <span className="hidden 2xl:inline">New Task</span>
@@ -522,13 +548,13 @@ export default function Header() {
               setShowNotifications(false);
               setShowWorkspaceMenu(false);
             }}
-            className={`h-10 flex items-center gap-2 pl-1.5 pr-2.5 rounded-xl transition-all cursor-pointer ${g.btnSecondary}`}
+            className={`h-8 sm:h-10 flex items-center gap-1.5 sm:gap-2 p-1 sm:pl-1.5 sm:pr-2.5 rounded-xl transition-all cursor-pointer ${g.btnSecondary}`}
             title={displayName}
           >
             <UserAvatar
               user={user}
-              className="w-7 h-7 rounded-lg border border-white/15"
-              textClass="text-xs"
+              className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg border border-white/15"
+              textClass="text-[11px] sm:text-xs"
             />
             <div className="hidden 2xl:block text-left leading-tight">
               <span className={`text-xs font-semibold block truncate max-w-[96px] ${g.heading}`}>
@@ -539,7 +565,7 @@ export default function Header() {
               </span>
             </div>
             <ChevronDown
-              className={`w-3.5 h-3.5 shrink-0 transition-transform duration-150 ${g.muted} ${showProfileMenu ? "rotate-180" : ""
+              className={`hidden sm:block w-3.5 h-3.5 shrink-0 transition-transform duration-150 ${g.muted} ${showProfileMenu ? "rotate-180" : ""
                 }`}
             />
           </button>
@@ -551,7 +577,7 @@ export default function Header() {
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 4, scale: 0.98 }}
                 transition={{ duration: 0.14 }}
-                className={`absolute right-0 mt-2.5 w-64 rounded-2xl border p-3.5 z-50 space-y-3 ${g.dropdown}`}
+                className={`fixed left-2.5 right-2.5 top-[60px] sm:top-auto sm:left-auto sm:absolute sm:right-0 sm:mt-2.5 sm:w-64 rounded-2xl border p-3.5 z-50 space-y-3 ${g.dropdown}`}
               >
                 <div className={`flex items-center gap-3 pb-3 border-b ${g.border}`}>
                   <UserAvatar
@@ -755,5 +781,183 @@ export default function Header() {
         </div>
       </SideDrawer>
     </header>
+
+    {/* Mobile / Portrait Horizontally Scrollable Primary Route Bar (always accessible below header < md) */}
+    <nav
+      aria-label="Mobile Navigation"
+      data-testid="mobile-route-bar"
+      className={`md:hidden w-full border-b px-2.5 py-1.5 flex items-center gap-1 overflow-x-auto no-scrollbar ${g.header}`}
+    >
+      {navItems.map((item) => {
+        const isActive =
+          location.pathname === item.path ||
+          (item.aliases && item.aliases.includes(location.pathname));
+        const Icon = item.icon;
+        return (
+          <Link
+            key={item.path}
+            to={item.path}
+            className={`relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[11px] font-semibold whitespace-nowrap shrink-0 transition-colors border ${
+              isActive
+                ? `${g.navActivePill} ${isDark ? "text-white border-white/15" : "text-slate-950 border-slate-900/15"}`
+                : `border-transparent ${isDark ? "text-zinc-400 hover:text-zinc-100" : "text-slate-600 hover:text-slate-950"}`
+            }`}
+          >
+            <Icon className={`w-3.5 h-3.5 shrink-0 ${isActive ? "opacity-100" : "opacity-70"}`} />
+            <span>{item.label}</span>
+            {item.pendingCount > 0 && (
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+            )}
+          </Link>
+        );
+      })}
+    </nav>
+
+    {/* Mobile Left Navigation & Workspace Drawer */}
+    <SideDrawer
+      sidebarId="mobile-nav"
+      position="left"
+      isOpen={showMobileNav}
+      onClose={() => setShowMobileNav(false)}
+      title="Navigation"
+      subtitle={activeProject ? `[${activeProject.prefix}] ${activeProject.name}` : "Lira Workspace"}
+      headerIcon={<LiraLogo size="sm" showWordmark={false} isDark={isDark} />}
+      widthClass="max-w-xs"
+      footer={
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <button
+              type="button"
+              onClick={toggleTheme}
+              className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl border text-xs font-semibold cursor-pointer ${g.btnSecondary}`}
+            >
+              {isDark ? <Sun className="w-3.5 h-3.5 text-amber-300" /> : <Moon className="w-3.5 h-3.5" />}
+              <span>{isDark ? "Light Theme" : "Dark Theme"}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setShowMobileNav(false);
+                handleLogout();
+              }}
+              className="px-3.5 py-2 rounded-xl border border-rose-500/25 bg-rose-500/10 text-rose-400 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>Sign Out</span>
+            </button>
+          </div>
+        </div>
+      }
+    >
+      <div className="space-y-5">
+        {/* All Accessible Navigation Routes */}
+        <div className="space-y-1">
+          <p className={`px-2 text-[10px] font-bold uppercase tracking-widest mb-2 ${g.muted}`}>
+            Workspace Routes ({navItems.length})
+          </p>
+          {navItems.map((item) => {
+            const isActive =
+              location.pathname === item.path ||
+              (item.aliases && item.aliases.includes(location.pathname));
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.path}
+                to={item.path}
+                onClick={() => setShowMobileNav(false)}
+                className={`flex items-center justify-between gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold border transition-all ${
+                  isActive
+                    ? g.selectedRow
+                    : `border-transparent ${g.rowHover} ${isDark ? "text-zinc-200" : "text-slate-800"}`
+                }`}
+              >
+                <span className="flex items-center gap-2.5 min-w-0">
+                  <Icon className="w-4 h-4 shrink-0 opacity-80" />
+                  <span className="truncate">{item.label}</span>
+                </span>
+                {item.pendingCount > 0 && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                    {item.pendingCount}
+                  </span>
+                )}
+              </Link>
+            );
+          })}
+        </div>
+
+        {/* Workspace Switcher List */}
+        {projects.length > 0 && (
+          <div className={`pt-4 border-t space-y-1.5 ${g.border}`}>
+            <p className={`px-2 text-[10px] font-bold uppercase tracking-widest mb-1.5 ${g.muted}`}>
+              Active Workspace
+            </p>
+            <div className="space-y-1 max-h-48 overflow-y-auto">
+              {projects.map((proj) => {
+                const selected = activeProject?._id === proj._id;
+                return (
+                  <button
+                    key={proj._id}
+                    type="button"
+                    onClick={() => {
+                      setActiveProject(proj);
+                      setShowMobileNav(false);
+                    }}
+                    className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-left text-xs border cursor-pointer ${
+                      selected
+                        ? g.selectedRow
+                        : `border-transparent ${g.rowHover} ${isDark ? "text-zinc-300" : "text-slate-700"}`
+                    }`}
+                  >
+                    <span className="flex items-center gap-2 min-w-0">
+                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold border shrink-0 ${g.badge}`}>
+                        {proj.prefix}
+                      </span>
+                      <span className="truncate font-semibold">{proj.name}</span>
+                    </span>
+                    {selected && <Check className="w-3.5 h-3.5 shrink-0" />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Quick Account & AI Shortcuts */}
+        <div className={`pt-4 border-t space-y-1 ${g.border}`}>
+          <p className={`px-2 text-[10px] font-bold uppercase tracking-widest mb-1.5 ${g.muted}`}>
+            Account & Shortcuts
+          </p>
+          <Link
+            to="/profile"
+            onClick={() => setShowMobileNav(false)}
+            className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold ${g.rowHover}`}
+          >
+            <UserIcon className="w-4 h-4 opacity-75" />
+            <span>Profile & Settings</span>
+          </Link>
+          {(isSuperAdmin || hasPermission("ai.use")) && (
+            <Link
+              to="/profile?tab=ai"
+              onClick={() => setShowMobileNav(false)}
+              className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold ${g.rowHover}`}
+            >
+              <KeyRound className="w-4 h-4 text-purple-400" />
+              <span>My AI Keys (BYOK)</span>
+            </Link>
+          )}
+          {(isSuperAdmin || hasPermission("ai.manage")) && (
+            <Link
+              to="/roles?tab=ai"
+              onClick={() => setShowMobileNav(false)}
+              className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold ${g.rowHover}`}
+            >
+              <Shield className="w-4 h-4 text-emerald-400" />
+              <span>Superadmin AI Vault</span>
+            </Link>
+          )}
+        </div>
+      </div>
+    </SideDrawer>
+    </div>
   );
 }

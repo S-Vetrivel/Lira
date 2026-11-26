@@ -46,7 +46,7 @@ export function MainLayout({ children }) {
 
   return (
     <div
-      className={`h-screen w-screen flex flex-col overflow-hidden font-sans selection:bg-zinc-700 selection:text-white lira-canvas-bg relative transition-colors duration-150 ${
+      className={`h-dvh w-full max-w-full flex flex-col overflow-hidden font-sans selection:bg-zinc-700 selection:text-white lira-canvas-bg relative transition-colors duration-150 ${
         isDark ? "text-zinc-100" : "text-slate-900"
       }`}
     >

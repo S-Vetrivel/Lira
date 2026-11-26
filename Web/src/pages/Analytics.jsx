@@ -301,7 +301,7 @@ export default function Analytics() {
   const RoleIcon = roleMeta.icon;
 
   return (
-    <div className={`flex-1 w-full h-full overflow-y-auto lg:overflow-hidden ${g.heading}`}>
+    <div className={`flex-1 w-full h-full overflow-y-auto overflow-x-hidden lg:overflow-hidden ${g.heading}`}>
       <div className="w-full lg:h-full px-3 sm:px-4 py-2.5 lg:py-3 flex flex-col gap-2.5 lg:gap-3 select-none">
         {/* 1. HERO HOME BANNER + QUICK ACTION LAUNCHPAD */}
         <div className={`shrink-0 rounded-2xl p-3 sm:px-4 sm:py-2.5 border flex flex-col gap-2.5 ${g.cardGlow}`}>
@@ -480,7 +480,7 @@ export default function Analytics() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-2.5 lg:gap-3 lg:h-full lg:min-h-0">
           {/* Col A: Throughput Curve (5/12) */}
           <div className={`lg:col-span-5 lg:h-full min-h-0 rounded-2xl p-3.5 sm:p-4 border flex flex-col gap-2.5 overflow-hidden ${g.cardGlow}`}>
-            <div className="flex items-center justify-between gap-2 shrink-0">
+            <div className="flex flex-wrap items-center justify-between gap-2 shrink-0">
               <div className="flex items-center gap-2.5">
                 <div className={`w-8 h-8 rounded-xl flex items-center justify-center border ${g.badge}`}>
                   <Activity className="w-4 h-4 opacity-80" />
@@ -508,7 +508,7 @@ export default function Analytics() {
               </div>
             </div>
 
-            <div className="flex items-center gap-5 shrink-0">
+            <div className="flex flex-wrap items-center gap-3 sm:gap-5 shrink-0">
               <div>
                 <div className="flex items-center gap-2">
                   <span className={`text-2xl font-display font-bold tabular-nums ${g.heading}`}>

@@ -8,6 +8,7 @@ import { hasOpenModal } from "./GlassModal";
 
 export default function SideDrawer({
   sidebarId,
+  position = "right",
   isOpen,
   onClose,
   title,
@@ -22,6 +23,7 @@ export default function SideDrawer({
   footer,
   drawerProps = {},
 }) {
+  const isLeft = position === "left";
   const { theme } = useApp();
   const isDark = theme === "dark";
   const g = getGlassTokens(isDark);
@@ -67,7 +69,7 @@ export default function SideDrawer({
   return createPortal(
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-[70] overflow-hidden flex justify-end pointer-events-none">
+        <div className={`fixed inset-0 z-[70] overflow-hidden flex ${isLeft ? "justify-start" : "justify-end"} pointer-events-none`}>
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1, pointerEvents: "auto" }}
@@ -78,16 +80,16 @@ export default function SideDrawer({
           />
 
           <motion.div
-            initial={{ x: "100%" }}
+            initial={{ x: isLeft ? "-100%" : "100%" }}
             animate={{ x: 0, pointerEvents: "auto" }}
-            exit={{ x: "100%", pointerEvents: "none" }}
+            exit={{ x: isLeft ? "-100%" : "100%", pointerEvents: "none" }}
             transition={{ type: "spring", damping: 32, stiffness: 390, mass: 0.8 }}
             {...drawerProps}
-            className={`relative w-full ${resolvedWidth} h-full flex flex-col z-10 border-l shadow-2xl ${g.drawer} ${drawerProps.className || ""}`}
+            className={`relative w-full ${resolvedWidth} h-full flex flex-col z-10 ${isLeft ? "border-r" : "border-l"} shadow-2xl ${g.drawer} ${drawerProps.className || ""}`}
           >
             {/* Header */}
             <div
-              className={`px-6 py-4 border-b flex items-center justify-between gap-3 shrink-0 ${g.subHeader}`}
+              className={`px-4 sm:px-6 py-3.5 sm:py-4 border-b flex items-center justify-between gap-3 shrink-0 ${g.subHeader}`}
             >
               <div className="flex items-center gap-3 min-w-0">
                 {headerIcon ? (
@@ -132,11 +134,11 @@ export default function SideDrawer({
             </div>
 
             {/* Scrollable Body */}
-            <div className="flex-1 overflow-y-auto p-6">{children}</div>
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6">{children}</div>
 
             {/* Optional Footer */}
             {footer && (
-              <div className={`px-6 py-3.5 border-t shrink-0 ${g.subHeader}`}>
+              <div className={`px-4 sm:px-6 py-3 sm:py-3.5 border-t shrink-0 ${g.subHeader}`}>
                 {footer}
               </div>
             )}
