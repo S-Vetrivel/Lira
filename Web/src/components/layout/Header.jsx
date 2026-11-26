@@ -170,8 +170,12 @@ export default function Header() {
         </button>
 
         <Link to="/" className="flex items-center group shrink-0" title="Go to Dashboard Home">
-          <LiraLogo size="sm" isDark={isDark} className="sm:hidden" />
-          <LiraLogo size="md" isDark={isDark} className="hidden sm:inline-flex" />
+          <span className="sm:hidden inline-flex items-center">
+            <LiraLogo size="sm" isDark={isDark} />
+          </span>
+          <span className="hidden sm:inline-flex items-center">
+            <LiraLogo size="md" isDark={isDark} />
+          </span>
         </Link>
 
         <div className={`hidden sm:block h-5 w-px shrink-0 ${isDark ? "bg-white/12" : "bg-slate-900/12"}`} />

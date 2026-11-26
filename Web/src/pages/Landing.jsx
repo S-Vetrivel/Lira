@@ -147,8 +147,12 @@ export default function Landing() {
       <header className={`sticky top-0 z-40 w-full border-b ${g.header}`}>
         <div className="w-full px-3.5 sm:px-10 lg:px-16 h-14 sm:h-[68px] flex items-center justify-between gap-2 sm:gap-4">
           <Link to="/" className="shrink-0">
-            <LiraLogo size="sm" showBadge={false} isDark={isDark} className="sm:hidden" />
-            <LiraLogo size="md" showBadge isDark={isDark} className="hidden sm:inline-flex" />
+            <span className="sm:hidden inline-flex items-center">
+              <LiraLogo size="sm" showBadge={false} isDark={isDark} />
+            </span>
+            <span className="hidden sm:inline-flex items-center">
+              <LiraLogo size="md" showBadge isDark={isDark} />
+            </span>
           </Link>
 
           <nav className={`hidden md:flex items-center gap-7 text-xs font-semibold ${subtleText}`}>
