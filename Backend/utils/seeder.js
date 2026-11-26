@@ -40,6 +40,12 @@ const seedDatabase = async () => {
       await existingAdmin.save();
     }
 
+    const isProduction = String(process.env.NODE_ENV || "").toLowerCase() === "production";
+    if (isProduction && process.env.SEED_DEMO_DATA !== "true") {
+      console.log("ℹ️ Production mode: Superadmin & system roles ensured (demo workspace seeding disabled).");
+      return;
+    }
+
     const deptCount = await Department.countDocuments();
     if (deptCount > 0) {
       console.log("ℹ️ Database already seeded with workspace data.");
