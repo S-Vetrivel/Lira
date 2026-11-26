@@ -22,7 +22,8 @@ const initSocket = (server) => {
       methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
       credentials: true,
     },
-    pingTimeout: 60000,
+    pingInterval: 10000,
+    pingTimeout: 10000,
     transports: ["websocket", "polling"],
   });
 
@@ -52,6 +53,10 @@ const initSocket = (server) => {
         onlineUsers.get(uid).add(socket.id);
         io.emit("presence:update", { onlineUserIds: getOnlineUserIds() });
       }
+    });
+
+    socket.on("presence:request", () => {
+      socket.emit("presence:update", { onlineUserIds: getOnlineUserIds() });
     });
 
     // 2. Project Room

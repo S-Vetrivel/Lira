@@ -1049,6 +1049,76 @@ export async function getUserAIKeys() {
   }
 }
 
+export async function getMyAIAccessAPI() {
+  try {
+    const res = await api.get("/ai/my-access");
+    return res.data;
+  } catch (error) {
+    return { success: false, isSuperAdmin: false, grants: [] };
+  }
+}
+
+export async function getAIGlobalGrants() {
+  try {
+    const res = await api.get("/ai/grants");
+    return res.data;
+  } catch (error) {
+    return { success: false, grants: [], targets: { users: [], departments: [], projects: [] }, moduleOptions: [] };
+  }
+}
+
+export async function createAIGlobalGrant(payload) {
+  try {
+    const res = await api.post("/ai/grants", payload);
+    toast.success(res.data.message || "Global AI Key access granted");
+    return res.data;
+  } catch (error) {
+    toast.error(error.response?.data?.message || "Failed to grant Global AI Key access");
+    return { success: false };
+  }
+}
+
+export async function revokeAIGlobalGrant(grantId) {
+  try {
+    const res = await api.put(`/ai/grants/${grantId}/revoke`);
+    toast.success(res.data.message || "Global AI access revoked");
+    return res.data;
+  } catch (error) {
+    toast.error(error.response?.data?.message || "Failed to revoke grant");
+    return { success: false };
+  }
+}
+
+export async function restoreAIGlobalGrant(grantId) {
+  try {
+    const res = await api.put(`/ai/grants/${grantId}/restore`);
+    toast.success(res.data.message || "Global AI access restored");
+    return res.data;
+  } catch (error) {
+    toast.error(error.response?.data?.message || "Failed to restore grant");
+    return { success: false };
+  }
+}
+
+export async function deleteAIGlobalGrant(grantId) {
+  try {
+    const res = await api.delete(`/ai/grants/${grantId}`);
+    toast.success(res.data.message || "Grant deleted");
+    return res.data;
+  } catch (error) {
+    return { success: false };
+  }
+}
+
+export async function getAIUsageLogsAPI(params = {}) {
+  try {
+    const res = await api.get("/ai/usage-logs", { params });
+    return res.data;
+  } catch (error) {
+    return { success: false, logs: [], stats: {} };
+  }
+}
+
 // ==========================================
 // SUPERADMIN AUDIT LOG & SYSTEM MONITOR APIs
 // ==========================================

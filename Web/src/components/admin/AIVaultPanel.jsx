@@ -22,6 +22,7 @@ import {
 } from "../../services/api";
 import { getGlassTokens } from "../../styles/glassTheme";
 import AIKeyManagerModal from "../ai/AIKeyManagerModal";
+import AIGlobalGrantsPanel from "./AIGlobalGrantsPanel";
 
 export default function AIVaultPanel({ isDark = true }) {
   const g = getGlassTokens(isDark);
@@ -36,6 +37,7 @@ export default function AIVaultPanel({ isDark = true }) {
   const [rawTestStatus, setRawTestStatus] = useState({});
   const [keyModalOpen, setKeyModalOpen] = useState(false);
   const [keyModalProvider, setKeyModalProvider] = useState("google");
+  const [keyModalScope, setKeyModalScope] = useState("global");
 
   const loadConfig = async () => {
     setLoading(true);
@@ -116,8 +118,9 @@ export default function AIVaultPanel({ isDark = true }) {
     await loadConfig();
   };
 
-  const openKeysModal = (pKey = "google") => {
+  const openKeysModal = (pKey = "google", modalScope = "global") => {
     setKeyModalProvider(pKey);
+    setKeyModalScope(modalScope);
     setKeyModalOpen(true);
   };
 
@@ -155,11 +158,19 @@ export default function AIVaultPanel({ isDark = true }) {
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={() => openKeysModal("google")}
+            onClick={() => openKeysModal("google", "global")}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer ${g.btnPrimary}`}
           >
             <KeyRound className="w-3.5 h-3.5" />
-            <span>Manage & Switch Keys</span>
+            <span>Global Key Ring</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => openKeysModal("google", "user")}
+            className={`px-3 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-1.5 cursor-pointer ${g.btnSecondary}`}
+          >
+            <Lock className="w-3.5 h-3.5 text-purple-400" />
+            <span>My Personal Keys</span>
           </button>
           <button
             type="button"
@@ -462,10 +473,13 @@ export default function AIVaultPanel({ isDark = true }) {
         })}
       </div>
 
+      {/* Global Key Access Grants & Module Permissions */}
+      <AIGlobalGrantsPanel isDark={isDark} />
+
       <AIKeyManagerModal
         isOpen={keyModalOpen}
         onClose={() => setKeyModalOpen(false)}
-        scope="global"
+        scope={keyModalScope}
         initialProvider={keyModalProvider}
         onUpdated={loadConfig}
         isDark={isDark}

@@ -1,5 +1,9 @@
 const axios = require("axios");
 const AIConfig = require("../models/aiConfigModel");
+const AIGlobalGrant = require("../models/aiGlobalGrantModel");
+const AIUsageLog = require("../models/aiUsageLogModel");
+const User = require("../models/userModel");
+const Project = require("../models/projectModel");
 const {
   AI_PROVIDERS_CATALOG,
   getEnvKeyForProvider,
@@ -7,12 +11,152 @@ const {
 } = require("../config/aiCatalog");
 const { decryptSecret } = require("../utils/cryptoVault");
 
+function normalizeUsageTokens(providerKey, usage) {
+  if (!usage || typeof usage !== "object") {
+    return { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
+  }
+  if (providerKey === "google") {
+    const promptTokens = Number(usage.promptTokenCount || 0);
+    const completionTokens = Number(usage.candidatesTokenCount || 0);
+    const totalTokens = Number(usage.totalTokenCount || promptTokens + completionTokens);
+    return { promptTokens, completionTokens, totalTokens };
+  }
+  const promptTokens = Number(usage.input_tokens || usage.prompt_tokens || 0);
+  const completionTokens = Number(usage.output_tokens || usage.completion_tokens || 0);
+  const totalTokens = Number(usage.total_tokens || promptTokens + completionTokens);
+  return { promptTokens, completionTokens, totalTokens };
+}
+
+async function recordAIUsageLog({
+  userId = null,
+  userSnapshot = null,
+  provider = "unknown",
+  model = "",
+  moduleKey = "global",
+  taskType = "module_assistant",
+  credentialScope = "none",
+  keyId = "",
+  keyLabel = "",
+  maskedKey = "",
+  grantId = null,
+  grantTargetType = "system",
+  grantTargetName = "",
+  projectId = null,
+  departmentId = null,
+  status = "success",
+  latencyMs = 0,
+  usage = null,
+  errorMessage = "",
+}) {
+  try {
+    let snap = userSnapshot;
+    if (!snap && userId) {
+      snap = await User.findById(userId)
+        .select("fullname email publicId role department")
+        .populate("department", "name")
+        .lean();
+    }
+    const tokens = normalizeUsageTokens(provider, usage);
+    await AIUsageLog.create({
+      user: userId || snap?._id || null,
+      userName: snap?.fullname || "System",
+      userEmail: snap?.email || "",
+      userPublicId: snap?.publicId || "",
+      userRole: snap?.role || "",
+      departmentName: snap?.department?.name || "",
+      provider: ["google", "openai", "anthropic"].includes(provider) ? provider : "unknown",
+      model: model || "",
+      moduleKey: moduleKey || "global",
+      taskType: taskType || "module_assistant",
+      credentialScope,
+      keyId: keyId ? String(keyId) : "",
+      keyLabel: keyLabel || "",
+      maskedKey: maskedKey || "",
+      grantId: grantId || null,
+      grantTargetType,
+      grantTargetName: grantTargetName || "",
+      projectId: projectId || null,
+      departmentId: departmentId || snap?.department?._id || snap?.department || null,
+      status,
+      latencyMs: Number(latencyMs || 0),
+      promptTokens: tokens.promptTokens,
+      completionTokens: tokens.completionTokens,
+      totalTokens: tokens.totalTokens,
+      errorMessage: errorMessage ? String(errorMessage).slice(0, 500) : "",
+    });
+  } catch (err) {
+    console.warn("[AIUsageLog] Failed to record usage:", err.message);
+  }
+}
+
+async function getUserContextForGrants(userId) {
+  if (!userId) return null;
+  const userDoc = await User.findById(userId)
+    .select("fullname email publicId role isSuperAdmin department")
+    .populate("department", "name")
+    .lean();
+  if (!userDoc) return null;
+  const userProjects = await Project.find({ members: userId }).select("_id name").lean();
+  return {
+    userDoc,
+    isSuperAdmin: Boolean(userDoc.isSuperAdmin || userDoc.role === "superadmin"),
+    departmentId: userDoc.department?._id || userDoc.department || null,
+    projectIds: userProjects.map((p) => p._id),
+  };
+}
+
+async function getUserGlobalGrantsSummary(userId) {
+  const ctx = await getUserContextForGrants(userId);
+  if (!ctx) return { isSuperAdmin: false, grants: [] };
+  if (ctx.isSuperAdmin) {
+    return { isSuperAdmin: true, grants: [] };
+  }
+  const orConditions = [{ targetType: "user", targetId: userId }];
+  if (ctx.departmentId) {
+    orConditions.push({ targetType: "department", targetId: ctx.departmentId });
+  }
+  if (ctx.projectIds.length > 0) {
+    orConditions.push({ targetType: "project", targetId: { $in: ctx.projectIds } });
+  }
+  const grants = await AIGlobalGrant.find({ isActive: true, $or: orConditions })
+    .sort({ createdAt: -1 })
+    .lean();
+  return { isSuperAdmin: false, grants };
+}
+
+async function findActiveGlobalGrant({ userCtx, providerKey, moduleKey, projectId, departmentId }) {
+  if (!userCtx) return null;
+  const orConditions = [{ targetType: "user", targetId: userCtx.userDoc._id }];
+  const deptIds = [departmentId, userCtx.departmentId].filter(Boolean);
+  if (deptIds.length > 0) {
+    orConditions.push({ targetType: "department", targetId: { $in: deptIds } });
+  }
+  const projIds = [...new Set([...(userCtx.projectIds || []).map(String), ...(projectId ? [String(projectId)] : [])])];
+  if (projIds.length > 0) {
+    orConditions.push({ targetType: "project", targetId: { $in: projIds } });
+  }
+
+  const grants = await AIGlobalGrant.find({
+    isActive: true,
+    provider: { $in: ["all", ...(providerKey ? [providerKey] : [])] },
+    allowedModules: { $in: ["*", moduleKey] },
+    $or: orConditions,
+  }).lean();
+
+  if (!grants.length) return null;
+  const priority = { user: 1, project: 2, department: 3 };
+  grants.sort((a, b) => (priority[a.targetType] || 9) - (priority[b.targetType] || 9));
+  return grants[0];
+}
+
 /**
  * Resolve which provider, model, and decrypted API key should handle an AI request.
  * Policy:
- * 1. If `userId` has an enabled encrypted user BYOK config for `(moduleKey || "all")` & provider, use user BYOK key.
- * 2. Otherwise ONLY if `taskType === "global_task"` allow Superadmin encrypted vault key (`scope: "global"`, `globalOnly: true`) or `.env` key.
- * 3. Non-global user requests NEVER receive Superadmin's encrypted global key!
+ * 1. Unless `preferGlobal` is set, check User BYOK key for `(moduleKey || "all")` & provider first.
+ * 2. Otherwise allow Global Key (`superadmin_vault` or `.env`) ONLY if:
+ *    - Caller is Superadmin (`isSuperAdmin`), OR
+ *    - Internal system global task (`!userId && taskType === "global_task"`), OR
+ *    - Caller has an active `AIGlobalGrant` (directly, via Department, or via Project/Team) covering `provider` and `moduleKey`.
  */
 async function resolveExecutionCredentials({
   providerKey,
@@ -20,6 +164,9 @@ async function resolveExecutionCredentials({
   taskType = "global_task",
   moduleKey = "global",
   userId = null,
+  projectId = null,
+  departmentId = null,
+  preferGlobal = false,
 }) {
   let targetProviderKey = providerKey;
   let targetModel = requestedModel;
@@ -29,8 +176,10 @@ async function resolveExecutionCredentials({
     if (match) targetProviderKey = match.provider.key;
   }
 
-  // 1. Check User BYOK encrypted key first when a userId is supplied
-  if (userId) {
+  const userCtx = userId ? await getUserContextForGrants(userId) : null;
+
+  // 1. Check User BYOK encrypted key first when a userId is supplied (unless preferGlobal is true)
+  if (userId && !preferGlobal) {
     const userQuery = {
       scope: "user",
       owner: userId,
@@ -54,16 +203,17 @@ async function resolveExecutionCredentials({
         model: targetModel || userCfg.defaultModel,
         apiKey: decryptSecret(userEnc),
         keySource: "user_byok",
+        credentialScope: "user_byok",
+        keyId: activeUserEntry?._id ? String(activeUserEntry._id) : String(userCfg._id),
+        keyLabel: activeUserEntry?.label || "Personal BYOK Key",
+        maskedKey: activeUserEntry?.maskedKey || userCfg.maskedKey || "",
+        grantId: null,
+        grantTargetType: "self_byok",
+        grantTargetName: userCtx?.userDoc?.fullname || "Personal BYOK",
+        userSnapshot: userCtx?.userDoc || null,
         thinkingLevel: userCfg.thinkingLevel || "low",
       };
     }
-  }
-
-  // 2. Enforce global-only guard for Superadmin encrypted vault key
-  if (taskType !== "global_task") {
-    throw new Error(
-      `Personal API key required for module '${moduleKey}'. Global Superadmin AI keys can only be used in global tasks.`
-    );
   }
 
   // Pick global default provider if caller omitted providerKey
@@ -85,7 +235,7 @@ async function resolveExecutionCredentials({
     }
   }
 
-  // If no DB config exists yet, fall back to whichever provider has an .env key (preferring google if set)
+  // If no DB config exists yet, fall back to whichever provider has an .env key
   if (!targetProviderKey) {
     const preferredOrder = ["google", "openai", "anthropic"];
     for (const pKey of preferredOrder) {
@@ -94,6 +244,49 @@ async function resolveExecutionCredentials({
         break;
       }
     }
+  }
+
+  // 2. Enforce Global Key Grant / Superadmin Guard
+  let matchedGrant = null;
+  let grantTargetType = "system";
+  let grantTargetName = "Global Platform";
+
+  if (userCtx) {
+    if (userCtx.isSuperAdmin) {
+      grantTargetType = "superadmin";
+      grantTargetName = userCtx.userDoc.fullname || "Superadmin";
+    } else {
+      matchedGrant = await findActiveGlobalGrant({
+        userCtx,
+        providerKey: targetProviderKey,
+        moduleKey,
+        projectId,
+        departmentId,
+      });
+      if (!matchedGrant) {
+        const err = new Error(
+          `Access denied: No personal BYOK key configured and no Global AI Key grant exists for module '${moduleKey}'.`
+        );
+        err.statusCode = 403;
+        err.deniedMeta = {
+          userId,
+          userSnapshot: userCtx.userDoc,
+          provider: targetProviderKey || "unknown",
+          model: targetModel || "",
+          moduleKey,
+          taskType,
+          projectId,
+          departmentId,
+        };
+        throw err;
+      }
+      grantTargetType = matchedGrant.targetType;
+      grantTargetName = matchedGrant.targetName || matchedGrant.targetType;
+    }
+  } else if (taskType !== "global_task") {
+    throw new Error(
+      `Personal API key or Global Grant required for module '${moduleKey}'.`
+    );
   }
 
   if (!targetProviderKey) {
@@ -121,6 +314,14 @@ async function resolveExecutionCredentials({
       model: resolvedModel,
       apiKey: decryptSecret(vaultEnc),
       keySource: "superadmin_vault",
+      credentialScope: "global_vault",
+      keyId: activeVaultEntry?._id ? String(activeVaultEntry._id) : String(globalCfg._id),
+      keyLabel: activeVaultEntry?.label || "Superadmin Vault Key",
+      maskedKey: activeVaultEntry?.maskedKey || globalCfg.maskedKey || "",
+      grantId: matchedGrant?._id || null,
+      grantTargetType,
+      grantTargetName,
+      userSnapshot: userCtx?.userDoc || null,
       thinkingLevel,
     };
   }
@@ -132,6 +333,14 @@ async function resolveExecutionCredentials({
       model: resolvedModel,
       apiKey: envInfo.rawKey,
       keySource: "env",
+      credentialScope: "global_env",
+      keyId: "env",
+      keyLabel: `.env (${envInfo.envVar})`,
+      maskedKey: envInfo.maskedKey || "",
+      grantId: matchedGrant?._id || null,
+      grantTargetType,
+      grantTargetName,
+      userSnapshot: userCtx?.userDoc || null,
       thinkingLevel,
     };
   }
@@ -142,6 +351,14 @@ async function resolveExecutionCredentials({
       model: resolvedModel,
       apiKey: decryptSecret(vaultEnc),
       keySource: "superadmin_vault",
+      credentialScope: "global_vault",
+      keyId: activeVaultEntry?._id ? String(activeVaultEntry._id) : String(globalCfg._id),
+      keyLabel: activeVaultEntry?.label || "Superadmin Vault Key",
+      maskedKey: activeVaultEntry?.maskedKey || globalCfg.maskedKey || "",
+      grantId: matchedGrant?._id || null,
+      grantTargetType,
+      grantTargetName,
+      userSnapshot: userCtx?.userDoc || null,
       thinkingLevel,
     };
   }
@@ -267,41 +484,100 @@ async function queryAI({
   taskType = "global_task",
   moduleKey = "global",
   userId = null,
+  projectId = null,
+  departmentId = null,
+  preferGlobal = false,
   maxOutputTokens = 1000,
   thinkingLevel,
 }) {
   const startedAt = Date.now();
-  const creds = await resolveExecutionCredentials({
-    providerKey: provider,
-    requestedModel: model,
-    taskType,
-    moduleKey,
-    userId,
-  });
+  let creds = null;
+  try {
+    creds = await resolveExecutionCredentials({
+      providerKey: provider,
+      requestedModel: model,
+      taskType,
+      moduleKey,
+      userId,
+      projectId,
+      departmentId,
+      preferGlobal,
+    });
 
-  const adapter = PROVIDER_ADAPTERS[creds.providerKey];
-  if (!adapter) {
-    throw new Error(`Unsupported AI provider adapter: ${creds.providerKey}`);
+    const adapter = PROVIDER_ADAPTERS[creds.providerKey];
+    if (!adapter) {
+      throw new Error(`Unsupported AI provider adapter: ${creds.providerKey}`);
+    }
+
+    const result = await adapter({
+      apiKey: creds.apiKey,
+      model: creds.model,
+      prompt,
+      systemPrompt,
+      maxOutputTokens,
+      thinkingLevel: thinkingLevel || creds.thinkingLevel || "low",
+    });
+
+    const latencyMs = Date.now() - startedAt;
+    await recordAIUsageLog({
+      userId,
+      userSnapshot: creds.userSnapshot,
+      provider: creds.providerKey,
+      model: creds.model,
+      moduleKey,
+      taskType,
+      credentialScope: creds.credentialScope,
+      keyId: creds.keyId,
+      keyLabel: creds.keyLabel,
+      maskedKey: creds.maskedKey,
+      grantId: creds.grantId,
+      grantTargetType: creds.grantTargetType,
+      grantTargetName: creds.grantTargetName,
+      projectId,
+      departmentId,
+      status: "success",
+      latencyMs,
+      usage: result.usage,
+    });
+
+    return {
+      success: true,
+      provider: creds.providerKey,
+      model: creds.model,
+      keySource: creds.keySource,
+      credentialScope: creds.credentialScope,
+      keyLabel: creds.keyLabel,
+      grantTargetType: creds.grantTargetType,
+      grantTargetName: creds.grantTargetName,
+      text: result.text,
+      usage: result.usage,
+      latencyMs,
+    };
+  } catch (err) {
+    const latencyMs = Date.now() - startedAt;
+    const isDenied = err.statusCode === 403 || Boolean(err.deniedMeta);
+    await recordAIUsageLog({
+      userId,
+      userSnapshot: creds?.userSnapshot || err.deniedMeta?.userSnapshot || null,
+      provider: creds?.providerKey || err.deniedMeta?.provider || provider || "unknown",
+      model: creds?.model || err.deniedMeta?.model || model || "",
+      moduleKey,
+      taskType,
+      credentialScope: creds?.credentialScope || "none",
+      keyId: creds?.keyId || "",
+      keyLabel: creds?.keyLabel || "",
+      maskedKey: creds?.maskedKey || "",
+      grantId: creds?.grantId || null,
+      grantTargetType: isDenied ? "denied" : creds?.grantTargetType || "system",
+      grantTargetName: creds?.grantTargetName || "",
+      projectId,
+      departmentId,
+      status: isDenied ? "denied" : "failed",
+      latencyMs,
+      errorMessage: err.message,
+    });
+    throw err;
   }
-
-  const result = await adapter({
-    apiKey: creds.apiKey,
-    model: creds.model,
-    prompt,
-    systemPrompt,
-    maxOutputTokens,
-    thinkingLevel: thinkingLevel || creds.thinkingLevel || "low",
-  });
-
-  return {
-    success: true,
-    provider: creds.providerKey,
-    model: creds.model,
-    keySource: creds.keySource,
-    text: result.text,
-    usage: result.usage,
-    latencyMs: Date.now() - startedAt,
-  };
 }
 
 /**
@@ -343,5 +619,7 @@ module.exports = {
   resolveExecutionCredentials,
   queryAI,
   testRawAIKey,
+  recordAIUsageLog,
+  getUserGlobalGrantsSummary,
 };
 

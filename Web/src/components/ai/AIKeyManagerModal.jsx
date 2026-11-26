@@ -25,6 +25,7 @@ import {
   activateAIKeyEntry,
   testStoredAIKeyEntry,
   deleteStoredAIKeyEntry,
+  getMyAIAccessAPI,
 } from "../../services/api";
 import { getGlassTokens } from "../../styles/glassTheme";
 
@@ -47,6 +48,7 @@ export default function AIKeyManagerModal({
   const [moduleScope, setModuleScope] = useState(scope === "global" ? "global" : "all");
   const [providersMeta, setProvidersMeta] = useState([]);
   const [userConfigs, setUserConfigs] = useState([]);
+  const [inheritedGrants, setInheritedGrants] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // Add New Key Form
@@ -77,9 +79,14 @@ export default function AIKeyManagerModal({
         setProvidersMeta(res.providers || []);
       }
     } else {
-      const [modRes, uRes] = await Promise.all([getAIModelsSummary(), getUserAIKeys()]);
+      const [modRes, uRes, accessRes] = await Promise.all([
+        getAIModelsSummary(),
+        getUserAIKeys(),
+        getMyAIAccessAPI(),
+      ]);
       if (modRes.success) setProvidersMeta(modRes.providers || []);
       if (uRes.success) setUserConfigs(uRes.configs || uRes.keys || []);
+      if (accessRes.success) setInheritedGrants(accessRes.grants || []);
     }
     setLoading(false);
   };
@@ -274,6 +281,25 @@ export default function AIKeyManagerModal({
             </div>
           ) : (
             <>
+              {scope === "user" && inheritedGrants.length > 0 && (
+                <div className="p-3.5 rounded-2xl border border-emerald-500/25 bg-emerald-500/10 space-y-1.5">
+                  <div className="flex items-center gap-2 text-xs font-bold text-emerald-400">
+                    <ShieldCheck className="w-4 h-4 shrink-0" />
+                    <span>Global Key Access Granted ({inheritedGrants.length})</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {inheritedGrants.map((gr) => (
+                      <span
+                        key={gr._id}
+                        className="px-2 py-0.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-[10px] text-emerald-300 font-mono"
+                      >
+                        via {gr.targetType}: {gr.targetName} · {gr.provider} · modules: {(gr.allowedModules || []).join(", ")}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Stored Keys & Live Switcher */}
               <div className={`p-4 rounded-2xl border space-y-3 ${g.subtleSurface}`}>
                 <div className="flex items-center justify-between">

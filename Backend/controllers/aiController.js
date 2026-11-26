@@ -1,11 +1,22 @@
 const AIConfig = require("../models/aiConfigModel");
+const AIGlobalGrant = require("../models/aiGlobalGrantModel");
+const AIUsageLog = require("../models/aiUsageLogModel");
+const User = require("../models/userModel");
+const Department = require("../models/departmentModel");
+const Project = require("../models/projectModel");
 const {
   AI_PROVIDERS_CATALOG,
   getAllEnvProvidersSummary,
   getEnvKeyForProvider,
 } = require("../config/aiCatalog");
+const { MODULES_CATALOG } = require("../config/modulesCatalog");
 const { encryptSecret, decryptSecret } = require("../utils/cryptoVault");
-const { queryAI, testRawAIKey } = require("../services/aiService");
+const {
+  queryAI,
+  testRawAIKey,
+  recordAIUsageLog,
+  getUserGlobalGrantsSummary,
+} = require("../services/aiService");
 const { enqueueWebSocketEvent } = require("../services/queue");
 
 const sanitizeKeysArray = (cfg) => {
@@ -62,6 +73,9 @@ Reply ONLY with valid raw JSON, no markdown code fence ticks.`;
       model,
       taskType: "global_task",
       moduleKey: "tasks",
+      userId: req.user?._id || null,
+      projectId: req.body.projectId || null,
+      departmentId: req.body.departmentId || null,
       maxOutputTokens: 1000,
     });
 
@@ -99,7 +113,7 @@ Reply ONLY with valid raw JSON, no markdown code fence ticks.`;
   }
 };
 
-// 2. Modular AI Query Endpoint (enforces global-task-only rule for Superadmin vault keys vs user BYOK)
+// 2. Modular AI Query Endpoint (enforces personal BYOK vs Superadmin Global Key Grants per module)
 exports.executeModularQuery = async (req, res) => {
   try {
     const {
@@ -109,19 +123,15 @@ exports.executeModularQuery = async (req, res) => {
       model,
       taskType = "module_assistant",
       moduleKey = "chat",
+      projectId = null,
+      departmentId = null,
+      preferGlobal = false,
       maxOutputTokens = 1000,
       thinkingLevel = "low",
     } = req.body;
 
     if (!prompt || !prompt.trim()) {
       return res.status(400).json({ success: false, message: "Prompt is required" });
-    }
-
-    if (taskType === "global_task" && !req.user?.isSuperAdmin) {
-      return res.status(403).json({
-        success: false,
-        message: "Only global platform tasks or Superadmin may invoke global AI keys directly; configure your personal key for module assistants.",
-      });
     }
 
     const result = await queryAI({
@@ -132,13 +142,16 @@ exports.executeModularQuery = async (req, res) => {
       taskType,
       moduleKey,
       userId: req.user?._id,
+      projectId,
+      departmentId,
+      preferGlobal: Boolean(preferGlobal),
       maxOutputTokens,
       thinkingLevel,
     });
 
     res.status(200).json(result);
   } catch (error) {
-    res.status(400).json({ success: false, message: error.message });
+    res.status(error.statusCode || 400).json({ success: false, message: error.message });
   }
 };
 
@@ -795,6 +808,279 @@ exports.deleteUserAIKey = async (req, res) => {
     const { moduleKey = "all" } = req.query;
     await AIConfig.findOneAndDelete({ scope: "user", provider, owner: req.user._id, moduleKey });
     res.status(200).json({ success: true, message: "Personal AI key removed" });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// =========================================================================
+// GLOBAL KEY ACCESS GRANTS (USER / DEPARTMENT / TEAM-PROJECT + MODULES)
+// =========================================================================
+
+const TARGET_MODEL_MAP = {
+  user: "User",
+  department: "Department",
+  project: "Project",
+};
+
+exports.listGlobalGrants = async (req, res) => {
+  try {
+    const [grants, users, departments, projects] = await Promise.all([
+      AIGlobalGrant.find({})
+        .populate("grantedBy", "fullname email publicId")
+        .populate("revokedBy", "fullname email publicId")
+        .sort({ isActive: -1, createdAt: -1 })
+        .lean(),
+      User.find({ isApproved: true }).select("_id fullname email publicId role department").sort({ fullname: 1 }).lean(),
+      Department.find({}).select("_id name code color").sort({ name: 1 }).lean(),
+      Project.find({}).select("_id name prefix").sort({ name: 1 }).lean(),
+    ]);
+
+    const moduleOptions = [
+      { key: "*", label: "All AI Modules (*)" },
+      ...MODULES_CATALOG.map((m) => ({ key: m.key, label: m.name })),
+    ];
+
+    res.status(200).json({
+      success: true,
+      grants,
+      targets: { users, departments, projects },
+      moduleOptions,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+exports.createGlobalGrant = async (req, res) => {
+  try {
+    const {
+      targetType,
+      targetId,
+      provider = "all",
+      allowedModules = ["*"],
+      note = "",
+    } = req.body;
+
+    const targetModel = TARGET_MODEL_MAP[targetType];
+    if (!targetModel || !targetId) {
+      return res.status(400).json({ success: false, message: "Valid targetType and targetId are required" });
+    }
+    if (!["all", "google", "openai", "anthropic"].includes(provider)) {
+      return res.status(400).json({ success: false, message: "Invalid provider" });
+    }
+
+    let targetName = "";
+    if (targetType === "user") {
+      const u = await User.findById(targetId).select("fullname email").lean();
+      if (!u) return res.status(404).json({ success: false, message: "Target user not found" });
+      targetName = u.fullname || u.email;
+    } else if (targetType === "department") {
+      const d = await Department.findById(targetId).select("name code").lean();
+      if (!d) return res.status(404).json({ success: false, message: "Target department not found" });
+      targetName = `${d.name}${d.code ? ` (${d.code})` : ""}`;
+    } else if (targetType === "project") {
+      const p = await Project.findById(targetId).select("name prefix").lean();
+      if (!p) return res.status(404).json({ success: false, message: "Target project/team not found" });
+      targetName = `${p.name}${p.prefix ? ` [${p.prefix}]` : ""}`;
+    }
+
+    const cleanModules =
+      Array.isArray(allowedModules) && allowedModules.length > 0
+        ? [...new Set(allowedModules.map((m) => String(m).trim()).filter(Boolean))]
+        : ["*"];
+
+    let grant = await AIGlobalGrant.findOne({ targetType, targetId, provider });
+    if (grant) {
+      grant.allowedModules = cleanModules;
+      grant.targetName = targetName;
+      grant.isActive = true;
+      grant.revokedAt = null;
+      grant.revokedBy = null;
+      grant.grantedBy = req.user._id;
+      grant.note = note.trim();
+      await grant.save();
+    } else {
+      grant = await AIGlobalGrant.create({
+        targetType,
+        targetId,
+        targetModel,
+        targetName,
+        provider,
+        allowedModules: cleanModules,
+        isActive: true,
+        grantedBy: req.user._id,
+        note: note.trim(),
+      });
+    }
+
+    enqueueWebSocketEvent({
+      target: "all",
+      event: "ai:grants-updated",
+      data: { grantId: grant._id, targetType, targetName, isActive: true },
+    });
+
+    res.status(201).json({
+      success: true,
+      message: `Global AI Key access granted to ${targetType} "${targetName}"`,
+      grant,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+exports.revokeGlobalGrant = async (req, res) => {
+  try {
+    const grant = await AIGlobalGrant.findByIdAndUpdate(
+      req.params.grantId,
+      { isActive: false, revokedAt: new Date(), revokedBy: req.user._id },
+      { new: true }
+    );
+    if (!grant) {
+      return res.status(404).json({ success: false, message: "Grant not found" });
+    }
+    enqueueWebSocketEvent({
+      target: "all",
+      event: "ai:grants-updated",
+      data: { grantId: grant._id, isActive: false },
+    });
+    res.status(200).json({ success: true, message: `Revoked global AI access for "${grant.targetName}"`, grant });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+exports.restoreGlobalGrant = async (req, res) => {
+  try {
+    const grant = await AIGlobalGrant.findByIdAndUpdate(
+      req.params.grantId,
+      { isActive: true, revokedAt: null, revokedBy: null },
+      { new: true }
+    );
+    if (!grant) {
+      return res.status(404).json({ success: false, message: "Grant not found" });
+    }
+    enqueueWebSocketEvent({
+      target: "all",
+      event: "ai:grants-updated",
+      data: { grantId: grant._id, isActive: true },
+    });
+    res.status(200).json({ success: true, message: `Restored global AI access for "${grant.targetName}"`, grant });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+exports.deleteGlobalGrant = async (req, res) => {
+  try {
+    const grant = await AIGlobalGrant.findByIdAndDelete(req.params.grantId);
+    if (!grant) {
+      return res.status(404).json({ success: false, message: "Grant not found" });
+    }
+    res.status(200).json({ success: true, message: "Global AI grant deleted" });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+exports.getMyAIAccess = async (req, res) => {
+  try {
+    const summary = await getUserGlobalGrantsSummary(req.user._id);
+    res.status(200).json({ success: true, ...summary });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// =========================================================================
+// FINE-GRAINED AI KEY USAGE AUDIT LOGS
+// =========================================================================
+
+exports.getAIUsageLogs = async (req, res) => {
+  try {
+    const {
+      provider = "",
+      credentialScope = "",
+      moduleKey = "",
+      status = "",
+      search = "",
+      limit = 60,
+      page = 1,
+    } = req.query;
+
+    const filter = {};
+    if (provider) filter.provider = provider;
+    if (credentialScope) filter.credentialScope = credentialScope;
+    if (moduleKey) filter.moduleKey = moduleKey;
+    if (status) filter.status = status;
+    if (search && search.trim()) {
+      const rx = new RegExp(search.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+      filter.$or = [
+        { userName: rx },
+        { userEmail: rx },
+        { userPublicId: rx },
+        { keyLabel: rx },
+        { model: rx },
+        { grantTargetName: rx },
+        { moduleKey: rx },
+      ];
+    }
+
+    const lim = Math.min(200, Math.max(1, Number(limit) || 60));
+    const pg = Math.max(1, Number(page) || 1);
+
+    const [logs, totalCount, scopeAgg, statusAgg, tokenAgg] = await Promise.all([
+      AIUsageLog.find(filter)
+        .sort({ createdAt: -1 })
+        .skip((pg - 1) * lim)
+        .limit(lim)
+        .lean(),
+      AIUsageLog.countDocuments(filter),
+      AIUsageLog.aggregate([{ $group: { _id: "$credentialScope", count: { $sum: 1 } } }]),
+      AIUsageLog.aggregate([{ $group: { _id: "$status", count: { $sum: 1 } } }]),
+      AIUsageLog.aggregate([
+        {
+          $group: {
+            _id: null,
+            totalTokens: { $sum: "$totalTokens" },
+            promptTokens: { $sum: "$promptTokens" },
+            completionTokens: { $sum: "$completionTokens" },
+            avgLatencyMs: { $avg: "$latencyMs" },
+          },
+        },
+      ]),
+    ]);
+
+    const byScope = Object.fromEntries(scopeAgg.map((r) => [r._id, r.count]));
+    const byStatus = Object.fromEntries(statusAgg.map((r) => [r._id, r.count]));
+    const totals = tokenAgg[0] || {
+      totalTokens: 0,
+      promptTokens: 0,
+      completionTokens: 0,
+      avgLatencyMs: 0,
+    };
+
+    res.status(200).json({
+      success: true,
+      logs,
+      totalCount,
+      page: pg,
+      limit: lim,
+      stats: {
+        totalCalls: (byStatus.success || 0) + (byStatus.failed || 0) + (byStatus.denied || 0),
+        successCalls: byStatus.success || 0,
+        failedCalls: byStatus.failed || 0,
+        deniedCalls: byStatus.denied || 0,
+        globalVaultCalls: byScope.global_vault || 0,
+        globalEnvCalls: byScope.global_env || 0,
+        userByokCalls: byScope.user_byok || 0,
+        totalTokens: totals.totalTokens || 0,
+        promptTokens: totals.promptTokens || 0,
+        completionTokens: totals.completionTokens || 0,
+        avgLatencyMs: Math.round(totals.avgLatencyMs || 0),
+      },
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

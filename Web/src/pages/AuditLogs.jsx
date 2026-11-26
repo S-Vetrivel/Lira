@@ -12,11 +12,14 @@ import {
   Wifi,
   Clock,
   Globe,
+  KeyRound,
+  Cpu,
 } from "lucide-react";
 import { useApp } from "../context/Appcontext";
-import { getAuditOverview } from "../services/api";
+import { getAuditOverview, getAIUsageLogsAPI } from "../services/api";
 import { getSocket } from "../services/socket";
 import UserAvatar from "../components/common/UserAvatar";
+import SideDrawer from "../components/common/SideDrawer";
 import { formatDateIN, formatTimeIN, getDisplayName } from "../utils/formatters";
 import { getGlassTokens } from "../styles/glassTheme";
 
@@ -25,13 +28,23 @@ export default function AuditLogs() {
   const isDark = theme === "dark";
   const g = getGlassTokens(isDark);
 
-  const [tab, setTab] = useState("logs"); // 'logs' | 'online' | 'teams'
+  const [tab, setTab] = useState("logs"); // 'logs' | 'online' | 'teams' | 'ai_usage'
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [actionFilter, setActionFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [mutationsOnly, setMutationsOnly] = useState(false);
+
+  // Fine-grained AI Key Usage Audit State
+  const [aiLogs, setAiLogs] = useState([]);
+  const [aiStats, setAiStats] = useState({});
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiSearch, setAiSearch] = useState("");
+  const [aiProviderFilter, setAiProviderFilter] = useState("");
+  const [aiScopeFilter, setAiScopeFilter] = useState("");
+  const [aiStatusFilter, setAiStatusFilter] = useState("");
+  const [selectedAiLog, setSelectedAiLog] = useState(null);
 
   const canViewAudit = isSuperAdmin || hasPermission("audit.view") || hasPermission("dashboard.logs");
 
@@ -50,16 +63,45 @@ export default function AuditLogs() {
     setLoading(false);
   }, [canViewAudit, search, actionFilter, statusFilter]);
 
+  const loadAiUsage = useCallback(async () => {
+    if (!canViewAudit) return;
+    setAiLoading(true);
+    const res = await getAIUsageLogsAPI({
+      limit: 60,
+      ...(aiSearch.trim() ? { search: aiSearch.trim() } : {}),
+      ...(aiProviderFilter ? { provider: aiProviderFilter } : {}),
+      ...(aiScopeFilter ? { credentialScope: aiScopeFilter } : {}),
+      ...(aiStatusFilter ? { status: aiStatusFilter } : {}),
+    });
+    if (res.success) {
+      setAiLogs(res.logs || []);
+      setAiStats(res.stats || {});
+    }
+    setAiLoading(false);
+  }, [canViewAudit, aiSearch, aiProviderFilter, aiScopeFilter, aiStatusFilter]);
+
   useEffect(() => {
     loadAudit();
-  }, [loadAudit]);
+    loadAiUsage();
+  }, [loadAudit, loadAiUsage]);
 
   useEffect(() => {
     const socket = getSocket();
     if (!socket) return;
-    const onPresence = () => loadAudit();
+    if (socket.connected) {
+      socket.emit("presence:request");
+    }
+    const onConnect = () => socket.emit("presence:request");
+    const onPresence = () => {
+      // onlineUserIds in AppContext updates instantaneously; refresh summary stats in background
+      loadAudit();
+    };
+    socket.on("connect", onConnect);
     socket.on("presence:update", onPresence);
-    return () => socket.off("presence:update", onPresence);
+    return () => {
+      socket.off("connect", onConnect);
+      socket.off("presence:update", onPresence);
+    };
   }, [loadAudit]);
 
   if (!canViewAudit) {
@@ -75,10 +117,13 @@ export default function AuditLogs() {
   }
 
   const summary = data?.summary || {};
-  const liveOnlineSet = new Set([
-    ...(onlineUserIds || []).map(String),
-    ...(data?.onlineUsers || []).map((u) => String(u._id)),
-  ]);
+  const activeSocket = getSocket();
+  const useLivePresence = Boolean(activeSocket?.connected || (onlineUserIds && onlineUserIds.length > 0));
+  const liveOnlineSet = new Set(
+    useLivePresence
+      ? (onlineUserIds || []).map(String)
+      : (data?.onlineUsers || []).map((u) => String(u._id))
+  );
   const allUsersMerged = [
     ...(data?.onlineUsers || []),
     ...(data?.offlineUsers || []),
@@ -106,10 +151,13 @@ export default function AuditLogs() {
 
         <button
           type="button"
-          onClick={loadAudit}
+          onClick={() => {
+            loadAudit();
+            loadAiUsage();
+          }}
           className={`px-3.5 py-2 rounded-xl border text-xs font-semibold flex items-center gap-1.5 cursor-pointer ${g.btnSecondary}`}
         >
-          <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+          <RefreshCw className={`w-3.5 h-3.5 ${loading || aiLoading ? "animate-spin" : ""}`} />
           <span>Refresh</span>
         </button>
       </div>
@@ -141,6 +189,7 @@ export default function AuditLogs() {
       <div className={`flex items-center gap-2 border-b pb-2 overflow-x-auto ${g.border}`}>
         {[
           { id: "logs", label: `User Action Trail (${data?.auditLogs?.length || 0})` },
+          { id: "ai_usage", label: `AI Key Usage (${aiStats.totalCalls ?? aiLogs.length})` },
           { id: "online", label: `Online Users (${onlineList.length})` },
           { id: "teams", label: `Teams & Workspaces (${data?.teamsOverview?.length || 0})` },
         ].map((item) => (
@@ -371,7 +420,9 @@ export default function AuditLogs() {
       {tab === "teams" && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {(data?.teamsOverview || []).map((dept) => (
+            {(data?.teamsOverview || []).map((dept) => {
+              const liveDeptOnline = (dept.members || []).filter((m) => liveOnlineSet.has(String(m._id))).length;
+              return (
               <div key={dept._id} className={`p-5 rounded-2xl border space-y-3.5 ${g.card}`}>
                 <div className="flex items-start justify-between gap-2">
                   <div>
@@ -383,7 +434,7 @@ export default function AuditLogs() {
                     <p className={`text-xs mt-1 ${g.muted}`}>{dept.description || "Operational unit"}</p>
                   </div>
                   <span className="text-[11px] font-mono text-emerald-400 font-bold shrink-0">
-                    {dept.onlineCount}/{dept.membersCount} online
+                    {liveDeptOnline}/{dept.membersCount} online
                   </span>
                 </div>
 
@@ -410,19 +461,23 @@ export default function AuditLogs() {
 
                 {dept.members?.length > 0 && (
                   <div className="flex flex-wrap gap-1.5">
-                    {dept.members.map((m) => (
-                      <span
-                        key={m._id}
-                        className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg border text-[10px] ${g.subtleSurface}`}
-                      >
-                        <span className={`w-1.5 h-1.5 rounded-full ${m.isOnline ? "bg-emerald-400" : "bg-zinc-500"}`} />
-                        <span>{getDisplayName(m)}</span>
-                      </span>
-                    ))}
+                    {dept.members.map((m) => {
+                      const isLive = liveOnlineSet.has(String(m._id));
+                      return (
+                        <span
+                          key={m._id}
+                          className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg border text-[10px] ${g.subtleSurface}`}
+                        >
+                          <span className={`w-1.5 h-1.5 rounded-full ${isLive ? "bg-emerald-400" : "bg-zinc-500"}`} />
+                          <span>{getDisplayName(m)}</span>
+                        </span>
+                      );
+                    })}
                   </div>
                 )}
               </div>
-            ))}
+              );
+            })}
           </div>
 
           {/* Roles Matrix Summary */}
@@ -449,6 +504,217 @@ export default function AuditLogs() {
           )}
         </div>
       )}
+
+      {/* TAB 4: FINE-GRAINED AI KEY USAGE AUDIT */}
+      {tab === "ai_usage" && (
+        <div className="space-y-4">
+          {/* AI Usage KPIs */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            {[
+              { label: "Total AI Calls", value: aiStats.totalCalls ?? 0, cls: "text-indigo-400" },
+              { label: "Global Vault", value: aiStats.globalVaultCalls ?? 0, cls: "text-purple-400" },
+              { label: "Global .env", value: aiStats.globalEnvCalls ?? 0, cls: "text-emerald-400" },
+              { label: "User BYOK", value: aiStats.userByokCalls ?? 0, cls: "text-sky-400" },
+              { label: "Denied / Failed", value: (aiStats.deniedCalls ?? 0) + (aiStats.failedCalls ?? 0), cls: "text-rose-400" },
+              { label: "Total Tokens", value: (aiStats.totalTokens ?? 0).toLocaleString(), cls: "text-amber-400" },
+            ].map((kpi) => (
+              <div key={kpi.label} className={`p-3 rounded-2xl border space-y-1 ${g.card}`}>
+                <span className={`text-[10px] font-bold uppercase tracking-wider block ${g.muted}`}>{kpi.label}</span>
+                <p className={`text-lg font-bold font-mono ${kpi.cls}`}>{kpi.value}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Filters */}
+          <div className="flex flex-wrap items-center gap-2.5">
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className={`w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 ${g.muted}`} />
+              <input
+                type="text"
+                value={aiSearch}
+                onChange={(e) => setAiSearch(e.target.value)}
+                placeholder="Search user, key label, model, grant target, or module..."
+                className={`w-full rounded-xl pl-8 pr-3 py-2 text-xs border focus:outline-none ${g.input}`}
+              />
+            </div>
+
+            <select
+              value={aiProviderFilter}
+              onChange={(e) => setAiProviderFilter(e.target.value)}
+              className={`rounded-xl px-3 py-2 text-xs border focus:outline-none ${g.input}`}
+            >
+              <option value="">All Providers</option>
+              <option value="google">Google Gemini</option>
+              <option value="openai">OpenAI GPT-6</option>
+              <option value="anthropic">Anthropic Claude 5</option>
+            </select>
+
+            <select
+              value={aiScopeFilter}
+              onChange={(e) => setAiScopeFilter(e.target.value)}
+              className={`rounded-xl px-3 py-2 text-xs border focus:outline-none ${g.input}`}
+            >
+              <option value="">All Key Scopes</option>
+              <option value="global_vault">Global Vault</option>
+              <option value="global_env">Global .env</option>
+              <option value="user_byok">User BYOK</option>
+              <option value="none">Denied / None</option>
+            </select>
+
+            <select
+              value={aiStatusFilter}
+              onChange={(e) => setAiStatusFilter(e.target.value)}
+              className={`rounded-xl px-3 py-2 text-xs border focus:outline-none ${g.input}`}
+            >
+              <option value="">All Statuses</option>
+              <option value="success">Success</option>
+              <option value="denied">Denied (No Grant)</option>
+              <option value="failed">Failed</option>
+            </select>
+          </div>
+
+          {/* Fine-Grained AI Usage Table */}
+          <div className={`rounded-2xl border overflow-hidden ${g.card}`}>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className={`border-b text-[10px] uppercase tracking-wider ${g.border} ${g.subtleSurface}`}>
+                    <th className="p-3">Time</th>
+                    <th className="p-3">User & Dept</th>
+                    <th className="p-3">Key Used</th>
+                    <th className="p-3">Scope & Grant Source</th>
+                    <th className="p-3">Module</th>
+                    <th className="p-3">Provider / Model</th>
+                    <th className="p-3">Tokens / Latency</th>
+                    <th className="p-3">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/[0.06]">
+                  {aiLogs.map((log) => (
+                    <tr
+                      key={log._id}
+                      onClick={() => setSelectedAiLog(log)}
+                      className={`${g.rowHover} cursor-pointer`}
+                    >
+                      <td className="p-3 whitespace-nowrap font-mono text-[11px]">
+                        <div>{formatDateIN(log.createdAt)}</div>
+                        <div className={`text-[10px] ${g.muted}`}>{formatTimeIN(log.createdAt)}</div>
+                      </td>
+                      <td className="p-3">
+                        <div className="font-semibold">{log.userName || "System"}</div>
+                        <div className={`text-[10px] font-mono ${g.muted}`}>
+                          {log.userPublicId || log.userRole}
+                          {log.departmentName ? ` · ${log.departmentName}` : ""}
+                        </div>
+                      </td>
+                      <td className="p-3">
+                        <div className="font-semibold flex items-center gap-1">
+                          <KeyRound className="w-3 h-3 text-purple-400 shrink-0" />
+                          <span>{log.keyLabel || "—"}</span>
+                        </div>
+                        {log.maskedKey && (
+                          <div className={`text-[10px] font-mono ${g.muted}`}>{log.maskedKey}</div>
+                        )}
+                      </td>
+                      <td className="p-3">
+                        <span className={`px-2 py-0.5 rounded-md border font-mono text-[10px] ${g.badge}`}>
+                          {log.credentialScope}
+                        </span>
+                        <div className={`text-[10px] mt-0.5 ${g.muted}`}>
+                          {log.grantTargetType}
+                          {log.grantTargetName ? `: ${log.grantTargetName}` : ""}
+                        </div>
+                      </td>
+                      <td className="p-3 font-mono text-[11px]">{log.moduleKey}</td>
+                      <td className="p-3">
+                        <div className="font-semibold capitalize">{log.provider}</div>
+                        <div className={`text-[10px] font-mono ${g.muted}`}>{log.model || "—"}</div>
+                      </td>
+                      <td className="p-3 font-mono text-[11px]">
+                        <div>{log.totalTokens || 0} tok</div>
+                        <div className={`text-[10px] ${g.muted}`}>{log.latencyMs || 0}ms</div>
+                      </td>
+                      <td className="p-3">
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                            log.status === "success"
+                              ? "bg-emerald-500/15 text-emerald-400"
+                              : log.status === "denied"
+                              ? "bg-amber-500/15 text-amber-400"
+                              : "bg-rose-500/15 text-rose-400"
+                          }`}
+                        >
+                          {log.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                  {aiLogs.length === 0 && (
+                    <tr>
+                      <td colSpan={8} className={`p-8 text-center italic ${g.muted}`}>
+                        No AI key usage events recorded yet.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <SideDrawer
+        isOpen={Boolean(selectedAiLog)}
+        onClose={() => setSelectedAiLog(null)}
+        title="AI Key Usage Inspection"
+        subtitle={selectedAiLog ? `${selectedAiLog.provider} · ${selectedAiLog.model}` : ""}
+        icon={Cpu}
+        widthClass="max-w-lg"
+      >
+        {selectedAiLog && (
+          <div className="space-y-4 text-xs">
+            <div className={`p-4 rounded-xl border space-y-2 ${g.subtleSurface}`}>
+              <div className="flex justify-between gap-2">
+                <span className={g.muted}>Actor</span>
+                <span className="font-bold">{selectedAiLog.userName} ({selectedAiLog.userEmail || selectedAiLog.userRole})</span>
+              </div>
+              <div className="flex justify-between gap-2">
+                <span className={g.muted}>Key Label</span>
+                <span className="font-mono">{selectedAiLog.keyLabel || "—"} ({selectedAiLog.maskedKey || "n/a"})</span>
+              </div>
+              <div className="flex justify-between gap-2">
+                <span className={g.muted}>Credential Scope</span>
+                <span className="font-mono">{selectedAiLog.credentialScope}</span>
+              </div>
+              <div className="flex justify-between gap-2">
+                <span className={g.muted}>Grant Authority</span>
+                <span className="font-semibold">
+                  {selectedAiLog.grantTargetType} {selectedAiLog.grantTargetName ? `(${selectedAiLog.grantTargetName})` : ""}
+                </span>
+              </div>
+              <div className="flex justify-between gap-2">
+                <span className={g.muted}>Module / Task Type</span>
+                <span className="font-mono">{selectedAiLog.moduleKey} / {selectedAiLog.taskType}</span>
+              </div>
+              <div className="flex justify-between gap-2">
+                <span className={g.muted}>Tokens (In / Out / Total)</span>
+                <span className="font-mono">
+                  {selectedAiLog.promptTokens} / {selectedAiLog.completionTokens} / {selectedAiLog.totalTokens}
+                </span>
+              </div>
+              <div className="flex justify-between gap-2">
+                <span className={g.muted}>Latency & Status</span>
+                <span className="font-mono">{selectedAiLog.latencyMs}ms · {selectedAiLog.status}</span>
+              </div>
+            </div>
+            {selectedAiLog.errorMessage && (
+              <div className="p-3 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-300 font-mono text-[11px]">
+                {selectedAiLog.errorMessage}
+              </div>
+            )}
+          </div>
+        )}
+      </SideDrawer>
     </div>
   );
 }
