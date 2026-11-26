@@ -1263,3 +1263,12 @@ export async function getAuditOverview(params = {}) {
     return { success: false, auditLogs: [], onlineUsers: [], offlineUsers: [], teamsOverview: [] };
   }
 }
+
+export async function getPresenceTimelineAPI(range = "24h") {
+  try {
+    const res = await api.get("/audit/presence-timeline", { params: { range } });
+    return res.data;
+  } catch (error) {
+    return { success: false, series: [], timeline: [] };
+  }
+}

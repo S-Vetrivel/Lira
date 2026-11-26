@@ -93,6 +93,16 @@ async function recordAIUsageLog({
     console.log(
       `[AI USAGE] status=${String(status).toUpperCase()} user=${snap?.email || snap?.fullname || "system"} module=${moduleKey} scope=${credentialScope} provider=${provider} model=${model || "-"} tokens=${tokens.totalTokens} latency=${Number(latencyMs || 0)}ms${misuseCategory ? ` misuse=${misuseCategory}` : ""}`
     );
+    try {
+      const { enqueueWebSocketEvent } = require("./queue");
+      enqueueWebSocketEvent({
+        target: "all",
+        event: "ai:usage-logged",
+        data: { provider, model, status, totalTokens: tokens.totalTokens },
+      }).catch(() => {});
+    } catch {
+      // non-fatal
+    }
   } catch (err) {
     console.warn("[AIUsageLog] Failed to record usage:", err.message);
   }

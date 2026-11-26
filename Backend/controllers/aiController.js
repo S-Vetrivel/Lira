@@ -11,6 +11,7 @@ const {
 } = require("../config/aiCatalog");
 const { MODULES_CATALOG } = require("../config/modulesCatalog");
 const { encryptSecret, decryptSecret } = require("../utils/cryptoVault");
+const { buildTimeBuckets, findBucketIndex } = require("../utils/timeSeriesHelper");
 const {
   queryAI,
   testRawAIKey,
@@ -1079,6 +1080,7 @@ exports.getAIUsageLogs = async (req, res) => {
       moduleKey = "",
       status = "",
       search = "",
+      range = "24h",
       limit = 60,
       page = 1,
     } = req.query;
@@ -1103,8 +1105,10 @@ exports.getAIUsageLogs = async (req, res) => {
 
     const lim = Math.min(200, Math.max(1, Number(limit) || 60));
     const pg = Math.max(1, Number(page) || 1);
+    const { range: normRange, rangeLabel, stepMs, windowStart, buckets } = buildTimeBuckets(range);
+    const startMs = buckets[0]?.startMs || windowStart.getTime();
 
-    const [logs, totalCount, scopeAgg, statusAgg, tokenAgg] = await Promise.all([
+    const [logs, totalCount, scopeAgg, statusAgg, tokenAgg, windowDocs] = await Promise.all([
       AIUsageLog.find(filter)
         .sort({ createdAt: -1 })
         .skip((pg - 1) * lim)
@@ -1124,7 +1128,64 @@ exports.getAIUsageLogs = async (req, res) => {
           },
         },
       ]),
+      AIUsageLog.find({ ...filter, createdAt: { $gte: windowStart } })
+        .select("createdAt totalTokens promptTokens completionTokens latencyMs status provider credentialScope")
+        .sort({ createdAt: 1 })
+        .lean(),
     ]);
+
+    const seriesBuckets = buckets.map((b) => ({
+      ...b,
+      calls: 0,
+      totalTokens: 0,
+      promptTokens: 0,
+      completionTokens: 0,
+      errors: 0,
+      latencySum: 0,
+    }));
+
+    let winTokens = 0;
+    let winPromptTokens = 0;
+    let winCompletionTokens = 0;
+    let winLatencySum = 0;
+    let winErrors = 0;
+
+    for (const doc of windowDocs) {
+      const idx = findBucketIndex(doc.createdAt, startMs, stepMs, seriesBuckets.length);
+      const tot = Number(doc.totalTokens) || 0;
+      const pTok = Number(doc.promptTokens) || 0;
+      const cTok = Number(doc.completionTokens) || 0;
+      const lat = Number(doc.latencyMs) || 0;
+      const isErr = doc.status && doc.status !== "success";
+
+      winTokens += tot;
+      winPromptTokens += pTok;
+      winCompletionTokens += cTok;
+      winLatencySum += lat;
+      if (isErr) winErrors += 1;
+
+      if (idx !== -1) {
+        const b = seriesBuckets[idx];
+        b.calls += 1;
+        b.totalTokens += tot;
+        b.promptTokens += pTok;
+        b.completionTokens += cTok;
+        b.latencySum += lat;
+        if (isErr) b.errors += 1;
+      }
+    }
+
+    const usageSeries = seriesBuckets.map((b) => ({
+      label: b.label,
+      fullLabel: b.fullLabel,
+      iso: b.iso,
+      calls: b.calls,
+      totalTokens: b.totalTokens,
+      promptTokens: b.promptTokens,
+      completionTokens: b.completionTokens,
+      errors: b.errors,
+      avgLatencyMs: b.calls > 0 ? Math.round(b.latencySum / b.calls) : 0,
+    }));
 
     const byScope = Object.fromEntries(scopeAgg.map((r) => [r._id, r.count]));
     const byStatus = Object.fromEntries(statusAgg.map((r) => [r._id, r.count]));
@@ -1141,6 +1202,17 @@ exports.getAIUsageLogs = async (req, res) => {
       totalCount,
       page: pg,
       limit: lim,
+      range: normRange,
+      rangeLabel,
+      usageSeries,
+      windowStats: {
+        calls: windowDocs.length,
+        totalTokens: winTokens,
+        promptTokens: winPromptTokens,
+        completionTokens: winCompletionTokens,
+        errors: winErrors,
+        avgLatencyMs: windowDocs.length > 0 ? Math.round(winLatencySum / windowDocs.length) : 0,
+      },
       stats: {
         totalCalls:
           (byStatus.success || 0) +

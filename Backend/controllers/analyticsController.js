@@ -5,9 +5,11 @@ const Department = require("../models/departmentModel");
 const Role = require("../models/roleModel");
 const ActionLog = require("../models/actionLogModel");
 const ActivityLog = require("../models/activityLogModel");
+const PresenceLog = require("../models/presenceLogModel");
 const batchLogger = require("../services/batchLogger");
 const { getOnlineUserIds } = require("../config/socket");
 const { isSuperAdminUser, hasWildcardPermission } = require("../utils/roles");
+const { buildTimeBuckets, findBucketIndex } = require("../utils/timeSeriesHelper");
 
 const HOURLY_RATE_INR = 1500;
 
@@ -561,11 +563,131 @@ exports.getActionLogStats = async (req, res) => {
 // ==============================================
 // 3. SUPERADMIN AUDIT + ONLINE USERS + TEAMS OVERVIEW
 // ==============================================
+async function computePresenceTelemetry(rawRange = "24h", liveOnlineIds = []) {
+  const { range, rangeLabel, stepMs, windowStart, buckets } = buildTimeBuckets(rawRange);
+  const startMs = buckets[0]?.startMs || windowStart.getTime();
+  const [presenceEvents, actionEvents, recentPresence] = await Promise.all([
+    PresenceLog.find({ timestamp: { $gte: windowStart } })
+      .select("user userName userEmail userPublicId userRole departmentName event onlineCount onlineUserIds ip timestamp")
+      .sort({ timestamp: 1 })
+      .lean(),
+    ActionLog.find({ timestamp: { $gte: windowStart }, user: { $ne: null } })
+      .select("user userName userEmail userPublicId userRole ip timestamp")
+      .sort({ timestamp: 1 })
+      .lean(),
+    PresenceLog.find({})
+      .sort({ timestamp: -1 })
+      .limit(40)
+      .lean(),
+  ]);
+
+  const bucketData = buckets.map((b) => ({
+    ...b,
+    peakOnline: 0,
+    activeUsersSet: new Set(),
+    connectEvents: 0,
+    disconnectEvents: 0,
+    actionsCount: 0,
+  }));
+
+  for (const ev of presenceEvents) {
+    const idx = findBucketIndex(ev.timestamp, startMs, stepMs, bucketData.length);
+    if (idx === -1) continue;
+    const b = bucketData[idx];
+    if (ev.user) b.activeUsersSet.add(String(ev.user));
+    (ev.onlineUserIds || []).forEach((id) => b.activeUsersSet.add(String(id)));
+    if (Number(ev.onlineCount) > b.peakOnline) b.peakOnline = Number(ev.onlineCount);
+    if (ev.event === "online") b.connectEvents += 1;
+    if (ev.event === "offline") b.disconnectEvents += 1;
+  }
+
+  for (const act of actionEvents) {
+    const idx = findBucketIndex(act.timestamp, startMs, stepMs, bucketData.length);
+    if (idx === -1) continue;
+    const b = bucketData[idx];
+    if (act.user) b.activeUsersSet.add(String(act.user));
+    b.actionsCount += 1;
+  }
+
+  const lastIdx = bucketData.length - 1;
+  if (lastIdx >= 0 && liveOnlineIds.length > 0) {
+    liveOnlineIds.forEach((id) => bucketData[lastIdx].activeUsersSet.add(String(id)));
+    if (liveOnlineIds.length > bucketData[lastIdx].peakOnline) {
+      bucketData[lastIdx].peakOnline = liveOnlineIds.length;
+    }
+  }
+
+  const series = bucketData.map((b) => {
+    const uniqueUsers = b.activeUsersSet.size;
+    const peakOnline = Math.max(b.peakOnline, uniqueUsers);
+    return {
+      label: b.label,
+      fullLabel: b.fullLabel,
+      iso: b.iso,
+      peakOnline,
+      uniqueUsers,
+      connectEvents: b.connectEvents,
+      disconnectEvents: b.disconnectEvents,
+      actionsCount: b.actionsCount,
+    };
+  });
+
+  // Fallback timeline synthesized from latest distinct user activity if no PresenceLog records exist yet
+  let timeline = recentPresence;
+  if (!timeline.length) {
+    const latestActions = await ActionLog.find({ user: { $ne: null } })
+      .sort({ timestamp: -1 })
+      .limit(30)
+      .select("user userName userEmail userPublicId userRole ip timestamp action path")
+      .lean();
+    const liveSet = new Set(liveOnlineIds.map(String));
+    timeline = latestActions.map((a) => ({
+      _id: a._id,
+      user: a.user,
+      userName: a.userName || a.userEmail || "Member",
+      userEmail: a.userEmail || "",
+      userPublicId: a.userPublicId || "",
+      userRole: a.userRole || "",
+      departmentName: "",
+      event: liveSet.has(String(a.user)) ? "online" : "heartbeat",
+      onlineCount: liveOnlineIds.length,
+      ip: a.ip || "",
+      timestamp: a.timestamp,
+      actionHint: `${a.action} (${a.path})`,
+    }));
+  }
+
+  return {
+    range,
+    rangeLabel,
+    peakConcurrent: Math.max(...series.map((s) => s.peakOnline), liveOnlineIds.length, 0),
+    totalConnects: series.reduce((sum, s) => sum + s.connectEvents, 0),
+    uniqueActiveWindow: new Set([
+      ...presenceEvents.filter((e) => e.user).map((e) => String(e.user)),
+      ...actionEvents.filter((a) => a.user).map((a) => String(a.user)),
+      ...liveOnlineIds.map(String),
+    ]).size,
+    series,
+    timeline,
+  };
+}
+
+exports.getPresenceTimeline = async (req, res) => {
+  try {
+    await batchLogger.flush().catch(() => {});
+    const liveIds = getOnlineUserIds();
+    const telemetry = await computePresenceTelemetry(req.query.range || "24h", liveIds);
+    res.status(200).json({ success: true, ...telemetry });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
 exports.getAuditOverview = async (req, res) => {
   try {
     await batchLogger.flush().catch(() => {});
 
-    const { page = 1, limit = 40 } = req.query;
+    const { page = 1, limit = 40, presenceRange = "24h" } = req.query;
     const query = buildActionLogQuery(req.query);
 
     const onlineIds = getOnlineUserIds();
@@ -581,6 +703,7 @@ exports.getAuditOverview = async (req, res) => {
       errorLogsCount,
       domainActivity,
       openTasks,
+      presenceTelemetry,
     ] = await Promise.all([
       User.find({ isActive: true, status: { $ne: "rejected" } })
         .select("fullname email publicId role department departmentName jobTitle avatar profilePicture status updatedAt")
@@ -611,6 +734,7 @@ exports.getAuditOverview = async (req, res) => {
         .populate("project", "name prefix")
         .lean(),
       Task.find().select("project department assignedDepartments status dueDate").lean(),
+      computePresenceTelemetry(presenceRange, onlineIds),
     ]);
 
     const now = new Date();
@@ -701,6 +825,7 @@ exports.getAuditOverview = async (req, res) => {
       page: Number(page),
       totalPages: Math.ceil(totalLogs / Number(limit)),
       domainActivity,
+      presenceTelemetry,
       metrics: batchLogger.getMetrics(),
     });
   } catch (err) {

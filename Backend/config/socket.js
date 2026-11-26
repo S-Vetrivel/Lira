@@ -6,6 +6,51 @@ const { redisConfig, enqueueEmailJob } = require("../services/queue");
 let io = null;
 const activePeers = new Map(); // socketId -> { userId, name, department, clientIp, joinedAt }
 const onlineUsers = new Map(); // userId -> Set<socketId>
+let presenceTimer = null;
+
+async function recordPresenceEvent({ userId = null, event = "online", ip = "" } = {}) {
+  try {
+    const PresenceLog = require("../models/presenceLogModel");
+    const User = require("../models/userModel");
+    let snap = null;
+    if (userId) {
+      snap = await User.findById(userId)
+        .select("fullname email publicId role departmentName")
+        .lean()
+        .catch(() => null);
+    }
+    const ids = Array.from(onlineUsers.keys());
+    const doc = await PresenceLog.create({
+      user: userId || null,
+      userName: snap?.fullname || "",
+      userEmail: snap?.email || "",
+      userPublicId: snap?.publicId || "",
+      userRole: snap?.role || "",
+      departmentName: snap?.departmentName || "",
+      event,
+      onlineCount: ids.length,
+      onlineUserIds: ids.slice(0, 200),
+      ip: ip || "",
+      timestamp: new Date(),
+    });
+    if (io && event !== "heartbeat") {
+      io.emit("presence:event", {
+        _id: doc._id,
+        user: doc.user,
+        userName: doc.userName,
+        userEmail: doc.userEmail,
+        userPublicId: doc.userPublicId,
+        userRole: doc.userRole,
+        departmentName: doc.departmentName,
+        event: doc.event,
+        onlineCount: doc.onlineCount,
+        timestamp: doc.timestamp,
+      });
+    }
+  } catch (err) {
+    console.warn("[PresenceLog] Failed to record presence:", err.message);
+  }
+}
 
 const isUserOnline = (userId) => {
   if (!userId) return false;
@@ -91,11 +136,15 @@ const initSocket = (server) => {
         const uid = userId.toString();
         socket.data.userId = uid;
         socket.join(`user_${uid}`);
+        const wasOffline = !onlineUsers.has(uid) || onlineUsers.get(uid).size === 0;
         if (!onlineUsers.has(uid)) {
           onlineUsers.set(uid, new Set());
         }
         onlineUsers.get(uid).add(socket.id);
         io.emit("presence:update", { onlineUserIds: getOnlineUserIds() });
+        if (wasOffline) {
+          recordPresenceEvent({ userId: uid, event: "online", ip: clientIp });
+        }
       }
     });
 
@@ -267,12 +316,17 @@ const initSocket = (server) => {
 
     socket.on("disconnect", () => {
       if (socket.data.userId && onlineUsers.has(socket.data.userId)) {
-        const set = onlineUsers.get(socket.data.userId);
+        const uid = socket.data.userId;
+        const set = onlineUsers.get(uid);
         set.delete(socket.id);
-        if (set.size === 0) {
-          onlineUsers.delete(socket.data.userId);
+        const wentOffline = set.size === 0;
+        if (wentOffline) {
+          onlineUsers.delete(uid);
         }
         io.emit("presence:update", { onlineUserIds: getOnlineUserIds() });
+        if (wentOffline) {
+          recordPresenceEvent({ userId: uid, event: "offline", ip: clientIp });
+        }
       }
       if (activePeers.has(socket.id)) {
         const removed = activePeers.get(socket.id);
@@ -281,6 +335,15 @@ const initSocket = (server) => {
       }
     });
   });
+
+  if (!presenceTimer) {
+    presenceTimer = setInterval(() => {
+      if (onlineUsers.size > 0) {
+        recordPresenceEvent({ event: "heartbeat" });
+      }
+    }, 5 * 60 * 1000);
+    presenceTimer.unref?.();
+  }
 
   return io;
 };

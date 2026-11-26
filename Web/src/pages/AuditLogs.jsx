@@ -16,11 +16,12 @@ import {
   Cpu,
 } from "lucide-react";
 import { useApp } from "../context/Appcontext";
-import { getAuditOverview, getAIUsageLogsAPI } from "../services/api";
+import { getAuditOverview, getAIUsageLogsAPI, getPresenceTimelineAPI } from "../services/api";
 import { getSocket, subscribeRealtimeEvents } from "../services/socket";
 import UserAvatar from "../components/common/UserAvatar";
 import SideDrawer from "../components/common/SideDrawer";
-import { formatDateIN, formatTimeIN, getDisplayName } from "../utils/formatters";
+import TelemetryCurveCard, { TELEMETRY_RANGES } from "../components/analytics/TelemetryCurveCard";
+import { formatDateIN, formatTimeIN, formatNumberIN, getDisplayName } from "../utils/formatters";
 import { getGlassTokens } from "../styles/glassTheme";
 
 export default function AuditLogs() {
@@ -36,9 +37,17 @@ export default function AuditLogs() {
   const [statusFilter, setStatusFilter] = useState("");
   const [mutationsOnly, setMutationsOnly] = useState(false);
 
-  // Fine-grained AI Key Usage Audit State
+  // Fine-grained AI Key Usage & Online Presence Telemetry State
+  const [presenceRange, setPresenceRange] = useState("24h");
+  const [presenceTelemetry, setPresenceTelemetry] = useState(null);
+  const [presenceLoading, setPresenceLoading] = useState(false);
+
+  const [aiRange, setAiRange] = useState("24h");
   const [aiLogs, setAiLogs] = useState([]);
   const [aiStats, setAiStats] = useState({});
+  const [aiWindowStats, setAiWindowStats] = useState({});
+  const [aiUsageSeries, setAiUsageSeries] = useState([]);
+  const [aiRangeLabel, setAiRangeLabel] = useState("Last 24 Hours (Hourly)");
   const [aiLoading, setAiLoading] = useState(false);
   const [aiSearch, setAiSearch] = useState("");
   const [aiProviderFilter, setAiProviderFilter] = useState("");
@@ -53,21 +62,37 @@ export default function AuditLogs() {
     setLoading(true);
     const res = await getAuditOverview({
       limit: 50,
+      presenceRange,
       ...(search.trim() ? { search: search.trim() } : {}),
       ...(actionFilter ? { action: actionFilter } : {}),
       ...(statusFilter ? { status: statusFilter } : {}),
     });
     if (res.success) {
       setData(res);
+      if (res.presenceTelemetry) setPresenceTelemetry(res.presenceTelemetry);
     }
     setLoading(false);
-  }, [canViewAudit, search, actionFilter, statusFilter]);
+  }, [canViewAudit, search, actionFilter, statusFilter, presenceRange]);
+
+  const loadPresenceOnly = useCallback(
+    async (nextRange = presenceRange) => {
+      if (!canViewAudit) return;
+      setPresenceLoading(true);
+      const res = await getPresenceTimelineAPI(nextRange);
+      if (res.success) {
+        setPresenceTelemetry(res);
+      }
+      setPresenceLoading(false);
+    },
+    [canViewAudit, presenceRange]
+  );
 
   const loadAiUsage = useCallback(async () => {
     if (!canViewAudit) return;
     setAiLoading(true);
     const res = await getAIUsageLogsAPI({
       limit: 60,
+      range: aiRange,
       ...(aiSearch.trim() ? { search: aiSearch.trim() } : {}),
       ...(aiProviderFilter ? { provider: aiProviderFilter } : {}),
       ...(aiScopeFilter ? { credentialScope: aiScopeFilter } : {}),
@@ -76,9 +101,12 @@ export default function AuditLogs() {
     if (res.success) {
       setAiLogs(res.logs || []);
       setAiStats(res.stats || {});
+      setAiWindowStats(res.windowStats || {});
+      setAiUsageSeries(res.usageSeries || []);
+      if (res.rangeLabel) setAiRangeLabel(res.rangeLabel);
     }
     setAiLoading(false);
-  }, [canViewAudit, aiSearch, aiProviderFilter, aiScopeFilter, aiStatusFilter]);
+  }, [canViewAudit, aiRange, aiSearch, aiProviderFilter, aiScopeFilter, aiStatusFilter]);
 
   useEffect(() => {
     loadAudit();
@@ -91,10 +119,10 @@ export default function AuditLogs() {
     if (socket.connected) {
       socket.emit("presence:request");
     }
-    const onConnect = () => socket.emit("presence:request");
     return subscribeRealtimeEvents(
       [
         "presence:update",
+        "presence:event",
         "team:updated",
         "project:updated",
         "department:updated",
@@ -109,13 +137,19 @@ export default function AuditLogs() {
         "ai:usage-logged",
         "ai:misuse-warning",
       ],
-      () => {
-        loadAudit();
-        loadAiUsage();
+      (_payload, evt) => {
+        if (evt === "presence:update" || evt === "presence:event") {
+          loadPresenceOnly(presenceRange);
+        } else if (evt === "ai:usage-logged") {
+          loadAiUsage();
+        } else {
+          loadAudit();
+          loadAiUsage();
+        }
       }
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadAudit, loadAiUsage]);
+  }, [loadAudit, loadAiUsage, loadPresenceOnly, presenceRange]);
 
   if (!canViewAudit) {
     return (
@@ -385,6 +419,141 @@ export default function AuditLogs() {
       {/* TAB 2: LIVE ONLINE USERS */}
       {tab === "online" && (
         <div className="space-y-6">
+          {/* Dashboard-Style Online Users Graph + Timeline */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+            <div className="lg:col-span-7">
+              <TelemetryCurveCard
+                title="Online Presence & Sessions"
+                subtitle={`Live telemetry · ${presenceTelemetry?.rangeLabel || "Last 24 Hours (Hourly)"}`}
+                icon={Wifi}
+                iconClass="text-emerald-400"
+                range={presenceRange}
+                onRangeChange={(nextR) => {
+                  setPresenceRange(nextR);
+                  loadPresenceOnly(nextR);
+                }}
+                loading={presenceLoading || loading}
+                metrics={[
+                  {
+                    label: "Online Now",
+                    value: formatNumberIN(onlineList.length),
+                    badge: "Live",
+                    sublabel: "Connected sockets",
+                  },
+                  {
+                    label: "Peak Concurrent",
+                    value: formatNumberIN(presenceTelemetry?.peakConcurrent ?? onlineList.length),
+                    sublabel: "Window peak",
+                  },
+                  {
+                    label: "Unique Active",
+                    value: formatNumberIN(presenceTelemetry?.uniqueActiveWindow ?? onlineList.length),
+                    sublabel: "Distinct staff",
+                  },
+                  {
+                    label: "Connect Events",
+                    value: formatNumberIN(presenceTelemetry?.totalConnects ?? 0),
+                    sublabel: "Socket joins",
+                  },
+                ]}
+                series={presenceTelemetry?.series || []}
+                primaryKey="peakOnline"
+                primaryLabel="Peak Online"
+                primaryColor="#34d399"
+                secondaryKey="uniqueUsers"
+                secondaryLabel="Unique Active"
+                secondaryColor="#818cf8"
+                formatValue={(v) => formatNumberIN(v)}
+                formatSecondary={(v) => formatNumberIN(v)}
+                renderTooltipExtra={(raw) =>
+                  raw.actionsCount ? (
+                    <span className={`hidden sm:inline ${g.muted}`}>· {raw.actionsCount} req</span>
+                  ) : null
+                }
+              />
+            </div>
+
+            {/* Online Presence Timeline */}
+            <div className={`lg:col-span-5 rounded-2xl p-4 sm:p-5 border flex flex-col gap-3 ${g.card}`}>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className={`w-8 h-8 rounded-xl border flex items-center justify-center shrink-0 ${g.badge}`}>
+                    <Clock className="w-4 h-4 text-emerald-400" />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className={`text-sm font-display font-bold leading-tight truncate ${g.heading}`}>
+                      Online Presence Timeline
+                    </h3>
+                    <span className="text-[10px] font-semibold uppercase tracking-widest opacity-55 block">
+                      Connect, heartbeat & disconnect events
+                    </span>
+                  </div>
+                </div>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono border shrink-0 ${g.badge}`}>
+                  {(presenceTelemetry?.timeline || []).length} events
+                </span>
+              </div>
+
+              <div className="flex-1 max-h-[260px] overflow-y-auto pr-1 space-y-2">
+                {(presenceTelemetry?.timeline || []).length > 0 ? (
+                  (presenceTelemetry.timeline || []).map((ev, idx) => {
+                    const isOnlineEv = ev.event === "online";
+                    const isOfflineEv = ev.event === "offline";
+                    const dotCls = isOnlineEv
+                      ? "bg-emerald-400 ring-emerald-400/25"
+                      : isOfflineEv
+                      ? "bg-rose-400 ring-rose-400/25"
+                      : "bg-sky-400 ring-sky-400/25";
+                    const badgeCls = isOnlineEv
+                      ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
+                      : isOfflineEv
+                      ? "bg-rose-500/15 text-rose-400 border-rose-500/30"
+                      : "bg-sky-500/15 text-sky-400 border-sky-500/30";
+                    return (
+                      <div
+                        key={ev._id || `${ev.user}_${ev.timestamp}_${idx}`}
+                        className={`p-2.5 rounded-xl border flex items-start justify-between gap-2.5 text-xs ${g.subtleSurface}`}
+                      >
+                        <div className="flex items-start gap-2.5 min-w-0">
+                          <span className={`w-2 h-2 rounded-full ring-4 mt-1.5 shrink-0 ${dotCls}`} />
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className={`font-semibold truncate ${g.heading}`}>
+                                {ev.userName || ev.userEmail || "Active Session"}
+                              </span>
+                              {ev.userPublicId && (
+                                <span className={`px-1 rounded border text-[9px] font-mono ${g.badge}`}>
+                                  {ev.userPublicId}
+                                </span>
+                              )}
+                              <span className={`px-1.5 py-0.2 rounded-full border text-[9px] font-bold uppercase ${badgeCls}`}>
+                                {ev.event}
+                              </span>
+                            </div>
+                            <p className={`text-[10px] mt-0.5 truncate ${g.muted}`}>
+                              {ev.actionHint || `${ev.userRole || "member"}${ev.departmentName ? ` · ${ev.departmentName}` : ""}`}
+                              {ev.ip ? ` · ${ev.ip}` : ""}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0 font-mono">
+                          <div className="text-[10px] font-semibold">{formatTimeIN(ev.timestamp)}</div>
+                          <div className={`text-[9px] ${g.muted}`}>
+                            {formatDateIN(ev.timestamp)} · {ev.onlineCount ?? 0} online
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className={`h-44 flex items-center justify-center text-xs ${g.muted}`}>
+                    No presence transitions logged yet.
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
           <div className="space-y-3">
             <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
@@ -543,6 +712,128 @@ export default function AuditLogs() {
                 <p className={`text-lg font-bold font-mono ${kpi.cls}`}>{kpi.value}</p>
               </div>
             ))}
+          </div>
+
+          {/* Dashboard-Style Token Usage Graph + Timeline */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+            <div className="lg:col-span-7">
+              <TelemetryCurveCard
+                title="Token Usage & AI Throughput"
+                subtitle={`Live token telemetry · ${aiRangeLabel}`}
+                icon={Cpu}
+                iconClass="text-amber-400"
+                range={aiRange}
+                onRangeChange={(nextR) => setAiRange(nextR)}
+                loading={aiLoading}
+                metrics={[
+                  {
+                    label: "Tokens (Window)",
+                    value: formatNumberIN(aiWindowStats.totalTokens ?? 0),
+                    badge: TELEMETRY_RANGES.find((r) => r.key === aiRange)?.label || "24H",
+                    sublabel: "Total tokens",
+                  },
+                  {
+                    label: "In / Out",
+                    value: `${formatNumberIN(aiWindowStats.promptTokens ?? 0)} / ${formatNumberIN(aiWindowStats.completionTokens ?? 0)}`,
+                    sublabel: "Prompt / Completion",
+                  },
+                  {
+                    label: "AI Calls",
+                    value: formatNumberIN(aiWindowStats.calls ?? 0),
+                    sublabel: `${aiWindowStats.errors ?? 0} errors/denied`,
+                  },
+                  {
+                    label: "Avg Latency",
+                    value: `${aiWindowStats.avgLatencyMs ?? 0}ms`,
+                    sublabel: "Response time",
+                  },
+                ]}
+                series={aiUsageSeries}
+                primaryKey="totalTokens"
+                primaryLabel="Tokens"
+                primaryColor="#f59e0b"
+                secondaryKey="calls"
+                secondaryLabel="Calls"
+                secondaryColor="#a855f7"
+                formatValue={(v) => formatNumberIN(v)}
+                formatSecondary={(v) => formatNumberIN(v)}
+                renderTooltipExtra={(raw) =>
+                  raw.avgLatencyMs ? (
+                    <span className={`hidden sm:inline ${g.muted}`}>· {raw.avgLatencyMs}ms</span>
+                  ) : null
+                }
+              />
+            </div>
+
+            {/* Token Usage Timeline */}
+            <div className={`lg:col-span-5 rounded-2xl p-4 sm:p-5 border flex flex-col gap-3 ${g.card}`}>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className={`w-8 h-8 rounded-xl border flex items-center justify-center shrink-0 ${g.badge}`}>
+                    <KeyRound className="w-4 h-4 text-purple-400" />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className={`text-sm font-display font-bold leading-tight truncate ${g.heading}`}>
+                      Token Usage Timeline
+                    </h3>
+                    <span className="text-[10px] font-semibold uppercase tracking-widest opacity-55 block">
+                      Click any event to inspect payload & tokens
+                    </span>
+                  </div>
+                </div>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono border shrink-0 ${g.badge}`}>
+                  {aiLogs.length} calls
+                </span>
+              </div>
+
+              <div className="flex-1 max-h-[260px] overflow-y-auto pr-1 space-y-2">
+                {aiLogs.length > 0 ? (
+                  aiLogs.slice(0, 25).map((log) => {
+                    const isOk = log.status === "success";
+                    const dotCls = isOk
+                      ? "bg-amber-400 ring-amber-400/25"
+                      : "bg-rose-400 ring-rose-400/25";
+                    return (
+                      <button
+                        type="button"
+                        key={log._id}
+                        onClick={() => setSelectedAiLog(log)}
+                        className={`w-full text-left p-2.5 rounded-xl border flex items-start justify-between gap-2.5 text-xs transition-colors cursor-pointer ${g.subtleSurface} ${g.rowHover}`}
+                      >
+                        <div className="flex items-start gap-2.5 min-w-0">
+                          <span className={`w-2 h-2 rounded-full ring-4 mt-1.5 shrink-0 ${dotCls}`} />
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className={`font-semibold truncate ${g.heading}`}>
+                                {log.userName || "System"}
+                              </span>
+                              <span className={`px-1.5 py-0.2 rounded border font-mono text-[9px] ${g.badge}`}>
+                                {log.model || log.provider}
+                              </span>
+                            </div>
+                            <p className={`text-[10px] mt-0.5 truncate font-mono ${g.muted}`}>
+                              {log.credentialScope} · {log.moduleKey} · in {log.promptTokens || 0} / out {log.completionTokens || 0}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0 font-mono">
+                          <div className="text-[11px] font-bold text-amber-400">
+                            {formatNumberIN(log.totalTokens || 0)} tok
+                          </div>
+                          <div className={`text-[9px] ${g.muted}`}>
+                            {formatTimeIN(log.createdAt)} · {log.latencyMs || 0}ms
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })
+                ) : (
+                  <div className={`h-44 flex items-center justify-center text-xs ${g.muted}`}>
+                    No AI token usage recorded yet.
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
 
           {/* Filters */}
