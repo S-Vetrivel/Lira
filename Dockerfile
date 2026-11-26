@@ -2,7 +2,7 @@
 FROM node:20-alpine AS frontend-builder
 WORKDIR /app/Web
 COPY Web/package*.json ./
-RUN npm ci
+RUN npm install
 COPY Web/ ./
 RUN npm run build
 
@@ -19,7 +19,7 @@ RUN apk add --no-cache nginx wget \
 # Setup Backend
 WORKDIR /app/Backend
 COPY Backend/package*.json ./
-RUN npm ci --omit=dev
+RUN npm install --omit=dev
 COPY Backend/ ./
 
 # Copy Frontend Build
