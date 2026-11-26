@@ -28,6 +28,7 @@ import Profile from "./pages/Profile";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import JoinRequestStatus from "./pages/JoinRequestStatus";
+import { RouteSeoSync } from "./utils/routeSeo";
 
 /**
  * Root `/` entry guard:
@@ -65,6 +66,7 @@ function HomeEntry() {
 function App() {
   return (
     <>
+      <RouteSeoSync />
       <Toaster
         position="top-center"
         toastOptions={{

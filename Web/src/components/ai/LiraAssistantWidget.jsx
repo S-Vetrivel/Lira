@@ -33,18 +33,18 @@ import {
 } from "../../services/api";
 import { getSocket, initSocketClient } from "../../services/socket";
 import SideDrawer from "../common/SideDrawer";
-import LiraLogo from "../common/LiraLogo";
+import LiraLogo, { LiraLogoMark } from "../common/LiraLogo";
 import { SanitizedCopilotHtml, CopilotArtifactsList } from "./CopilotRichContent";
 import { getGlassTokens } from "../../styles/glassTheme";
 
 function inferModuleFromPath(pathname) {
-  if (pathname.startsWith("/board") || pathname.startsWith("/grid") || pathname.startsWith("/calendar")) return "board";
+  if (pathname.startsWith("/board") || pathname.startsWith("/grid") || pathname.startsWith("/table") || pathname.startsWith("/calendar")) return "board";
   if (pathname.startsWith("/my-work")) return "tasks";
   if (pathname.startsWith("/requests")) return "requests";
   if (pathname.startsWith("/projects")) return "projects";
   if (pathname.startsWith("/team")) return "team";
   if (pathname.startsWith("/roles")) return "rbac";
-  if (pathname.startsWith("/audit")) return "dashboard";
+  if (pathname.startsWith("/audit")) return "audit";
   if (pathname.startsWith("/profile")) return "ai";
   return "dashboard";
 }
@@ -872,29 +872,35 @@ export default function LiraAssistantWidget() {
           onPointerDown={handlePebblePointerDown}
           title="Open Lira Assistant (Cmd+J) — drag to any corner"
           aria-label="Open Lira Workspace Assistant"
-          className="fixed top-0 left-0 z-30 w-14 h-14 rounded-full flex items-center justify-center cursor-grab active:cursor-grabbing backdrop-blur-2xl border select-none touch-none transition-shadow"
+          className="fixed top-0 left-0 z-30 w-14 h-14 rounded-full flex items-center justify-center cursor-grab active:cursor-grabbing backdrop-blur-2xl border select-none touch-none transition-shadow overflow-hidden"
           style={{
             background: isDark
-              ? "radial-gradient(135% 135% at 30% 20%, rgba(255,255,255,0.28) 0%, rgba(168,85,247,0.18) 38%, rgba(20,22,30,0.82) 100%)"
-              : "radial-gradient(135% 135% at 30% 20%, rgba(255,255,255,0.95) 0%, rgba(226,232,240,0.8) 50%, rgba(148,163,184,0.45) 100%)",
-            borderColor: isDark ? "rgba(255,255,255,0.26)" : "rgba(255,255,255,0.85)",
+              ? "radial-gradient(135% 135% at 28% 18%, rgba(255,255,255,0.28) 0%, rgba(139,92,246,0.45) 42%, rgba(17,19,28,0.92) 100%)"
+              : "radial-gradient(135% 135% at 28% 18%, rgba(255,255,255,0.98) 0%, rgba(221,214,254,0.88) 48%, rgba(167,139,250,0.48) 100%)",
+            borderColor: isDark ? "rgba(255,255,255,0.28)" : "rgba(109,40,217,0.28)",
             boxShadow: isDark
-              ? "inset 0 2px 3px rgba(255,255,255,0.38), inset 0 -5px 12px rgba(0,0,0,0.55), 0 14px 34px rgba(0,0,0,0.55), 0 0 22px rgba(168,85,247,0.22)"
-              : "inset 0 2px 4px rgba(255,255,255,0.95), inset 0 -5px 12px rgba(15,23,42,0.16), 0 14px 30px rgba(15,23,42,0.18)",
+              ? "inset 0 2px 4px rgba(255,255,255,0.42), inset 0 -6px 14px rgba(0,0,0,0.6), 0 14px 34px rgba(0,0,0,0.55), 0 0 24px rgba(168,85,247,0.32)"
+              : "inset 0 2px 4px rgba(255,255,255,0.98), inset 0 -6px 14px rgba(109,40,217,0.18), 0 14px 30px rgba(15,23,42,0.18)",
           }}
         >
           {/* Specular top glass glint */}
           <span
             aria-hidden="true"
-            className="pointer-events-none absolute top-1.5 left-3 right-3 h-3 rounded-full opacity-60"
+            className="pointer-events-none absolute top-1.5 left-3 right-3 h-3.5 rounded-full opacity-65"
             style={{
               background:
-                "linear-gradient(180deg, rgba(255,255,255,0.65) 0%, rgba(255,255,255,0) 100%)",
+                "linear-gradient(180deg, rgba(255,255,255,0.72) 0%, rgba(255,255,255,0) 100%)",
             }}
           />
-          <LiraLogo size="sm" showWordmark={false} isDark={isDark} className="relative z-10 pointer-events-none" />
+          <LiraLogoMark
+            className="w-11 h-11 relative z-10 pointer-events-none"
+            primaryColor={isDark ? "#ffffff" : "#1e1b4b"}
+            secondaryColor={isDark ? "#e9d5ff" : "#7c3aed"}
+            dotColor={isDark ? "#ffffff" : "#5b21b6"}
+            strokeWidth={2.5}
+          />
           {hasProcessing && (
-            <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-400 border-2 border-[#0e1017] animate-pulse" />
+            <span className="absolute top-0.5 right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-400 border-2 border-[#0e1017] animate-pulse" />
           )}
         </motion.button>
       )}
@@ -905,8 +911,8 @@ export default function LiraAssistantWidget() {
         onClose={() => setIsAIAssistantOpen(false)}
         title="Lira Assistant"
         subtitle="Workspace copilot • tasks, calendar cursor guide, charts & exports"
-        headerIcon={<LiraLogo size="sm" showWordmark={false} isDark={isDark} />}
-        widthClass="max-w-xl"
+        headerIcon={<LiraLogo size="sm" shape="circle" showWordmark={false} isDark={isDark} />}
+        widthClass="max-w-3xl"
         drawerProps={{
           onDragEnter: handleDrawerDragEnter,
           onDragOver: handleDrawerDragOver,
@@ -936,59 +942,10 @@ export default function LiraAssistantWidget() {
               e.preventDefault();
               dispatchPrompt(input);
             }}
-            className="space-y-2.5"
+            className="space-y-2"
           >
-            {/* Mode Switcher + Accessible AI Model Picker */}
-            <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => handleModeChange("review")}
-                  className={`px-2.5 py-1 rounded-lg border font-semibold flex items-center gap-1 cursor-pointer transition-all ${
-                    mode === "review" ? g.selectedRow : `${g.btnSecondary} opacity-50 hover:opacity-85`
-                  }`}
-                >
-                  <Eye className="w-3 h-3 text-purple-400" />
-                  <span>Review</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleModeChange("auto")}
-                  className={`px-2.5 py-1 rounded-lg border font-semibold flex items-center gap-1 cursor-pointer transition-all ${
-                    mode === "auto"
-                      ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-300"
-                      : `${g.btnSecondary} opacity-50 hover:opacity-85`
-                  }`}
-                >
-                  <Zap className="w-3 h-3 text-emerald-400" />
-                  <span>Auto</span>
-                </button>
-              </div>
-
-              <select
-                value={selectedModelKey}
-                onChange={(e) => {
-                  hasHydratedPrefsRef.current = true;
-                  setSelectedModelKey(e.target.value);
-                }}
-                className={`max-w-[230px] rounded-lg px-2.5 py-1 text-[11px] border focus:outline-none truncate ${g.input}`}
-                title="Choose your available AI model or key"
-              >
-                {hasExternalAccess && (
-                  <option value="auto" className={isDark ? "bg-[#14151a]" : "bg-white"}>
-                    Auto (Best Available Key)
-                  </option>
-                )}
-                {availableModels.map((opt) => (
-                  <option key={opt.id} value={opt.id} className={isDark ? "bg-[#14151a]" : "bg-white"}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
             {!hasExternalAccess && (
-              <div className={`px-3 py-2 rounded-xl border flex items-center justify-between gap-2 text-[11px] ${g.subtleSurface}`}>
+              <div className={`px-3 py-1.5 rounded-xl border flex items-center justify-between gap-2 text-[11px] ${g.subtleSurface}`}>
                 <span className={g.muted}>No external AI key added yet — using Quick Engine.</span>
                 <button
                   type="button"
@@ -1004,67 +961,45 @@ export default function LiraAssistantWidget() {
               </div>
             )}
 
-            {pendingAttachments.length > 0 && (
-              <div className="flex flex-wrap gap-1.5">
-                {pendingAttachments.map((att, aIdx) => (
-                  <div
-                    key={att.tempId || `${att.url}-${aIdx}`}
-                    className={`flex items-center gap-1.5 pl-2 pr-1.5 py-1 rounded-lg border text-[10px] ${g.subtleSurface}`}
-                  >
-                    {att.status === "uploading" ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin text-purple-400 shrink-0" />
-                    ) : att.kind === "image" && att.url ? (
-                      <img src={att.url} alt={att.name} className="w-4 h-4 rounded object-cover" />
-                    ) : (
-                      <FileText className="w-3.5 h-3.5 text-sky-400 shrink-0" />
-                    )}
-                    <span className="max-w-[130px] truncate font-medium">
-                      {att.status === "uploading" ? `Uploading ${att.name}...` : att.name}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => handleRemovePendingAttachment(att)}
-                      className="p-0.5 rounded hover:text-rose-400 cursor-pointer"
-                      aria-label={`Remove ${att.name}`}
+            <div className={`rounded-2xl border p-2.5 space-y-2 ${g.subtleSurface}`}>
+              {pendingAttachments.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {pendingAttachments.map((att, aIdx) => (
+                    <div
+                      key={att.tempId || `${att.url}-${aIdx}`}
+                      className={`flex items-center gap-1.5 pl-2 pr-1.5 py-1 rounded-lg border text-[10px] ${g.subtleSurface}`}
                     >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
+                      {att.status === "uploading" ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-purple-400 shrink-0" />
+                      ) : att.kind === "image" && att.url ? (
+                        <img src={att.url} alt={att.name} className="w-4 h-4 rounded object-cover" />
+                      ) : (
+                        <FileText className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                      )}
+                      <span className="max-w-[160px] truncate font-medium">
+                        {att.status === "uploading" ? `Uploading ${att.name}...` : att.name}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemovePendingAttachment(att)}
+                        className="p-0.5 rounded hover:text-rose-400 cursor-pointer"
+                        aria-label={`Remove ${att.name}`}
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
 
-            <div className="flex items-end gap-2">
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                accept="image/*,.pdf,.txt,.csv,.md,.json,.log,.tsv"
-                onChange={handleAttachFiles}
-                className="hidden"
-              />
-              <button
-                type="button"
-                disabled={uploadingFiles}
-                onClick={() => fileInputRef.current?.click()}
-                className={`p-2.5 rounded-xl border cursor-pointer disabled:opacity-40 shrink-0 ${g.btnSecondary}`}
-                title="Attach images or documents (PNG, JPG, PDF, CSV, TXT, JSON)"
-                aria-label="Attach files to Lira Copilot"
-              >
-                {uploadingFiles ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <Paperclip className="w-3.5 h-3.5" />
-                )}
-              </button>
               <textarea
                 ref={textareaRef}
-                rows={1}
+                rows={2}
                 value={input}
                 onChange={(e) => {
                   setInput(e.target.value);
                   e.target.style.height = "auto";
-                  e.target.style.height = `${Math.min(132, Math.max(38, e.target.scrollHeight))}px`;
+                  e.target.style.height = `${Math.min(160, Math.max(48, e.target.scrollHeight))}px`;
                 }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) {
@@ -1080,28 +1015,100 @@ export default function LiraAssistantWidget() {
                     ? "Tell Lira what to create, chart, export, or open... (Shift+Enter newline)"
                     : "Ask Lira to prepare actions across any screen... (Shift+Enter newline)"
                 }
-                className={`flex-1 rounded-xl px-3.5 py-2.5 text-xs border focus:outline-none resize-none whitespace-pre-wrap break-words leading-relaxed min-h-[38px] max-h-[132px] overflow-y-auto ${g.input}`}
+                className={`w-full block rounded-xl px-3.5 py-2.5 text-xs border focus:outline-none resize-none whitespace-pre-wrap break-words leading-relaxed min-h-[48px] max-h-[160px] overflow-y-auto ${g.input}`}
               />
-              {hasProcessing && (
-                <button
-                  type="button"
-                  disabled={stopping}
-                  onClick={handleStopGeneration}
-                  className="px-3 py-2.5 rounded-xl border border-rose-500/40 bg-rose-500/15 text-rose-300 text-xs font-bold flex items-center gap-1.5 hover:bg-rose-500/25 cursor-pointer disabled:opacity-50 shrink-0"
-                  title="Stop current generation (keeps prompt in context)"
-                >
-                  <Square className="w-3 h-3 fill-current" />
-                  <span>{stopping ? "Stopping..." : "Stop"}</span>
-                </button>
-              )}
-              <button
-                type="submit"
-                disabled={(!input.trim() && pendingAttachments.filter((a) => a.status !== "uploading").length === 0) || uploadingFiles || sending}
-                className={`px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-40 shrink-0 ${g.btnPrimary}`}
-              >
-                {sending || uploadingFiles ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                <span>{uploadingFiles ? "Uploading..." : "Send"}</span>
-              </button>
+
+              <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    accept="image/*,.pdf,.txt,.csv,.md,.json,.log,.tsv"
+                    onChange={handleAttachFiles}
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    disabled={uploadingFiles}
+                    onClick={() => fileInputRef.current?.click()}
+                    className={`p-2 rounded-lg border cursor-pointer disabled:opacity-40 shrink-0 ${g.btnSecondary}`}
+                    title="Attach images or documents (PNG, JPG, PDF, CSV, TXT, JSON)"
+                    aria-label="Attach files to Lira Copilot"
+                  >
+                    {uploadingFiles ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Paperclip className="w-3.5 h-3.5" />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleModeChange("review")}
+                    className={`px-2.5 py-1 rounded-lg border font-semibold flex items-center gap-1 cursor-pointer transition-all ${
+                      mode === "review" ? g.selectedRow : `${g.btnSecondary} opacity-50 hover:opacity-85`
+                    }`}
+                  >
+                    <Eye className="w-3 h-3 text-purple-400" />
+                    <span>Review</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleModeChange("auto")}
+                    className={`px-2.5 py-1 rounded-lg border font-semibold flex items-center gap-1 cursor-pointer transition-all ${
+                      mode === "auto"
+                        ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-300"
+                        : `${g.btnSecondary} opacity-50 hover:opacity-85`
+                    }`}
+                  >
+                    <Zap className="w-3 h-3 text-emerald-400" />
+                    <span>Auto</span>
+                  </button>
+                  <select
+                    value={selectedModelKey}
+                    onChange={(e) => {
+                      hasHydratedPrefsRef.current = true;
+                      setSelectedModelKey(e.target.value);
+                    }}
+                    className={`max-w-[230px] rounded-lg px-2.5 py-1 text-[11px] border focus:outline-none truncate ${g.input}`}
+                    title="Choose your available AI model or key"
+                  >
+                    {hasExternalAccess && (
+                      <option value="auto" className={isDark ? "bg-[#14151a]" : "bg-white"}>
+                        Auto (Best Available Key)
+                      </option>
+                    )}
+                    {availableModels.map((opt) => (
+                      <option key={opt.id} value={opt.id} className={isDark ? "bg-[#14151a]" : "bg-white"}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-1.5 ml-auto">
+                  {hasProcessing && (
+                    <button
+                      type="button"
+                      disabled={stopping}
+                      onClick={handleStopGeneration}
+                      className="px-3 py-2 rounded-xl border border-rose-500/40 bg-rose-500/15 text-rose-300 text-xs font-bold flex items-center gap-1.5 hover:bg-rose-500/25 cursor-pointer disabled:opacity-50 shrink-0"
+                      title="Stop current generation (keeps prompt in context)"
+                    >
+                      <Square className="w-3 h-3 fill-current" />
+                      <span>{stopping ? "Stopping..." : "Stop"}</span>
+                    </button>
+                  )}
+                  <button
+                    type="submit"
+                    disabled={(!input.trim() && pendingAttachments.filter((a) => a.status !== "uploading").length === 0) || uploadingFiles || sending}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-40 shrink-0 ${g.btnPrimary}`}
+                  >
+                    {sending || uploadingFiles ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                    <span>{uploadingFiles ? "Uploading..." : "Send"}</span>
+                  </button>
+                </div>
+              </div>
             </div>
           </form>
         }

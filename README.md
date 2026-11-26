@@ -123,7 +123,6 @@ MINIO_USE_SSL=false
 MINIO_ACCESS_KEY=admin
 MINIO_SECRET_KEY=password123
 MINIO_BUCKET_NAME=icuman
-USE_MINIO=true
 
 # Custom SMTP (Optional - leave commented to disable email dispatch)
 # SMTP_HOST=smtp.yourprovider.com

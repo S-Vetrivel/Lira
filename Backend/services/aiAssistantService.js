@@ -18,6 +18,10 @@ const {
 } = require("../config/aiCatalog");
 const { MODULES_CATALOG } = require("../config/modulesCatalog");
 const {
+  getScopedRoutesCatalog,
+  getScopedActionSchemas,
+} = require("../config/copilotActionRegistry");
+const {
   queryAI,
   recordAIUsageLog,
   getUserGlobalGrantsSummary,
@@ -153,7 +157,7 @@ async function sendChatMessageServer({ senderUser, chatType, roomId, recipientId
 const ROUTE_MODULE_MAP = [
   { route: "/", moduleKey: "dashboard", perm: "dashboard.view", label: "Dashboard & Overview" },
   { route: "/board", moduleKey: "board", perm: "board.view", label: "Sprint Board" },
-  { route: "/grid", moduleKey: "board", perm: "board.view", label: "Table Grid View" },
+  { route: "/table", moduleKey: "board", perm: "board.view", label: "Table Grid View" },
   { route: "/calendar", moduleKey: "board", perm: "board.view", label: "Schedule Calendar" },
   { route: "/my-work", moduleKey: "tasks", perm: "tasks.view", label: "My Day & Assigned Tasks" },
   { route: "/requests", moduleKey: "requests", perm: "requests.view", label: "Requests & Approvals" },
@@ -162,7 +166,7 @@ const ROUTE_MODULE_MAP = [
   { route: "/profile?tab=ai", moduleKey: "ai", perm: "ai.use", label: "Personal AI Keys & Profile" },
   { route: "/roles", moduleKey: "rbac", perm: "rbac.view", label: "Roles & Departments" },
   { route: "/roles?tab=ai", moduleKey: "ai", perm: "ai.manage", label: "AI Models & Vault" },
-  { route: "/audit", moduleKey: "dashboard", perm: "dashboard.logs", label: "Audit Logs & Live Sessions" },
+  { route: "/audit", moduleKey: "audit", perm: "audit.view", label: "Audit Logs & Live Sessions" },
 ];
 
 /**
@@ -612,6 +616,8 @@ async function buildScopedWebsiteContext({ user, currentRoute = "/", activeProje
           })),
         }
       : {}),
+    pageCatalog: getScopedRoutesCatalog(isSuper, (p) => hasPerm(user, p)),
+    actionSchemas: getScopedActionSchemas(allowedActions),
   };
 }
 
@@ -1375,52 +1381,228 @@ function sanitizeArtifactsServer(rawArtifacts = []) {
     });
 }
 
-function buildUserDisambiguationCardHtml(users = [], actionType = "delete_user", actionVerb = "Remove") {
-  const esc = (s) =>
-    String(s ?? "")
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
+const escapeHtml = (s) =>
+  String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 
-  const cards = users
+function buildEntityDisambiguationCardHtml(items = []) {
+  const cards = items
     .slice(0, 8)
-    .map((u) => {
-      const payload = esc(
-        JSON.stringify({
-          type: actionType,
-          label: `${actionVerb} ${u.name}`,
-          prefill: { userId: u.id, targetName: u.name },
-        })
-      );
-      const avatarHtml = u.avatar
-        ? `<img src="${esc(u.avatar)}" alt="${esc(u.name)}" class="w-10 h-10 rounded-full object-cover border shrink-0" style="border-color: var(--lira-border);" />`
-        : `<div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-xs shrink-0 border" style="background: var(--lira-accent-bg); color: var(--lira-accent-text); border-color: var(--lira-border);">${esc(
-            String(u.name || "U")
-              .split(/\s+/)
-              .map((w) => w[0])
-              .join("")
-              .slice(0, 2)
-              .toUpperCase()
+    .map((item) => {
+      const payload = escapeHtml(JSON.stringify(item.step || {}));
+      const avatarHtml = item.avatar
+        ? `<img src="${escapeHtml(item.avatar)}" alt="${escapeHtml(item.title)}" class="w-10 h-10 rounded-full object-cover border shrink-0" style="border-color: var(--lira-border);" />`
+        : `<div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-xs shrink-0 border" style="background: var(--lira-accent-bg); color: var(--lira-accent-text); border-color: var(--lira-border);">${escapeHtml(
+            item.initials ||
+              String(item.title || "L")
+                .split(/\s+/)
+                .map((w) => w[0])
+                .join("")
+                .slice(0, 2)
+                .toUpperCase()
           )}</div>`;
+      const actionAttr = item.replyText
+        ? `data-lira-reply="${escapeHtml(item.replyText)}"`
+        : `data-lira-step="${payload}"`;
+      const isDanger = item.danger === true;
 
       return `<div class="p-3 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 w-full transition-colors" style="background: var(--lira-card); border-color: var(--lira-border); color: var(--lira-text);">
         <div class="flex items-center gap-3 min-w-0">
           ${avatarHtml}
           <div class="min-w-0">
-            <div class="font-bold text-xs truncate" style="color: var(--lira-text);">${esc(u.name)}</div>
-            <div class="text-[11px] truncate" style="color: var(--lira-muted);">${esc(u.jobTitle || u.role)} • ${esc(u.dept || "General")}</div>
-            <div class="text-[10px] font-mono mt-0.5" style="color: var(--lira-muted);">${esc(u.publicId || u.role)}</div>
+            <div class="font-bold text-xs truncate" style="color: var(--lira-text);">${escapeHtml(item.title)}</div>
+            ${item.subtitle ? `<div class="text-[11px] truncate" style="color: var(--lira-muted);">${escapeHtml(item.subtitle)}</div>` : ""}
+            ${item.meta ? `<div class="text-[10px] font-mono mt-0.5 truncate" style="color: var(--lira-muted);">${escapeHtml(item.meta)}</div>` : ""}
           </div>
         </div>
-        <button type="button" data-lira-step="${payload}" class="px-3 py-1.5 rounded-lg text-[11px] font-bold shrink-0 cursor-pointer border" style="background: ${
-          actionType === "delete_user" ? "var(--lira-danger-bg)" : "var(--lira-accent-bg)"
-        }; color: ${actionType === "delete_user" ? "var(--lira-danger-text)" : "var(--lira-accent-text)"}; border-color: var(--lira-border);">${esc(actionVerb)}</button>
+        <button type="button" ${actionAttr} class="px-3 py-1.5 rounded-lg text-[11px] font-bold shrink-0 cursor-pointer border" style="background: ${
+          isDanger ? "var(--lira-danger-bg)" : "var(--lira-accent-bg)"
+        }; color: ${isDanger ? "var(--lira-danger-text)" : "var(--lira-accent-text)"}; border-color: var(--lira-border);">${escapeHtml(item.buttonLabel || "Select")}</button>
       </div>`;
     })
     .join("");
 
   return `<div class="space-y-2 w-full">${cards}</div>`;
+}
+
+function buildUserDisambiguationCardHtml(users = [], actionType = "delete_user", actionVerb = "Remove") {
+  return buildEntityDisambiguationCardHtml(
+    users.map((u) => ({
+      title: u.name,
+      subtitle: `${u.jobTitle || u.role} • ${u.dept || "General"}`,
+      meta: u.publicId || u.role,
+      avatar: u.avatar,
+      danger: actionType === "delete_user",
+      buttonLabel: actionVerb,
+      step: {
+        type: actionType,
+        label: `${actionVerb} ${u.name}`,
+        prefill: { userId: u.id, targetName: u.name },
+      },
+    }))
+  );
+}
+
+function buildRoleDisambiguationCardHtml(roles = [], actionIntentOrOpts = "default") {
+  const { isDel, isDefault } =
+    typeof actionIntentOrOpts === "string"
+      ? { isDel: actionIntentOrOpts === "delete", isDefault: actionIntentOrOpts === "default" }
+      : {
+          isDel: actionIntentOrOpts?.actionType === "delete_role" || actionIntentOrOpts?.isDel === true,
+          isDefault: Boolean(actionIntentOrOpts?.isDefault),
+        };
+  return buildEntityDisambiguationCardHtml(
+    roles.map((r) => {
+      const mods = (r.modules || []).slice(0, 6).join(", ") || "none";
+      const step = isDel
+        ? { type: "delete_role", label: `Delete ${r.displayName}`, prefill: { roleId: r.id, name: r.name } }
+        : isDefault
+        ? { type: "update_role", label: `Make ${r.displayName} Default`, prefill: { roleId: r.id, name: r.name, isDefault: true } }
+        : { type: "update_role", label: `Select ${r.displayName}`, prefill: { roleId: r.id, name: r.name } };
+
+      return {
+        title: `${r.displayName}${r.isDefault ? " (Current Default)" : ""}`,
+        subtitle: `Slug: ${r.name} • Modules: ${mods}`,
+        initials: "RL",
+        danger: isDel,
+        buttonLabel: isDel ? "Delete Role" : isDefault ? "Set as Default" : "Configure Role",
+        step,
+      };
+    })
+  );
+}
+
+const TYPO_REPLACEMENTS = [
+  [/\b(craete|crete|creat|cretae|creeate)\b/gi, "create"],
+  [/\b(updte|updt|updat|udpate)\b/gi, "update"],
+  [/\b(delte|deleet|delet|dlete)\b/gi, "delete"],
+  [/\b(remve|rmove|reomve|remov)\b/gi, "remove"],
+  [/\b(roel|rols|rloe|rolse|rle)\b/gi, "role"],
+  [/\b(defualt|defult|defalt|deafult|dflt)\b/gi, "default"],
+  [/\b(moduels|modles|moduls|mdoules)\b/gi, "modules"],
+  [/\b(moduel|modul|mdoule)\b/gi, "module"],
+  [/\b(calander|calender|calndr|clendar)\b/gi, "calendar"],
+  [/\b(projct|proejct|projec|prject)\b/gi, "project"],
+  [/\b(wrkspace|workspce|wrokspace)\b/gi, "workspace"],
+  [/\b(departmnt|departemnt|deprtment|deptment)\b/gi, "department"],
+  [/\b(requst|reqest|requset|reqeust)\b/gi, "request"],
+  [/\b(aprove|aprov|apporve|aproov)\b/gi, "approve"],
+  [/\b(rejct|rjct|rejcet)\b/gi, "reject"],
+  [/\b(usre|uesr|usr)\b/gi, "user"],
+  [/\b(membr|memebr|mebmer)\b/gi, "member"],
+  [/\b(tsak|taks|tsaks)\b/gi, "task"],
+  [/\b(tble|tabke|tabel)\b/gi, "table"],
+  [/\b(grid)\b/gi, "table"],
+  [/\b(dashbord|dasboard|dashbaord)\b/gi, "dashboard"],
+  [/\b(profle|proflie|proifle)\b/gi, "profile"],
+  [/\b(audi|audt|audti)\b/gi, "audit"],
+  [/\b(notfications|notifcations|notificaitons)\b/gi, "notifications"],
+  [/\b(assgn|asign)\b/gi, "assign"],
+  [/\b(submt|sbmit)\b/gi, "submit"],
+  [/\b(chckbox|chekcbox|chekbox|checkbx)\b/gi, "checkbox"],
+  [/\b(opn|opne)\b/gi, "open"],
+  [/\b(shw|sohw)\b/gi, "show"],
+  [/\b(lst)\b/gi, "list"],
+  [/\b(chosse|chuse|chooze|choos)\b/gi, "choose"],
+  [/\b(slect|selet|slct)\b/gi, "select"],
+  [/\b(mke|mak|maek)\b/gi, "make"],
+  [/\b(curser|crsr|cusor)\b/gi, "cursor"],
+];
+
+const KNOWN_VOCAB = new Set([
+  "hi", "hello", "hey", "ok", "yes", "no", "help", "what", "who", "how", "why", "where", "when", "which",
+  "list", "show", "create", "make", "add", "new", "edit", "update", "change", "set", "delete", "remove",
+  "open", "go", "navigate", "approve", "reject", "decline", "submit", "assign", "move", "mark", "read",
+  "send", "dm", "chat", "message", "pin", "task", "tasks", "bug", "ticket", "board", "kanban", "table",
+  "calendar", "schedule", "today", "tomorrow", "my", "day", "work", "request", "requests", "budget",
+  "project", "projects", "workspace", "workspaces", "department", "departments", "team", "user", "users",
+  "member", "members", "role", "roles", "default", "module", "modules", "permissions", "audit", "logs",
+  "online", "profile", "theme", "dark", "light", "notifications", "ai", "key", "keys", "grant", "revoke",
+  "chart", "graph", "csv", "pdf", "ppt", "report", "diagram", "cursor", "review", "auto", "summary",
+  "superadmin", "superadmins", "admin", "manager", "employee", "testing", "status", "priority", "urgent",
+  "high", "medium", "low", "all", "for", "to", "in", "on", "of", "the", "a", "an", "and", "or", "with",
+  "as", "by", "me", "my", "it", "this", "that", "please", "bro", "please", "choose", "select", "click",
+]);
+
+function damerauLevenshtein(a = "", b = "") {
+  const s = String(a);
+  const t = String(b);
+  const m = s.length;
+  const n = t.length;
+  if (m === 0) return n;
+  if (n === 0) return m;
+  const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+  for (let i = 0; i <= m; i++) dp[i][0] = i;
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      const cost = s[i - 1] === t[j - 1] ? 0 : 1;
+      dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + cost);
+      if (i > 1 && j > 1 && s[i - 1] === t[j - 2] && s[i - 2] === t[j - 1]) {
+        dp[i][j] = Math.min(dp[i][j], dp[i - 2][j - 2] + cost);
+      }
+    }
+  }
+  return dp[m][n];
+}
+
+function normalizeTypoText(raw = "") {
+  let out = String(raw || "");
+  for (const [rx, rep] of TYPO_REPLACEMENTS) {
+    out = out.replace(rx, rep);
+  }
+  return out;
+}
+
+function isUnintelligiblePrompt(rawPrompt = "", scopedCtx = {}) {
+  const normalized = normalizeTypoText(rawPrompt).trim().toLowerCase();
+  if (!normalized || normalized.length < 2) return true;
+  const tokens = normalized.replace(/[^a-z0-9_-]+/g, " ").trim().split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return true;
+
+  // Dynamic workspace names are always considered meaningful
+  const entityWords = new Set();
+  for (const r of scopedCtx.roles || []) {
+    String(r.name || "").toLowerCase().split(/[_-\s]+/).forEach((w) => w && entityWords.add(w));
+    String(r.displayName || "").toLowerCase().split(/[_-\s]+/).forEach((w) => w && entityWords.add(w));
+  }
+  for (const p of scopedCtx.projects || []) {
+    String(p.name || "").toLowerCase().split(/\s+/).forEach((w) => w && entityWords.add(w));
+    if (p.prefix) entityWords.add(String(p.prefix).toLowerCase());
+  }
+  for (const u of scopedCtx.teammates || []) {
+    String(u.name || "").toLowerCase().split(/\s+/).forEach((w) => w && entityWords.add(w));
+  }
+
+  let meaningful = 0;
+  for (const tok of tokens) {
+    if (KNOWN_VOCAB.has(tok) || entityWords.has(tok) || /^[a-z0-9]{2,8}-\d+$/.test(tok) || /^\d+$/.test(tok)) {
+      meaningful += 1;
+      continue;
+    }
+    if (tok.length >= 4 && tok.length <= 12) {
+      let fuzzyMatch = false;
+      for (const word of KNOWN_VOCAB) {
+        if (Math.abs(word.length - tok.length) <= 2 && damerauLevenshtein(tok, word) <= (tok.length >= 6 ? 2 : 1)) {
+          fuzzyMatch = true;
+          break;
+        }
+      }
+      if (fuzzyMatch) {
+        meaningful += 1;
+        continue;
+      }
+    }
+  }
+
+  // Flag keyboard-mash / random single or multi-token gibberish with zero known or fuzzy terms
+  if (meaningful === 0) {
+    return true;
+  }
+  return false;
 }
 
 function buildRoleModulesCheckboxHtml(roleObj = {}) {
@@ -1466,13 +1648,98 @@ function buildRoleModulesCheckboxHtml(roleObj = {}) {
   </div>`;
 }
 
+function findAmbiguousRoleMatches(promptText = "", roles = []) {
+  const clean = normalizeTypoText(promptText);
+  const lower = clean.toLowerCase();
+  if (!/\brole\b/i.test(lower)) return null;
+
+  const isCreateIntent = /\b(create|new|add)\s+(?:a\s+|an\s+|new\s+)?(?:platform\s+)?role\b/i.test(lower);
+  const ignoreNames = new Set(["a", "an", "new", "the", "this", "that", "default", "platform", "modules", "module", "role", "roles"]);
+
+  const quotedMatch = clean.match(/\brole\s+(?:named|called|key\s+)?["']([^"']{2,40})["']/i) || clean.match(/["']([a-zA-Z0-9_-]{2,40})["']\s+(?:as\s+)?default\b/i);
+  const wordMatch =
+    clean.match(/\b(?:make|set|update|configure|edit|delete|remove)\s+(?:the\s+|platform\s+)?role\s+(?:named\s+|called\s+)?([a-zA-Z0-9_-]{2,40})\b/i) ||
+    clean.match(/\b(?:make|set|update|configure|edit|delete|remove)\s+(?:the\s+|platform\s+)?([a-zA-Z0-9_-]{2,40})\s+role\b/i);
+  const rawCandidate = (quotedMatch?.[1] || wordMatch?.[1] || "").trim();
+  const candidate = rawCandidate && !ignoreNames.has(rawCandidate.toLowerCase()) ? rawCandidate : "";
+  if (!candidate) return null;
+
+  const candLower = candidate.toLowerCase();
+  const candSlug = candLower.replace(/[^a-z0-9_]+/g, "_");
+  const allRoles = Array.isArray(roles) ? roles : [];
+
+  const exact = allRoles.find(
+    (r) =>
+      String(r.name || "").toLowerCase() === candSlug ||
+      String(r.name || "").toLowerCase() === candLower ||
+      String(r.displayName || "").toLowerCase() === candLower
+  );
+  if (exact || isCreateIntent) return null;
+
+  const matches = allRoles.filter((r) => {
+    const rName = String(r.name || "").toLowerCase();
+    const rDisp = String(r.displayName || "").toLowerCase();
+    return (
+      rName.includes(candSlug) ||
+      rName.includes(candLower) ||
+      rDisp.includes(candLower) ||
+      (candLower.length >= 4 && damerauLevenshtein(candLower, rDisp) <= 2)
+    );
+  });
+
+  if (matches.length <= 1) return null;
+  const isDel = /\b(delete|remove)\b/i.test(lower);
+  const isDefault = /\b(default|defualt|make\s+.*default|as\s+default)\b/i.test(lower);
+  return { query: candidate, matches, isDel, isDefault };
+}
+
 function runLocalCopilotFallback({ prompt, scopedCtx, history = [] }) {
   const text = String(prompt || "").trim();
-  const lower = text.toLowerCase();
+  const cleanText = normalizeTypoText(text);
+  const lower = cleanText.toLowerCase();
   const allowed = new Set(scopedCtx.allowedActions || []);
+  const allowedRoutesSet = new Set((scopedCtx.allowedRoutes || []).map((r) => r.route));
   const steps = [];
   const cursorGuide = /\b(with\s+(the\s+)?cursor|watch\s+it|how\s+to\s+add|walk\s*through|demo\s+with\s+cursor)\b/i.test(lower);
   const todayStr = new Date().toISOString().slice(0, 10);
+
+  // Guard random gibberish / keyboard mash before attempting keyword matching
+  if (isUnintelligiblePrompt(text, scopedCtx)) {
+    const choices = [];
+    if (allowed.has("create_task")) {
+      choices.push({
+        label: "Create a New Task",
+        sublabel: "Open or create a workspace task on Kanban Board",
+        step: { type: "navigate", label: "Open Kanban Board", prefill: { route: "/board" } },
+      });
+    }
+    if (allowedRoutesSet.has("/table")) {
+      choices.push({
+        label: "Open Table View",
+        sublabel: "Browse and filter workspace issues in tabular view",
+        step: { type: "navigate", label: "Open Table View", prefill: { route: "/table" } },
+      });
+    }
+    if (allowedRoutesSet.has("/roles")) {
+      choices.push({
+        label: "Configure Roles & Modules",
+        sublabel: "Manage dynamic roles, default role, and AI vault",
+        step: { type: "navigate", label: "Open Roles & Access Control", prefill: { route: "/roles" } },
+      });
+    }
+    return {
+      status: "clarify",
+      reply:
+        "I didn't quite understand that message — could you rephrase or pick what you'd like to do? (For example: create a task, open /table, configure roles, or generate a report.)",
+      navigateTo: null,
+      intent: null,
+      steps: [],
+      uiHtml: "",
+      choices,
+      artifacts: [],
+      cursorGuide: false,
+    };
+  }
 
   // Resolve contextual entities mentioned in current prompt or recent history
   const matchedUsers = (scopedCtx.teammates || []).filter((u) => {
@@ -1622,11 +1889,46 @@ function runLocalCopilotFallback({ prompt, scopedCtx, history = [] }) {
     };
   }
 
-  // 0c. Dynamic Role Creation / Configuration + Module Selection (`create_role` / `update_role`)
-  if (/\brole\b/i.test(lower) && /\b(create|new|make|add|configure|update|edit|set|assign|list|choose|select)\b/i.test(lower)) {
+  // 0c. Dynamic Role Creation / Configuration + Module Selection (`create_role` / `update_role` / `delete_role`)
+  if (/\brole\b/i.test(lower) && /\b(create|new|make|add|configure|update|edit|set|assign|list|choose|select|delete|remove)\b/i.test(lower)) {
+    const ambiguousRoles = findAmbiguousRoleMatches(cleanText, scopedCtx.roles || []);
+    if (ambiguousRoles && (allowed.has("update_role") || allowed.has("delete_role"))) {
+      const actionType = ambiguousRoles.isDel ? "delete_role" : "update_role";
+      uiHtml = buildRoleDisambiguationCardHtml(ambiguousRoles.matches, {
+        actionType,
+        isDefault: ambiguousRoles.isDefault,
+      });
+      choices = ambiguousRoles.matches.map((r) => ({
+        label: ambiguousRoles.isDel
+          ? `Delete ${r.displayName}`
+          : ambiguousRoles.isDefault
+          ? `Make "${r.displayName}" Default`
+          : `Select "${r.displayName}"`,
+        sublabel: `Slug: ${r.name} • Modules: ${(r.modules || []).join(", ") || "none"}`,
+        step: ambiguousRoles.isDel
+          ? { type: "delete_role", label: `Delete ${r.displayName}`, prefill: { roleId: r.id, name: r.name } }
+          : {
+              type: "update_role",
+              label: ambiguousRoles.isDefault ? `Make ${r.displayName} Default` : `Select ${r.displayName}`,
+              prefill: { roleId: r.id, name: r.name, ...(ambiguousRoles.isDefault ? { isDefault: true } : {}) },
+            },
+      }));
+      return {
+        status: "clarify",
+        reply: `I found ${ambiguousRoles.matches.length} roles matching "${ambiguousRoles.query}". Which role would you like to ${ambiguousRoles.isDel ? "delete" : ambiguousRoles.isDefault ? "set as default" : "configure"}?`,
+        navigateTo: "/roles",
+        intent: null,
+        steps: [],
+        uiHtml,
+        choices,
+        artifacts: [],
+        cursorGuide: false,
+      };
+    }
+
     const roleNameMatch =
-      text.match(/(?:role\s+(?:named|called|key)\s+)["']?([a-zA-Z0-9_-]{2,40})["']?/i) ||
-      text.match(/(?:create|make|add|configure|update)\s+(?:a\s+)?(?:new\s+)?(?:platform\s+)?role\s+(?:named\s+|called\s+)?["']?([a-zA-Z0-9_-]{2,40})["']?/i);
+      cleanText.match(/(?:role\s+(?:named|called|key)\s+)["']?([a-zA-Z0-9_-]{2,40})["']?/i) ||
+      cleanText.match(/(?:create|make|add|configure|update|delete|remove)\s+(?:a\s+|the\s+)?(?:new\s+)?(?:platform\s+)?role\s+(?:named\s+|called\s+)?["']?([a-zA-Z0-9_-]{2,40})["']?/i);
     const ignoreNames = new Set(["a", "an", "new", "the", "this", "that", "default", "platform", "modules", "module"]);
     const rawRoleCandidate = roleNameMatch?.[1]?.trim() || "";
     const resolvedRoleName = rawRoleCandidate && !ignoreNames.has(rawRoleCandidate.toLowerCase()) ? rawRoleCandidate : "";
@@ -1634,7 +1936,8 @@ function runLocalCopilotFallback({ prompt, scopedCtx, history = [] }) {
       (scopedCtx.roles || []).find(
         (r) =>
           (resolvedRoleName && (r.name === resolvedRoleName.toLowerCase().replace(/[^a-z0-9_]+/g, "_") || r.displayName?.toLowerCase() === resolvedRoleName.toLowerCase())) ||
-          lower.includes(String(r.name || "").toLowerCase())
+          lower.includes(String(r.name || "").toLowerCase()) ||
+          lower.includes(String(r.displayName || "").toLowerCase())
       ) || null;
     const isDefault = /\b(set\s+.*default|as\s+default|default\s+role)\b/i.test(lower);
     const explicitMods = [];
@@ -1658,7 +1961,14 @@ function runLocalCopilotFallback({ prompt, scopedCtx, history = [] }) {
       }
     }
 
-    if (/\b(create|new|make|add)\b/i.test(lower) && !existingRole && resolvedRoleName && allowed.has("create_role")) {
+    if (/\b(delete|remove)\b/i.test(lower) && existingRole && allowed.has("delete_role")) {
+      steps.push({
+        type: "delete_role",
+        label: `Delete role "${existingRole.displayName}"`,
+        prefill: { roleId: existingRole.id, name: existingRole.name },
+      });
+      navigateTo = "/roles";
+    } else if (/\b(create|new|make|add)\b/i.test(lower) && !existingRole && resolvedRoleName && allowed.has("create_role")) {
       steps.push({
         type: "create_role",
         label: `Create role "${resolvedRoleName}"${isDefault ? " (default)" : ""}`,
@@ -1673,7 +1983,7 @@ function runLocalCopilotFallback({ prompt, scopedCtx, history = [] }) {
     } else if (existingRole && allowed.has("update_role")) {
       steps.push({
         type: "update_role",
-        label: `Configure modules for "${existingRole.displayName}"`,
+        label: isDefault ? `Set "${existingRole.displayName}" as default role` : `Configure modules for "${existingRole.displayName}"`,
         prefill: {
           roleId: existingRole.id,
           name: existingRole.name,
@@ -1850,7 +2160,7 @@ function runLocalCopilotFallback({ prompt, scopedCtx, history = [] }) {
   const ROUTE_ALIAS_TESTS = [
     { route: "/my-work", rx: /\b(my[\s-]?day|my[\s-]?work|assigned\s+tasks)\b/i },
     { route: "/board", rx: /\b(board|kanban|sprint)\b/i },
-    { route: "/grid", rx: /\b(grid|table)\b/i },
+    { route: "/table", rx: /\b(grid|table)\b/i },
     { route: "/calendar", rx: /\b(calendar|schedule)\b/i },
     { route: "/requests", rx: /\b(requests?|approvals?)\b/i },
     { route: "/projects", rx: /\b(projects?|workspaces?|departments?)\b/i },
@@ -1988,8 +2298,10 @@ STRICT AUTHORIZATION & SECURITY RULES:
 5. NEVER generate off-topic standalone artwork, unrelated scripts/code, or non-workspace content (return status "misuse_blocked"). Workspace data charts, CSV/PDF/PPT reports, workflow SVG diagrams, and disambiguation HTML cards using SCOPED_CONTEXT data ARE encouraged!
 6. ALWAYS write "reply" in natural, conversational English (never expose raw JSON unless explicitly asked).
 
-CLARIFICATION, INTERACTIVE HTML CARDS & MULTI-STEP EXECUTION:
-- If a request is ambiguous (e.g., "remove user sanjay" when multiple Sanjays match, or unclear target task/project), return "status": "clarify", ask clearly in "reply", AND generate a safe, responsive, theme-matched "uiHtml" selection card grid + "choices" array!
+CLARIFICATION, INTERACTIVE HTML CARDS, TYPO TOLERANCE & MULTI-STEP EXECUTION:
+- If a request is ambiguous (e.g., "remove user sanjay" when multiple Sanjays match, or "make the role 'testing' as default" when multiple testing roles match like testing-009 & testing-abc, or unclear target task/project), NEVER guess or silently pick one! Always return "status": "clarify", ask clearly in "reply", AND generate a safe, responsive, theme-matched "uiHtml" selection card grid + "choices" array!
+- Tolerate casual user typos seamlessly (e.g. "opn tble", "craete roel", "calander", "defult"). Conversely, if a prompt is random keyboard mash/gibberish (e.g. "asdfs", "sdfsdaf") with no clear workspace intent, return "status": "clarify" politely asking what to do — NEVER invent dummy steps.
+- Use SCOPED_CONTEXT.pageCatalog for frontend route paths and UI input/button targets (data-ai-target), and SCOPED_CONTEXT.actionSchemas for exact REST endpoint and JSON payload schemas (note table screen route is "/table").
 - STRICT "uiHtml" RULES:
   - ONLY use safe tags (div, span, button, img, p, strong, table, thead, tbody, tr, th, td, label, input[type="checkbox"]). NEVER include <script>, <style>, <iframe>, <form>, text inputs, or on*= attributes.
   - Size responsively for a sidebar container: use "w-full", "flex", "flex-col", "gap-2", "min-w-0", "truncate".
@@ -2024,7 +2336,7 @@ RESPONSE FORMAT — Valid JSON ONLY:
   "status": "ok" | "misuse_blocked" | "access_denied" | "clarify",
   "misuseCategory": "" | "off_topic_code_or_image" | "architecture_probe" | "unauthorized_module",
   "reply": "Friendly conversational English response.",
-  "navigateTo": "/board" | "/calendar" | "/projects" | "/requests" | "/team" | "/my-work" | "/roles" | "/roles?tab=ai" | "/audit" | "/profile?tab=ai" | "/" | null,
+  "navigateTo": "/board" | "/table" | "/calendar" | "/projects" | "/requests" | "/team" | "/my-work" | "/roles" | "/roles?tab=ai" | "/audit" | "/profile?tab=ai" | "/" | null,
   "cursorGuide": false,
   "intent": null | { "type": "...", "prefill": {} },
   "steps": [ { "type": "...", "label": "Short step label", "prefill": {} } ],
@@ -2122,9 +2434,44 @@ async function processAssistantJob({
     let usedModel = "local-workspace";
     let usedKeySource = "local";
 
-    const effectivePromptText = undoneContext
-      ? `${prompt}\n(Also address previously stopped request: "${undoneContext}")`
-      : prompt;
+    const cleanPromptForMatch = normalizeTypoText(prompt);
+    const cleanUndoneContext = undoneContext && !isUnintelligiblePrompt(undoneContext, scopedCtx) ? normalizeTypoText(undoneContext) : "";
+
+    // Fast deterministic gibberish/keyboard-mash guard before invoking external LLMs or action planners
+    if ((!attachments || attachments.length === 0) && isUnintelligiblePrompt(prompt, scopedCtx)) {
+      const clarifyRes = runLocalCopilotFallback({ prompt, scopedCtx, history: recentHistory });
+      await AIAssistantSession.updateOne(
+        { _id: sessionId, "messages.jobId": jobId, "messages.status": "processing" },
+        {
+          $set: {
+            activeJobId: "",
+            lastUndonePrompt: "",
+            "messages.$.role": "assistant",
+            "messages.$.status": "clarify",
+            "messages.$.content": clarifyRes.reply,
+            "messages.$.navigateTo": null,
+            "messages.$.intent": null,
+            "messages.$.steps": [],
+            "messages.$.uiHtml": clarifyRes.uiHtml || "",
+            "messages.$.choices": clarifyRes.choices || [],
+            "messages.$.artifacts": [],
+            "messages.$.cursorGuide": false,
+            "messages.$.executedResult": null,
+            "messages.$.actionApplied": false,
+            "messages.$.provider": "local",
+            "messages.$.model": "input-guard",
+            "messages.$.keySource": "local",
+            "messages.$.completedAt": new Date(),
+          },
+        }
+      );
+      await emitUpdate();
+      return;
+    }
+
+    const effectivePromptText = cleanUndoneContext
+      ? `${cleanPromptForMatch}\n(Also address previously stopped request: "${cleanUndoneContext}")`
+      : cleanPromptForMatch;
 
     // Parse user's chosen model/key from UI dropdown
     const [selKind, selProvider, selExtra] = String(selectedModelKey || "auto").split(":");
@@ -2341,7 +2688,36 @@ async function processAssistantJob({
     // - AUTO mode -> Execute mutations via authenticated Express backend requests (unless clarifying/checkbox picker); no UI cursor!
     let wantsCursorWalkthrough = false;
 
-    if (wantsRoleModulePicker && mode === "auto") {
+    const ambiguousRoleCheck = findAmbiguousRoleMatches(cleanPromptForMatch, scopedCtx.roles || []);
+    if (
+      ambiguousRoleCheck &&
+      (scopedCtx.allowedActions.includes("update_role") || scopedCtx.allowedActions.includes("delete_role"))
+    ) {
+      const actionType = ambiguousRoleCheck.isDel ? "delete_role" : "update_role";
+      finalUiHtml = buildRoleDisambiguationCardHtml(ambiguousRoleCheck.matches, {
+        actionType,
+        isDefault: ambiguousRoleCheck.isDefault,
+      });
+      parsed.choices = ambiguousRoleCheck.matches.map((r) => ({
+        label: ambiguousRoleCheck.isDel
+          ? `Delete ${r.displayName}`
+          : ambiguousRoleCheck.isDefault
+          ? `Make "${r.displayName}" Default`
+          : `Select "${r.displayName}"`,
+        sublabel: `Slug: ${r.name} • Modules: ${(r.modules || []).join(", ") || "none"}`,
+        step: ambiguousRoleCheck.isDel
+          ? { type: "delete_role", label: `Delete ${r.displayName}`, prefill: { roleId: r.id, name: r.name } }
+          : {
+              type: "update_role",
+              label: ambiguousRoleCheck.isDefault ? `Make ${r.displayName} Default` : `Select ${r.displayName}`,
+              prefill: { roleId: r.id, name: r.name, ...(ambiguousRoleCheck.isDefault ? { isDefault: true } : {}) },
+            },
+      }));
+      safeSteps.length = 0;
+      safeNav = "/roles";
+      finalStatus = "clarify";
+      finalReply = `I found ${ambiguousRoleCheck.matches.length} roles matching "${ambiguousRoleCheck.query}". Please choose which role you want to ${ambiguousRoleCheck.isDel ? "delete" : ambiguousRoleCheck.isDefault ? "set as default" : "configure"}:`;
+    } else if (wantsRoleModulePicker && mode === "auto") {
       // Execute role creation first if requested, then deterministically render interactive module checkboxes
       let targetRoleDoc = null;
       const createRoleStep = safeSteps.find((s) => s.type === "create_role");

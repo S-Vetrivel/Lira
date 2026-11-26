@@ -4,6 +4,8 @@ const AIGlobalGrant = require("../models/aiGlobalGrantModel");
 const AIUsageLog = require("../models/aiUsageLogModel");
 const User = require("../models/userModel");
 const Project = require("../models/projectModel");
+require("../models/departmentModel");
+require("../models/roleModel");
 const {
   AI_PROVIDERS_CATALOG,
   getEnvKeyForProvider,

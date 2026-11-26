@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" fill="none">
+  <defs>
+    <linearGradient id="lira-bg" x1="0" y1="0" x2="120" y2="120" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#312e81"/>
+      <stop offset="55%" stop-color="#6d28d9"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+  </defs>
+  <circle cx="60" cy="60" r="58" fill="url(#lira-bg)" stroke="#c4b5fd" stroke-opacity="0.35" stroke-width="3"/>
+  <path d="M34 26V80C34 85.5228 38.4772 90 44 90H88" stroke="#ffffff" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M56 35V66H84" stroke="#c4b5fd" stroke-width="9.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="85" cy="39" r="8.5" fill="#ffffff"/>
+</svg>
+

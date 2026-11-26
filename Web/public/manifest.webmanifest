@@ -1,0 +1,18 @@
+{
+  "name": "Lira Workspace",
+  "short_name": "Lira",
+  "description": "Team operations, sprint boards, schedule calendar, INR approvals, and workspace copilot.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#090a0d",
+  "theme_color": "#6d28d9",
+  "icons": [
+    {
+      "src": "/lira-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
+

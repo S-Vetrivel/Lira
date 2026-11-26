@@ -1,4 +1,24 @@
 User-agent: *
 Allow: /
+Allow: /welcome
+Allow: /landing
+Allow: /login
+Allow: /signup
+Disallow: /dashboard
+Disallow: /analytics
+Disallow: /board
+Disallow: /table
+Disallow: /calendar
+Disallow: /requests
+Disallow: /my-work
+Disallow: /team
+Disallow: /projects
+Disallow: /roles
+Disallow: /audit
+Disallow: /profile
+Disallow: /join-request
+Disallow: /v3/
+Disallow: /api/
+Disallow: /uploads/
 
-Sitemap: https://4iglobalsportshub.co/sitemap.xml
+Sitemap: https://incuman.com/sitemap.xml

@@ -1,45 +1,55 @@
-// Service Worker for Lira Workspace Push Notifications
-self.addEventListener("push", function (event) {
+// Service Worker for Lira Workspace Web Push Notifications
+const DEFAULT_ICON = "/lira-icon.svg";
+
+self.addEventListener("install", () => {
+  self.skipWaiting();
+});
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil(self.clients.claim());
+});
+
+self.addEventListener("push", (event) => {
   let data = {};
   if (event.data) {
     try {
       data = event.data.json();
-    } catch (e) {
+    } catch {
       data = { title: "Lira Workspace", message: event.data.text() };
     }
   }
 
   const title = data.title || "Lira Workspace Update";
+  const targetUrl = data.data || data.url || "/";
   const options = {
     body: data.body || data.message || "New activity in your workspace",
-    icon: "/logo.jpeg",
-    badge: "/logo.jpeg",
+    icon: data.icon || DEFAULT_ICON,
+    badge: data.badge || DEFAULT_ICON,
+    tag: data.tag || "lira-workspace-notif",
     vibrate: [100, 50, 100],
-    data: {
-      url: data.data || data.url || "/",
-    },
+    data: { url: targetUrl },
   };
 
   event.waitUntil(self.registration.showNotification(title, options));
 });
 
-self.addEventListener("notificationclick", function (event) {
+self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const targetUrl = event.notification.data?.url || "/";
+  const rawUrl = event.notification.data?.url || "/";
+  const resolvedUrl = new URL(rawUrl, self.location.origin).href;
 
   event.waitUntil(
-    clients.matchAll({ type: "window", includeUncontrolled: true }).then(function (clientList) {
-      for (let i = 0; i < clientList.length; i++) {
-        const client = clientList[i];
-        if (client.url.includes(self.location.origin) && "focus" in client) {
-          client.navigate(targetUrl);
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
+      for (const client of clientList) {
+        if (client.url.startsWith(self.location.origin) && "focus" in client) {
+          client.navigate(resolvedUrl);
           return client.focus();
         }
       }
       if (clients.openWindow) {
-        return clients.openWindow(targetUrl);
+        return clients.openWindow(resolvedUrl);
       }
+      return undefined;
     })
   );
 });
-

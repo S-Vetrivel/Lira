@@ -39,7 +39,7 @@ async function sendPushToUser(userId, payload) {
     const pushPayload = JSON.stringify({
       title: payload.title || "Lira Workspace",
       body: payload.body || payload.message || "",
-      icon: payload.icon || "/logo.jpeg",
+      icon: payload.icon || "/lira-icon.svg",
       data: payload.url || "/",
       timestamp: Date.now(),
     });

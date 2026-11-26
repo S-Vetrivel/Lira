@@ -1,5 +1,14 @@
 const path = require("path");
 require("dotenv").config({ path: path.resolve(__dirname, "../.env") });
+// Pre-register all Mongoose schemas needed by .populate() inside standalone worker processes
+require("../models/departmentModel");
+require("../models/roleModel");
+require("../models/projectModel");
+require("../models/userModel");
+require("../models/taskModel");
+require("../models/requestModel");
+require("../models/notificationModel");
+require("../models/messageModel");
 const { Worker } = require("bullmq");
 const Redis = require("ioredis");
 const {

@@ -494,24 +494,29 @@ exports.getManagerOverview = async (req, res) => {
 // ==============================================
 // 2. ACTION LOGS & BATCHED LOGGER AUDIT
 // ==============================================
+function buildActionLogQuery({ action, status, userId, actorType, search } = {}) {
+  const query = {};
+  if (action) query.action = action;
+  if (status) query.status = status;
+  if (userId) query.user = userId;
+  if (actorType) query.actorType = actorType;
+  if (search) {
+    query.$or = [
+      { path: { $regex: search, $options: "i" } },
+      { userEmail: { $regex: search, $options: "i" } },
+      { userName: { $regex: search, $options: "i" } },
+      { userPublicId: { $regex: search, $options: "i" } },
+      { action: { $regex: search, $options: "i" } },
+    ];
+  }
+  return query;
+}
+
 exports.getActionLogs = async (req, res) => {
   try {
     await batchLogger.flush().catch(() => {});
-    const { page = 1, limit = 50, action, status, userId, search } = req.query;
-    const query = {};
-
-    if (action) query.action = action;
-    if (status) query.status = status;
-    if (userId) query.user = userId;
-    if (search) {
-      query.$or = [
-        { path: { $regex: search, $options: "i" } },
-        { userEmail: { $regex: search, $options: "i" } },
-        { userName: { $regex: search, $options: "i" } },
-        { userPublicId: { $regex: search, $options: "i" } },
-        { action: { $regex: search, $options: "i" } },
-      ];
-    }
+    const { page = 1, limit = 50 } = req.query;
+    const query = buildActionLogQuery(req.query);
 
     const skip = (Number(page) - 1) * Number(limit);
     const logs = await ActionLog.find(query)
@@ -560,20 +565,8 @@ exports.getAuditOverview = async (req, res) => {
   try {
     await batchLogger.flush().catch(() => {});
 
-    const { page = 1, limit = 40, action, status, userId, search } = req.query;
-    const query = {};
-    if (action) query.action = action;
-    if (status) query.status = status;
-    if (userId) query.user = userId;
-    if (search) {
-      query.$or = [
-        { path: { $regex: search, $options: "i" } },
-        { userEmail: { $regex: search, $options: "i" } },
-        { userName: { $regex: search, $options: "i" } },
-        { userPublicId: { $regex: search, $options: "i" } },
-        { action: { $regex: search, $options: "i" } },
-      ];
-    }
+    const { page = 1, limit = 40 } = req.query;
+    const query = buildActionLogQuery(req.query);
 
     const onlineIds = getOnlineUserIds();
     const onlineSet = new Set(onlineIds.map(String));
