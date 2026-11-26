@@ -23,3 +23,4 @@ const WorkspaceVectorIndexSchema = new mongoose.Schema(
 WorkspaceVectorIndexSchema.index({ entityType: 1, entityId: 1 }, { unique: true });
 
 module.exports = mongoose.model("WorkspaceVectorIndex", WorkspaceVectorIndexSchema);
+

@@ -26,3 +26,4 @@ CopilotExperienceSchema.index({ role: 1, outcome: 1, hitCount: -1 });
 CopilotExperienceSchema.index({ createdAt: 1, hitCount: 1 });
 
 module.exports = mongoose.model("CopilotExperience", CopilotExperienceSchema);
+
