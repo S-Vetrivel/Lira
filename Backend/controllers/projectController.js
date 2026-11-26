@@ -6,42 +6,7 @@ const User = require("../models/userModel");
 const minioService = require("../services/minioService");
 const { createNotification, notifyUsers } = require("../utils/notificationHelper");
 const { enqueueWebSocketEvent, enqueueFileJob, enqueueEntityVectorJob } = require("../services/queue");
-const { escapeRegex } = require("../utils/envSecrets");
-
-/**
- * Resolve mixed department inputs (ObjectIds, codes like "ENG", or names like "Engineering")
- * into valid deduplicated Department ObjectId strings so User/Project queries never throw CastError.
- */
-async function resolveDepartmentObjectIds(rawInputs = []) {
-  const flat = [];
-  for (const item of rawInputs) {
-    if (!item) continue;
-    if (Array.isArray(item)) flat.push(...item);
-    else flat.push(item);
-  }
-  const validIds = new Set();
-  const lookupTerms = [];
-  for (const val of flat) {
-    const str = typeof val === "object" && val?._id ? String(val._id) : String(val).trim();
-    if (!str) continue;
-    if (mongoose.isValidObjectId(str)) {
-      validIds.add(str);
-    } else {
-      lookupTerms.push(str);
-    }
-  }
-  if (lookupTerms.length > 0) {
-    const upperCodes = lookupTerms.map((t) => t.toUpperCase());
-    const nameRegexes = lookupTerms.map((t) => new RegExp(`^${escapeRegex(t)}$`, "i"));
-    const found = await Department.find({
-      $or: [{ code: { $in: upperCodes } }, { name: { $in: nameRegexes } }],
-    })
-      .select("_id")
-      .lean();
-    for (const d of found) validIds.add(String(d._id));
-  }
-  return Array.from(validIds);
-}
+const { resolveDepartmentObjectIds } = require("../utils/entityResolvers");
 
 const MEMBER_FIELDS = "fullname email avatar profilePicture role jobTitle departmentName publicId status";
 
@@ -482,7 +447,7 @@ exports.uploadProjectFile = async (req, res) => {
     await enqueueWebSocketEvent({
       target: "all",
       event: "project:updated",
-      data: { projectId: project._id, action: "file_deleted", fileId },
+      data: { projectId: project._id, action: "file_uploaded", fileId: populated?.files?.[populated.files.length - 1]?._id },
     });
 
     res.status(200).json({ success: true, project: populated, files: populated.files });
@@ -512,7 +477,7 @@ exports.deleteProjectFile = async (req, res) => {
     await enqueueWebSocketEvent({
       target: "all",
       event: "project:updated",
-      data: { projectId: project._id, action: "file_deleted", fileId },
+      data: { projectId: project._id, action: "file_uploaded", fileId: populated?.files?.[populated.files.length - 1]?._id },
     });
 
     res.status(200).json({ success: true, project: populated, files: populated.files });
@@ -525,7 +490,7 @@ exports.deleteProjectFile = async (req, res) => {
 exports.addProjectUrl = async (req, res) => {
   try {
     const { id } = req.params;
-    const { title, url, category } = req.body;
+    const { title, url, category } = req.body || {};
 
     if (!title?.trim() || !url?.trim()) {
       return res.status(400).json({ success: false, message: "Title and URL are required" });
@@ -564,7 +529,7 @@ exports.addProjectUrl = async (req, res) => {
     await enqueueWebSocketEvent({
       target: "all",
       event: "project:updated",
-      data: { projectId: project._id, action: "url_deleted", urlId },
+      data: { projectId: project._id, action: "url_added", urlId: populated?.links?.[populated.links.length - 1]?._id },
     });
 
     res.status(200).json({ success: true, project: populated, links: populated.links });
@@ -577,13 +542,19 @@ exports.addProjectUrl = async (req, res) => {
 exports.invokeProjectDepartment = async (req, res) => {
   try {
     const { id } = req.params;
-    const { departmentId } = req.body;
+    const { departmentId } = req.body || {};
     if (!departmentId) {
       return res.status(400).json({ success: false, message: "departmentId is required" });
     }
 
+    const resolvedDepts = await resolveDepartmentObjectIds([departmentId]);
+    const resolvedDeptId = resolvedDepts[0];
+    if (!resolvedDeptId) {
+      return res.status(404).json({ success: false, message: "Department not found" });
+    }
+
     const deptUsers = await User.find({
-      department: departmentId,
+      department: resolvedDeptId,
       isActive: true,
       status: "active",
     })
@@ -595,7 +566,7 @@ exports.invokeProjectDepartment = async (req, res) => {
       id,
       {
         $addToSet: {
-          departments: departmentId,
+          departments: resolvedDeptId,
           members: { $each: userIds },
         },
       },

@@ -30,6 +30,7 @@ import {
   uploadSingleChunk,
 } from "../../services/api";
 import MessageSenderPopover from "./MessageSenderPopover";
+import { hasOpenModal } from "../common/GlassModal";
 import {
   getSocket,
   joinChatRoom,
@@ -146,7 +147,7 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
     if (!isOpen) return;
     window.dispatchEvent(new CustomEvent("lira:sidebar-opened", { detail: { id: "chat" } }));
     const onKey = (e) => {
-      if (e.key === "Escape") onClose?.();
+      if (e.key === "Escape" && !hasOpenModal()) onClose?.();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);

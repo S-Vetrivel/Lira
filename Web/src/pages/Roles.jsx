@@ -18,6 +18,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useApp } from "../context/Appcontext";
+import { useModal } from "../context/ModalContext";
 import { subscribeRealtimeEvents } from "../services/socket";
 import {
   getModulesCatalog,
@@ -55,6 +56,7 @@ export default function Roles() {
     setAiPrefillDraft,
   } = useApp();
   const isDark = theme === "dark";
+  const { confirm } = useModal();
 
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState(
@@ -280,7 +282,14 @@ export default function Roles() {
     if (role.isSystem || role.name === "superadmin") {
       return toast.error("Superadmin cannot be deleted");
     }
-    if (!window.confirm(`Delete role '${role.displayName}'?`)) return;
+    const confirmed = await confirm({
+      title: `Delete role "${role.displayName}"?`,
+      message: "This dynamic role and its module permissions will be permanently removed.",
+      confirmLabel: "Delete Role",
+      variant: "danger",
+      icon: Trash2,
+    });
+    if (!confirmed) return;
     const res = await deleteRole(role._id);
     if (res.success) {
       await loadData();

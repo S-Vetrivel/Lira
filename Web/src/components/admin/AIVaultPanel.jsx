@@ -21,11 +21,13 @@ import {
   activateAIKeyEntry,
 } from "../../services/api";
 import { getGlassTokens } from "../../styles/glassTheme";
+import { useModal } from "../../context/ModalContext";
 import AIKeyRingWorkspace from "../ai/AIKeyRingWorkspace";
 import AIGlobalGrantsPanel from "./AIGlobalGrantsPanel";
 
 export default function AIVaultPanel({ isDark = true }) {
   const g = getGlassTokens(isDark);
+  const { confirm } = useModal();
   const [providers, setProviders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [userByokCount, setUserByokCount] = useState(0);
@@ -91,6 +93,14 @@ export default function AIVaultPanel({ isDark = true }) {
   };
 
   const handleRevoke = async (pKey) => {
+    const confirmed = await confirm({
+      title: `Revoke ${pKey.toUpperCase()} vault keys?`,
+      message: `All encrypted global vault keys for ${pKey} will be cleared. Workspace AI calls will fall back to environment variables if configured.`,
+      confirmLabel: "Revoke Keys",
+      variant: "danger",
+      icon: Trash2,
+    });
+    if (!confirmed) return;
     setSavingProvider(pKey);
     const res = await revokeAIAdminKey(pKey);
     setSavingProvider("");

@@ -203,7 +203,12 @@ async function buildScopedWebsiteContext({ user, currentRoute = "/", activeProje
       isSuperAdmin: isSuper,
     },
     currentRoute,
-    activeProjectId: activeProjectId || (accessibleProjects[0]?._id ? String(accessibleProjects[0]._id) : null),
+    activeProjectId:
+      activeProjectId && accessibleProjects.some((p) => String(p._id) === String(activeProjectId))
+        ? String(activeProjectId)
+        : accessibleProjects[0]?._id
+        ? String(accessibleProjects[0]._id)
+        : null,
     allowedRoutes,
     allowedActions,
     modulesCatalog: MODULES_CATALOG.map((m) => ({

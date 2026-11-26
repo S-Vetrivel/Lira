@@ -635,6 +635,7 @@ async function processAssistantJob({
 
     const rawSteps = Array.isArray(parsed.steps) && parsed.steps.length > 0 ? parsed.steps : parsed.intent ? [parsed.intent] : [];
     const safeSteps = [];
+    let hasPrecedingCreateProject = false;
     for (const s of rawSteps) {
       if (s?.type && !scopedCtx.allowedActions.includes(s.type)) {
         await recordMisuseAudit({
@@ -645,9 +646,14 @@ async function processAssistantJob({
           moduleKey,
         });
       } else if (s?.type) {
-        if (s.type === "create_task") {
+        if (s.type === "create_project") {
+          hasPrecedingCreateProject = true;
+          safeSteps.push(s);
+        } else if (s.type === "create_task") {
           const pf = { ...(s.prefill || {}) };
-          if (!pf.projectId && scopedCtx.activeProjectId) pf.projectId = scopedCtx.activeProjectId;
+          if (!pf.projectId && scopedCtx.activeProjectId && !hasPrecedingCreateProject) {
+            pf.projectId = scopedCtx.activeProjectId;
+          }
           if (!pf.dueDate && isCalendarScheduledPrompt) pf.dueDate = todayIso;
           safeSteps.push({ ...s, prefill: pf });
         } else {

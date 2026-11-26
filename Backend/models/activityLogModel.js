@@ -24,6 +24,9 @@ const ActivityLogSchema = new Schema(
       enum: [
         "created",
         "status_changed",
+        "submitted_for_review",
+        "task_approved",
+        "revision_requested",
         "assigned",
         "unassigned",
         "priority_changed",

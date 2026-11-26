@@ -11,6 +11,16 @@ const { getChatE2eeSecret, escapeRegex } = require("../utils/envSecrets");
 const { callProtectedBackendAPI } = require("./internalExpressCaller");
 const { assertSafeWebUrl } = require("./copilotSecurity");
 const { expandModulesToPermissions } = require("./copilotContext");
+const {
+  normalizeTaskType,
+  normalizeTaskPriority,
+  normalizeTaskStatus,
+  normalizeRequestType,
+  resolveDepartmentObjectIds,
+  resolveDepartmentDoc,
+  resolveProjectObjectId,
+  resolveUserObjectIds,
+} = require("../utils/entityResolvers");
 
 /**
  * Encrypt plaintext into the WebCrypto-compatible AES-GCM-256 format used by Office & Project Chat.
@@ -68,30 +78,20 @@ async function executeSingleStep(step, user, chainState = {}) {
 
   const resolveTargetTask = async (fields = "_id key title") => {
     const keyOrId = rawPrefill.taskId || rawPrefill.taskKey || chainState.taskKey;
-    const t = rawPrefill.taskId
-      ? await Task.findById(rawPrefill.taskId).select(fields).lean()
-      : await Task.findOne({ key: String(keyOrId || "").toUpperCase() }).select(fields).lean();
+    const str = String(keyOrId || "").trim();
+    const t =
+      str && mongoose.isValidObjectId(str)
+        ? await Task.findById(str).select(fields).lean()
+        : await Task.findOne({ key: str.toUpperCase() }).select(fields).lean();
     if (!t) throw new Error(`Task ${keyOrId || ""} not found`);
     return t;
   };
 
   if (step.type === "create_task") {
-    let projectId = rawPrefill.projectId;
     const accessFilter = isSuperAdminUser(user) ? { status: { $ne: "archived" } } : { members: user._id };
+    const rawProjInput = rawPrefill.projectId || rawPrefill.project || rawPrefill.projectPrefix || rawPrefill.projectName;
 
-    if (projectId && !mongoose.isValidObjectId(String(projectId))) {
-      const rawProjRef = String(projectId).trim();
-      const matched = await Project.findOne({
-        ...accessFilter,
-        $or: [
-          { prefix: rawProjRef.toUpperCase() },
-          { name: new RegExp(`^${escapeRegex(rawProjRef)}$`, "i") },
-        ],
-      })
-        .select("_id")
-        .lean();
-      projectId = matched?._id ? String(matched._id) : chainState.projectId || "";
-    }
+    let projectId = rawProjInput ? await resolveProjectObjectId(rawProjInput, accessFilter) : null;
     if (!projectId && chainState.projectId) {
       projectId = chainState.projectId;
     }
@@ -100,24 +100,14 @@ async function executeSingleStep(step, user, chainState = {}) {
         .select("_id")
         .sort({ createdAt: -1 })
         .lean();
-      projectId = firstProj?._id;
+      projectId = firstProj?._id ? String(firstProj._id) : "";
     }
     if (!projectId) throw new Error("No workspace project available to create task");
 
-    let resolvedDepts = Array.isArray(rawPrefill.assignedDepartments) ? rawPrefill.assignedDepartments : [];
-    const nonIdDepts = resolvedDepts.filter((d) => d && !mongoose.isValidObjectId(String(d)));
-    if (nonIdDepts.length > 0) {
-      const validIds = resolvedDepts.filter((d) => d && mongoose.isValidObjectId(String(d))).map(String);
-      const foundDepts = await Department.find({
-        $or: [
-          { code: { $in: nonIdDepts.map((d) => String(d).trim().toUpperCase()) } },
-          { name: { $in: nonIdDepts.map((d) => new RegExp(`^${escapeRegex(String(d).trim())}$`, "i")) } },
-        ],
-      })
-        .select("_id")
-        .lean();
-      resolvedDepts = Array.from(new Set([...validIds, ...foundDepts.map((d) => String(d._id))]));
-    }
+    const [resolvedAssignees, resolvedDepts] = await Promise.all([
+      resolveUserObjectIds(Array.isArray(rawPrefill.assignees) ? rawPrefill.assignees : []),
+      resolveDepartmentObjectIds(Array.isArray(rawPrefill.assignedDepartments) ? rawPrefill.assignedDepartments : []),
+    ]);
 
     const res = await callProtectedBackendAPI({
       user,
@@ -128,10 +118,10 @@ async function executeSingleStep(step, user, chainState = {}) {
         project: String(projectId),
         title: interpolate(rawPrefill.title) || "Workspace Task",
         description: interpolate(rawPrefill.description) || "",
-        type: rawPrefill.type || "task",
-        priority: rawPrefill.priority || "medium",
+        type: normalizeTaskType(rawPrefill.type),
+        priority: normalizeTaskPriority(rawPrefill.priority),
         dueDate: rawPrefill.dueDate || undefined,
-        assignees: Array.isArray(rawPrefill.assignees) ? rawPrefill.assignees : [],
+        assignees: resolvedAssignees,
         assignedDepartments: resolvedDepts,
         subtasks: Array.isArray(rawPrefill.subtasks)
           ? rawPrefill.subtasks.map((s) => ({ title: typeof s === "string" ? s : s.title }))
@@ -169,7 +159,8 @@ async function executeSingleStep(step, user, chainState = {}) {
   }
 
   if (step.type === "send_dm") {
-    const rid = rawPrefill.recipientId;
+    const resolvedRecipients = await resolveUserObjectIds([rawPrefill.recipientId || rawPrefill.userId || rawPrefill.recipient]);
+    const rid = resolvedRecipients[0];
     if (!rid) throw new Error("Recipient missing for DM step");
     const recipientUser = await User.findById(rid).select("fullname").lean();
     if (!recipientUser) throw new Error("Target recipient user not found");
@@ -190,16 +181,17 @@ async function executeSingleStep(step, user, chainState = {}) {
   if (step.type === "update_task_status") {
     const targetTask = await resolveTargetTask("_id key status");
     const prevStatus = targetTask.status;
+    const nextStatus = normalizeTaskStatus(rawPrefill.status || "in_progress");
     await callProtectedBackendAPI({
       user,
       method: "PATCH",
       path: `/tasks/${targetTask._id}/status`,
-      data: { status: rawPrefill.status || "in_progress" },
+      data: { status: nextStatus },
     });
     return {
       executed: true,
       actionType: "update_task_status",
-      summary: `Moved ${targetTask.key} to ${rawPrefill.status || "in_progress"}`,
+      summary: `Moved ${targetTask.key} to ${nextStatus}`,
       taskKey: targetTask.key,
       taskId: String(targetTask._id),
       undoStep: {
@@ -211,18 +203,24 @@ async function executeSingleStep(step, user, chainState = {}) {
   }
 
   if (step.type === "create_request") {
+    const rawDept = rawPrefill.targetDepartment || rawPrefill.targetDepartmentId || null;
+    const rawProj = rawPrefill.targetProject || rawPrefill.targetProjectId || null;
+    const [resolvedDepts, resolvedProjId] = await Promise.all([
+      rawDept ? resolveDepartmentObjectIds([rawDept]) : Promise.resolve([]),
+      rawProj ? resolveProjectObjectId(rawProj) : Promise.resolve(null),
+    ]);
     const res = await callProtectedBackendAPI({
       user,
       method: "POST",
       path: "/requests",
       data: {
         title: interpolate(rawPrefill.title) || "Workspace Request",
-        requestType: rawPrefill.requestType || "general_signoff",
+        requestType: normalizeRequestType(rawPrefill.requestType),
         description: interpolate(rawPrefill.description) || "",
-        targetDepartmentId: rawPrefill.targetDepartment || rawPrefill.targetDepartmentId || null,
-        targetProjectId: rawPrefill.targetProject || null,
+        targetDepartmentId: resolvedDepts[0] || null,
+        targetProjectId: resolvedProjId || null,
         amount: rawPrefill.amount ? Number(rawPrefill.amount) : undefined,
-        priority: rawPrefill.urgency || rawPrefill.priority || "medium",
+        priority: normalizeTaskPriority(rawPrefill.urgency || rawPrefill.priority),
       },
     });
     return {
@@ -344,18 +342,22 @@ async function executeSingleStep(step, user, chainState = {}) {
 
   if (step.type === "approve_request" || step.type === "reject_request") {
     const safeTitlePattern = escapeRegex(String(rawPrefill.title || "").slice(0, 60));
-    const targetReq = rawPrefill.requestId
-      ? await Request.findById(rawPrefill.requestId).select("_id title").lean()
-      : safeTitlePattern
-      ? await Request.findOne({ title: new RegExp(safeTitlePattern, "i") }).select("_id title").lean()
-      : null;
+    const reqRef = String(rawPrefill.requestId || "").trim();
+    const targetReq =
+      reqRef && mongoose.isValidObjectId(reqRef)
+        ? await Request.findById(reqRef).select("_id title").lean()
+        : reqRef
+        ? await Request.findOne({ requestCode: reqRef.toUpperCase() }).select("_id title").lean()
+        : safeTitlePattern
+        ? await Request.findOne({ title: new RegExp(safeTitlePattern, "i") }).select("_id title").lean()
+        : null;
     if (!targetReq) throw new Error("Target request not found");
     const endpoint = step.type === "approve_request" ? "approve" : "reject";
     await callProtectedBackendAPI({
       user,
       method: "POST",
       path: `/requests/${targetReq._id}/${endpoint}`,
-      data: { note: rawPrefill.note || "Processed via Lira Copilot" },
+      data: { note: rawPrefill.note || "Processed via Lira Copilot", reason: rawPrefill.note || "Processed via Lira Copilot" },
     });
     return {
       executed: true,
@@ -373,7 +375,8 @@ async function executeSingleStep(step, user, chainState = {}) {
     if (bulkIds && bulkIds.length > 0) {
       const deletedNames = [];
       for (const pid of bulkIds) {
-        const p = await Project.findById(pid).select("_id name").lean();
+        const resolvedId = await resolveProjectObjectId(pid, {});
+        const p = resolvedId ? await Project.findById(resolvedId).select("_id name").lean() : null;
         if (p) {
           await callProtectedBackendAPI({ user, method: "DELETE", path: `/projects/${p._id}` });
           deletedNames.push(p.name);
@@ -382,13 +385,8 @@ async function executeSingleStep(step, user, chainState = {}) {
       if (deletedNames.length === 0) throw new Error("No matching projects found to delete");
       return { executed: true, actionType: "delete_project", summary: `Deleted ${deletedNames.length} workspace(s): ${deletedNames.join(", ")}` };
     }
-    const p = rawPrefill.projectId
-      ? await Project.findById(rawPrefill.projectId).select("_id name").lean()
-      : await Project.findOne({
-          $or: [{ prefix: String(rawPrefill.prefix || "").toUpperCase() }, { name: rawPrefill.name }],
-        })
-          .select("_id name")
-          .lean();
+    const resolvedProjId = await resolveProjectObjectId(rawPrefill.projectId || rawPrefill.prefix || rawPrefill.name, {});
+    const p = resolvedProjId ? await Project.findById(resolvedProjId).select("_id name").lean() : null;
     if (!p) throw new Error("Project not found");
     await callProtectedBackendAPI({ user, method: "DELETE", path: `/projects/${p._id}` });
     return { executed: true, actionType: "delete_project", summary: `Deleted workspace "${p.name}"` };
@@ -403,7 +401,7 @@ async function executeSingleStep(step, user, chainState = {}) {
     if (bulkIds && bulkIds.length > 0) {
       const deletedNames = [];
       for (const did of bulkIds) {
-        const d = await Department.findById(did).select("_id name").lean();
+        const d = await resolveDepartmentDoc(did, "_id name");
         if (d) {
           await callProtectedBackendAPI({ user, method: "DELETE", path: `/departments/${d._id}` });
           deletedNames.push(d.name);
@@ -412,9 +410,7 @@ async function executeSingleStep(step, user, chainState = {}) {
       if (deletedNames.length === 0) throw new Error("No matching departments found to delete");
       return { executed: true, actionType: "delete_department", summary: `Deleted ${deletedNames.length} department(s): ${deletedNames.join(", ")}` };
     }
-    const d = rawPrefill.departmentId
-      ? await Department.findById(rawPrefill.departmentId).select("_id name").lean()
-      : await Department.findOne({ name: rawPrefill.name }).select("_id name").lean();
+    const d = await resolveDepartmentDoc(rawPrefill.departmentId || rawPrefill.code || rawPrefill.name, "_id name");
     if (!d) throw new Error("Department not found");
     await callProtectedBackendAPI({ user, method: "DELETE", path: `/departments/${d._id}` });
     return { executed: true, actionType: "delete_department", summary: `Deleted department "${d.name}"` };
@@ -461,17 +457,18 @@ async function executeSingleStep(step, user, chainState = {}) {
     const rawName = String(rawPrefill.name || rawPrefill.roleName || "").trim();
     const cleanSlug = rawName.toLowerCase().replace(/[^a-z0-9_]+/g, "_");
     const safeDisplayRx = rawName ? new RegExp(`^${escapeRegex(rawName)}$`, "i") : null;
-    const targetRole = rawPrefill.roleId
-      ? await Role.findById(rawPrefill.roleId).select("_id displayName name description modules permissions isDefault").lean()
-      : await Role.findOne({
-          $or: [
-            { name: cleanSlug },
-            { name: rawName.toLowerCase() },
-            ...(safeDisplayRx ? [{ displayName: safeDisplayRx }] : []),
-          ],
-        })
-          .select("_id displayName name description modules permissions isDefault")
-          .lean();
+    const targetRole =
+      rawPrefill.roleId && mongoose.isValidObjectId(String(rawPrefill.roleId))
+        ? await Role.findById(rawPrefill.roleId).select("_id displayName name description modules permissions isDefault").lean()
+        : await Role.findOne({
+            $or: [
+              { name: cleanSlug },
+              { name: rawName.toLowerCase() },
+              ...(safeDisplayRx ? [{ displayName: safeDisplayRx }] : []),
+            ],
+          })
+            .select("_id displayName name description modules permissions isDefault")
+            .lean();
     if (!targetRole) throw new Error(`Role "${rawName || rawPrefill.roleId || "unknown"}" not found`);
 
     const prevSnapshot = {
@@ -531,9 +528,12 @@ async function executeSingleStep(step, user, chainState = {}) {
       if (deletedNames.length === 0) throw new Error("No matching roles found to delete");
       return { executed: true, actionType: "delete_role", summary: `Deleted ${deletedNames.length} role(s): ${deletedNames.join(", ")}` };
     }
-    const targetRole = rawPrefill.roleId
-      ? await Role.findById(rawPrefill.roleId).select("_id displayName name").lean()
-      : await Role.findOne({ name: String(rawPrefill.name || "").toLowerCase() }).select("_id displayName name").lean();
+    const targetRole =
+      rawPrefill.roleId && mongoose.isValidObjectId(String(rawPrefill.roleId))
+        ? await Role.findById(rawPrefill.roleId).select("_id displayName name").lean()
+        : await Role.findOne({ name: String(rawPrefill.name || rawPrefill.roleId || "").toLowerCase() })
+            .select("_id displayName name")
+            .lean();
     if (!targetRole) throw new Error("Role not found");
     await callProtectedBackendAPI({ user, method: "DELETE", path: `/roles/${targetRole._id}` });
     return {
@@ -551,7 +551,8 @@ async function executeSingleStep(step, user, chainState = {}) {
       : rawPrefill.userId
       ? [rawPrefill.userId]
       : [];
-    const targetIds = rawIds.map(String).filter((id) => id && id !== String(user._id));
+    const resolvedUserIds = await resolveUserObjectIds(rawIds);
+    const targetIds = resolvedUserIds.map(String).filter((id) => id && id !== String(user._id));
     if (targetIds.length === 0) {
       throw new Error("Cannot remove self or missing userId");
     }
@@ -593,16 +594,20 @@ async function executeSingleStep(step, user, chainState = {}) {
     const prevSnapshot = { taskId: String(t._id), taskKey: t.key };
     ["title", "description", "priority", "type", "status", "dueDate", "estimatedHours"].forEach((k) => {
       if (rawPrefill[k] !== undefined && rawPrefill[k] !== "") {
-        patch[k] = rawPrefill[k];
+        let val = rawPrefill[k];
+        if (k === "priority") val = normalizeTaskPriority(val);
+        else if (k === "type") val = normalizeTaskType(val);
+        else if (k === "status") val = normalizeTaskStatus(val);
+        patch[k] = val;
         if (t[k] !== undefined) prevSnapshot[k] = t[k];
       }
     });
     if (Array.isArray(rawPrefill.assignees)) {
-      patch.assignees = rawPrefill.assignees;
+      patch.assignees = await resolveUserObjectIds(rawPrefill.assignees);
       prevSnapshot.assignees = t.assignees || [];
     }
     if (Array.isArray(rawPrefill.assignedDepartments)) {
-      patch.assignedDepartments = rawPrefill.assignedDepartments;
+      patch.assignedDepartments = await resolveDepartmentObjectIds(rawPrefill.assignedDepartments);
       prevSnapshot.assignedDepartments = t.assignedDepartments || [];
     }
     await callProtectedBackendAPI({ user, method: "PUT", path: `/tasks/${t._id}`, data: patch });
@@ -700,11 +705,8 @@ async function executeSingleStep(step, user, chainState = {}) {
   }
 
   if (step.type === "update_project") {
-    const p = rawPrefill.projectId
-      ? await Project.findById(rawPrefill.projectId).select("_id name description status").lean()
-      : await Project.findOne({ $or: [{ prefix: String(rawPrefill.prefix || "").toUpperCase() }, { name: rawPrefill.name }] })
-          .select("_id name description status")
-          .lean();
+    const resolvedProjId = await resolveProjectObjectId(rawPrefill.projectId || rawPrefill.prefix || rawPrefill.name, {});
+    const p = resolvedProjId ? await Project.findById(resolvedProjId).select("_id name description status").lean() : null;
     if (!p) throw new Error("Project not found");
     const res = await callProtectedBackendAPI({
       user,
@@ -729,8 +731,8 @@ async function executeSingleStep(step, user, chainState = {}) {
   }
 
   if (step.type === "add_project_member" || step.type === "remove_project_member") {
-    const projId = rawPrefill.projectId || chainState.projectId;
-    const uid = rawPrefill.userId;
+    const projId = (await resolveProjectObjectId(rawPrefill.projectId || rawPrefill.prefix || rawPrefill.name)) || chainState.projectId;
+    const uid = (await resolveUserObjectIds([rawPrefill.userId || rawPrefill.user || rawPrefill.email]))[0];
     if (!projId || !uid) throw new Error("projectId and userId are required");
     if (step.type === "add_project_member") {
       await callProtectedBackendAPI({ user, method: "POST", path: `/projects/${projId}/members`, data: { userId: uid } });
@@ -750,8 +752,8 @@ async function executeSingleStep(step, user, chainState = {}) {
   }
 
   if (step.type === "invoke_project_department" || step.type === "remove_project_department") {
-    const projId = rawPrefill.projectId || chainState.projectId;
-    const deptId = rawPrefill.departmentId;
+    const projId = (await resolveProjectObjectId(rawPrefill.projectId || rawPrefill.prefix || rawPrefill.name)) || chainState.projectId;
+    const deptId = (await resolveDepartmentObjectIds([rawPrefill.departmentId || rawPrefill.department]))[0];
     if (!projId || !deptId) throw new Error("projectId and departmentId are required");
     if (step.type === "invoke_project_department") {
       await callProtectedBackendAPI({ user, method: "POST", path: `/projects/${projId}/departments`, data: { departmentId: deptId } });
@@ -771,22 +773,20 @@ async function executeSingleStep(step, user, chainState = {}) {
   }
 
   if (step.type === "add_project_url") {
-    const projId = rawPrefill.projectId || chainState.projectId;
+    const projId = (await resolveProjectObjectId(rawPrefill.projectId || rawPrefill.prefix || rawPrefill.name)) || chainState.projectId;
     if (!projId || !rawPrefill.url) throw new Error("projectId and url are required");
     const safeUrl = await assertSafeWebUrl(rawPrefill.url);
     await callProtectedBackendAPI({
       user,
       method: "POST",
       path: `/projects/${projId}/urls`,
-      data: { label: rawPrefill.label || rawPrefill.title || safeUrl, url: safeUrl },
+      data: { label: rawPrefill.label || rawPrefill.title || safeUrl, title: rawPrefill.title || rawPrefill.label || safeUrl, url: safeUrl },
     });
     return { executed: true, actionType: step.type, summary: "Added link to project" };
   }
 
   if (step.type === "update_department") {
-    const d = rawPrefill.departmentId
-      ? await Department.findById(rawPrefill.departmentId).select("_id name description color").lean()
-      : await Department.findOne({ name: rawPrefill.name }).select("_id name description color").lean();
+    const d = await resolveDepartmentDoc(rawPrefill.departmentId || rawPrefill.code || rawPrefill.name);
     if (!d) throw new Error("Department not found");
     await callProtectedBackendAPI({ user, method: "PUT", path: `/departments/${d._id}`, data: rawPrefill });
     return {
@@ -802,8 +802,9 @@ async function executeSingleStep(step, user, chainState = {}) {
   }
 
   if (step.type === "add_department_member" || step.type === "remove_department_member") {
-    const dId = rawPrefill.departmentId;
-    const uId = rawPrefill.userId;
+    const d = await resolveDepartmentDoc(rawPrefill.departmentId || rawPrefill.department || rawPrefill.code);
+    const dId = d?._id ? String(d._id) : "";
+    const uId = (await resolveUserObjectIds([rawPrefill.userId || rawPrefill.user || rawPrefill.email]))[0];
     if (!dId || !uId) throw new Error("departmentId and userId required");
     if (step.type === "add_department_member") {
       await callProtectedBackendAPI({ user, method: "POST", path: `/departments/${dId}/members`, data: { userId: uId } });
@@ -823,6 +824,7 @@ async function executeSingleStep(step, user, chainState = {}) {
   }
 
   if (step.type === "create_user") {
+    const deptDoc = rawPrefill.departmentId || rawPrefill.department ? await resolveDepartmentDoc(rawPrefill.departmentId || rawPrefill.department, "_id name") : null;
     const res = await callProtectedBackendAPI({
       user,
       method: "POST",
@@ -833,7 +835,7 @@ async function executeSingleStep(step, user, chainState = {}) {
         password: rawPrefill.password || crypto.randomBytes(6).toString("hex"),
         role: rawPrefill.role || "employee",
         jobTitle: rawPrefill.jobTitle || "",
-        department: rawPrefill.departmentId || rawPrefill.department || undefined,
+        department: deptDoc?._id ? String(deptDoc._id) : undefined,
       },
     });
     const uid = res.user?._id ? String(res.user._id) : "";
@@ -846,11 +848,11 @@ async function executeSingleStep(step, user, chainState = {}) {
   }
 
   if (step.type === "update_user" || step.type === "update_user_role") {
-    const uid = rawPrefill.userId;
+    const uid = (await resolveUserObjectIds([rawPrefill.userId || rawPrefill.email || rawPrefill.targetName]))[0];
     if (!uid) throw new Error("userId required");
     const targetU = await User.findById(uid).select("role jobTitle status department").lean();
     if (step.type === "update_user_role" && rawPrefill.role) {
-      await callProtectedBackendAPI({ user, method: "PUT", path: `/roles/assign/${uid}`, data: { role: rawPrefill.role } });
+      await callProtectedBackendAPI({ user, method: "PUT", path: `/roles/assign/${uid}`, data: { roleName: rawPrefill.role } });
       return {
         executed: true,
         actionType: step.type,
@@ -858,6 +860,7 @@ async function executeSingleStep(step, user, chainState = {}) {
         undoStep: targetU ? { type: "update_user_role", label: `Undo: Revert role to ${targetU.role}`, prefill: { userId: uid, role: targetU.role } } : null,
       };
     }
+    const resolvedDept = rawPrefill.department || rawPrefill.departmentId ? await resolveDepartmentDoc(rawPrefill.department || rawPrefill.departmentId, "_id") : null;
     await callProtectedBackendAPI({
       user,
       method: "PUT",
@@ -866,7 +869,7 @@ async function executeSingleStep(step, user, chainState = {}) {
         ...(rawPrefill.role ? { role: rawPrefill.role } : {}),
         ...(rawPrefill.jobTitle !== undefined ? { jobTitle: rawPrefill.jobTitle } : {}),
         ...(rawPrefill.status ? { status: rawPrefill.status } : {}),
-        ...(rawPrefill.department ? { department: rawPrefill.department } : {}),
+        ...(resolvedDept?._id ? { department: String(resolvedDept._id) } : {}),
       },
     });
     return {

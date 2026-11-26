@@ -17,6 +17,8 @@ import {
 } from "../../services/api";
 import { subscribeRealtimeEvents } from "../../services/socket";
 import UserAvatar from "../common/UserAvatar";
+import { hasOpenModal } from "../common/GlassModal";
+import { useModal } from "../../context/ModalContext";
 import { getGlassTokens } from "../../styles/glassTheme";
 import { formatDateIN, formatTimeIN, formatFileSize, getDisplayName } from "../../utils/formatters";
 import {
@@ -43,6 +45,7 @@ import AssignmentSelector from "./AssignmentSelector";
 
 export default function TaskDrawer({ taskKeyOrId, onClose, onTaskUpdated }) {
   const { user, teamMembers, departments, projects, isSuperAdmin, hasPermission, theme } = useApp();
+  const { confirm, prompt } = useModal();
   const isDark = theme === "dark";
   const canAssignTask = isSuperAdmin || hasPermission("tasks.assign");
 
@@ -61,14 +64,12 @@ export default function TaskDrawer({ taskKeyOrId, onClose, onTaskUpdated }) {
 
   const [newSubtaskTitle, setNewSubtaskTitle] = useState("");
   const [copiedKey, setCopiedKey] = useState(false);
-  const [showRedoModal, setShowRedoModal] = useState(false);
-  const [redoFeedback, setRedoFeedback] = useState("");
 
   const fileInputRef = useRef(null);
 
   useEffect(() => {
     const onEscape = (e) => {
-      if (e.key === "Escape") onClose?.();
+      if (e.key === "Escape" && !hasOpenModal()) onClose?.();
     };
     const onCloseAll = (e) => {
       if (e?.detail?.except !== "task" && e?.detail?.except !== "task-drawer") onClose?.();
@@ -141,15 +142,20 @@ export default function TaskDrawer({ taskKeyOrId, onClose, onTaskUpdated }) {
   };
 
   const handleRequestRedo = async () => {
-    if (!redoFeedback.trim()) {
-      toast.error("Please enter revision notes for the assignee");
-      return;
-    }
-    const res = await requestTaskRevision(task._id, redoFeedback);
+    const feedback = await prompt({
+      title: `Request Revision on ${task.key}`,
+      message: "Describe what needs to be updated before re-submission.",
+      placeholder: "Enter revision notes for the assignee...",
+      confirmLabel: "Send Feedback",
+      multiline: true,
+      required: true,
+      variant: "danger",
+      icon: RotateCcw,
+    });
+    if (!feedback) return;
+    const res = await requestTaskRevision(task._id, feedback);
     if (res.success) {
       setTask(res.task);
-      setShowRedoModal(false);
-      setRedoFeedback("");
       onTaskUpdated?.(res.task);
     }
   };
@@ -292,7 +298,15 @@ export default function TaskDrawer({ taskKeyOrId, onClose, onTaskUpdated }) {
   };
 
   const handleDeleteTask = async () => {
-    if (!window.confirm(`Delete task ${task.key}? This action cannot be undone.`)) return;
+    const confirmed = await confirm({
+      title: `Delete task ${task.key}?`,
+      message: "This will permanently remove the task, subtasks, comments, and activity history. This action cannot be undone.",
+      confirmLabel: "Delete Task",
+      cancelLabel: "Keep Task",
+      variant: "danger",
+      icon: Trash2,
+    });
+    if (!confirmed) return;
     const res = await deleteTask(task._id);
     if (res.success) {
       onClose();
@@ -425,45 +439,6 @@ export default function TaskDrawer({ taskKeyOrId, onClose, onTaskUpdated }) {
               </div>
             </div>
 
-            {/* Redo Modal */}
-            {showRedoModal && (
-              <div
-                className={`p-4 border-b text-xs space-y-2.5 ${
-                  isDark ? "bg-rose-950/30 border-rose-500/20" : "bg-rose-50 border-rose-200"
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-semibold text-rose-400 flex items-center gap-1.5">
-                    <RotateCcw className="w-3.5 h-3.5" /> Revision Feedback
-                  </span>
-                  <button onClick={() => setShowRedoModal(false)} className={mutedText}>
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-                <textarea
-                  rows={2}
-                  value={redoFeedback}
-                  onChange={(e) => setRedoFeedback(e.target.value)}
-                  placeholder="Describe what needs to be updated..."
-                  className={inputBase}
-                />
-                <div className="flex justify-end gap-2">
-                  <button
-                    onClick={() => setShowRedoModal(false)}
-                    className={`px-3 py-1 rounded-lg ${mutedText}`}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleRequestRedo}
-                    className="px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-semibold"
-                  >
-                    Send Feedback
-                  </button>
-                </div>
-              </div>
-            )}
-
             {/* Main 2-Column Body */}
             <div className={`flex-1 overflow-y-auto grid grid-cols-1 md:grid-cols-12 divide-y md:divide-y-0 md:divide-x ${borderCol}`}>
               {/* Left Canvas */}
@@ -506,7 +481,7 @@ export default function TaskDrawer({ taskKeyOrId, onClose, onTaskUpdated }) {
                         </button>
                         <button
                           data-ai-target="task-redo-btn"
-                          onClick={() => setShowRedoModal(true)}
+                          onClick={handleRequestRedo}
                           className={`px-3 py-1 rounded-lg font-semibold border cursor-pointer ${
                             isDark
                               ? "border-rose-500/30 text-rose-400 hover:bg-rose-500/15"

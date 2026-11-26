@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 
 import { getGlassTokens } from "../../styles/glassTheme";
+import { hasOpenModal } from "../common/GlassModal";
 
 export default function CommandPalette({ isOpen, onClose }) {
   const navigate = useNavigate();
@@ -66,7 +67,7 @@ export default function CommandPalette({ isOpen, onClose }) {
         e.preventDefault();
         if (isOpen) onClose();
       }
-      if (e.key === "Escape" && isOpen) {
+      if (e.key === "Escape" && isOpen && !hasOpenModal()) {
         e.preventDefault();
         onClose();
       }

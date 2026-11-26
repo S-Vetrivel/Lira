@@ -27,6 +27,7 @@ import {
   getMyAIAccessAPI,
 } from "../../services/api";
 import { getGlassTokens } from "../../styles/glassTheme";
+import { useModal } from "../../context/ModalContext";
 
 /**
  * Full-page & reusable AI Key Ring Workspace.
@@ -45,6 +46,7 @@ export default function AIKeyRingWorkspace({
   isDark = true,
 }) {
   const g = getGlassTokens(isDark);
+  const { confirm } = useModal();
   const [scope, setScope] = useState(initialScope);
   const [activeProvider, setActiveProvider] = useState(initialProvider);
   const [moduleScope, setModuleScope] = useState(initialScope === "global" ? "global" : "all");
@@ -189,6 +191,14 @@ export default function AIKeyRingWorkspace({
 
   const handleDeleteStored = async (targetKeyId) => {
     if (!configId) return;
+    const confirmed = await confirm({
+      title: "Delete stored API key?",
+      message: "This encrypted key entry will be permanently removed from your key ring.",
+      confirmLabel: "Delete Key",
+      variant: "danger",
+      icon: Trash2,
+    });
+    if (!confirmed) return;
     setBusyKeyId(targetKeyId);
     const res = await deleteStoredAIKeyEntry(configId, targetKeyId);
     setBusyKeyId("");

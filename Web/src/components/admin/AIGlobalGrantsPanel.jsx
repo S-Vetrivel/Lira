@@ -22,6 +22,7 @@ import {
   deleteAIGlobalGrant,
 } from "../../services/api";
 import { getGlassTokens } from "../../styles/glassTheme";
+import { useModal } from "../../context/ModalContext";
 
 const TARGET_TYPES = [
   { key: "user", label: "Specific User", icon: UserCheck },
@@ -31,6 +32,7 @@ const TARGET_TYPES = [
 
 export default function AIGlobalGrantsPanel({ isDark = true }) {
   const g = getGlassTokens(isDark);
+  const { confirm } = useModal();
   const [grants, setGrants] = useState([]);
   const [targets, setTargets] = useState({ users: [], departments: [], projects: [] });
   const [moduleOptions, setModuleOptions] = useState([]);
@@ -426,6 +428,14 @@ export default function AIGlobalGrantsPanel({ isDark = true }) {
                   <button
                     type="button"
                     onClick={async () => {
+                      const confirmed = await confirm({
+                        title: `Revoke AI access for "${gr.targetName}"?`,
+                        message: "They will no longer be able to use the global AI vault under this grant.",
+                        confirmLabel: "Revoke Grant",
+                        variant: "warning",
+                        icon: Ban,
+                      });
+                      if (!confirmed) return;
                       await revokeAIGlobalGrant(gr._id);
                       await loadGrants();
                     }}
@@ -450,6 +460,14 @@ export default function AIGlobalGrantsPanel({ isDark = true }) {
                 <button
                   type="button"
                   onClick={async () => {
+                    const confirmed = await confirm({
+                      title: `Delete grant for "${gr.targetName}"?`,
+                      message: "This permanently removes the global AI access grant record.",
+                      confirmLabel: "Delete Grant",
+                      variant: "danger",
+                      icon: Trash2,
+                    });
+                    if (!confirmed) return;
                     await deleteAIGlobalGrant(gr._id);
                     await loadGrants();
                   }}

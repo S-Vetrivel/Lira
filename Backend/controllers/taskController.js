@@ -1,3 +1,4 @@
+const mongoose = require("mongoose");
 const Task = require("../models/taskModel");
 const Project = require("../models/projectModel");
 const User = require("../models/userModel");
@@ -12,6 +13,13 @@ const {
   enqueueEntityVectorJob,
 } = require("../services/queue");
 const { hasWildcardPermission, isSuperAdminUser } = require("../utils/roles");
+const {
+  normalizeTaskType,
+  normalizeTaskPriority,
+  normalizeTaskStatus,
+  resolveDepartmentObjectIds,
+  resolveUserObjectIds,
+} = require("../utils/entityResolvers");
 
 const normalizeAssignmentInput = ({ assignee, assignees, assignedDepartments }) => {
   const uniqueAssignees = Array.from(
@@ -269,10 +277,14 @@ exports.createTask = async (req, res) => {
       dueDate,
       estimatedHours,
       subtasks,
-    } = req.body;
+    } = req.body || {};
 
     if (!projectId || !title) {
       return res.status(400).json({ success: false, message: "Project and Title are required" });
+    }
+
+    if (!mongoose.isValidObjectId(String(projectId))) {
+      return res.status(404).json({ success: false, message: "Project not found" });
     }
 
     const project = await Project.findByIdAndUpdate(
@@ -291,14 +303,19 @@ exports.createTask = async (req, res) => {
       ? subtasks.map((st) => ({
           title: typeof st === "string" ? st : st.title,
           completed: false,
-          assignee: st.assignee || null,
+          assignee: st.assignee && mongoose.isValidObjectId(String(st.assignee)) ? st.assignee : null,
         }))
       : [];
 
+    const [resolvedAssignees, resolvedDepts] = await Promise.all([
+      resolveUserObjectIds([...(assignee ? [assignee] : []), ...(Array.isArray(assignees) ? assignees : [])]),
+      resolveDepartmentObjectIds(Array.isArray(assignedDepartments) ? assignedDepartments : []),
+    ]);
+
     const { primaryAssignee, uniqueAssignees, uniqueDepts } = normalizeAssignmentInput({
-      assignee,
-      assignees,
-      assignedDepartments,
+      assignee: assignee && mongoose.isValidObjectId(String(assignee)) ? assignee : resolvedAssignees[0] || null,
+      assignees: resolvedAssignees,
+      assignedDepartments: resolvedDepts,
     });
 
     const canAssignTask =
@@ -329,9 +346,9 @@ exports.createTask = async (req, res) => {
       project: project._id,
       title: title.trim(),
       description: description || "",
-      type: type || "task",
+      type: normalizeTaskType(type),
       status: "todo",
-      priority: priority || "medium",
+      priority: normalizeTaskPriority(priority),
       assignee: finalAssignee,
       assignees: finalAssignees,
       assignedDepartments: finalDepts,
@@ -398,7 +415,7 @@ exports.createTask = async (req, res) => {
 exports.updateTask = async (req, res) => {
   try {
     const { id } = req.params;
-    const updates = req.body;
+    const updates = req.body || {};
 
     const task = await Task.findById(id);
     if (!task) return res.status(404).json({ success: false, message: "Task not found" });
@@ -415,8 +432,9 @@ exports.updateTask = async (req, res) => {
 
     if (updates.title !== undefined) task.title = updates.title;
     if (updates.description !== undefined) task.description = updates.description;
-    if (updates.type !== undefined) task.type = updates.type;
-    if (updates.priority !== undefined) task.priority = updates.priority;
+    if (updates.type !== undefined) task.type = normalizeTaskType(updates.type);
+    if (updates.priority !== undefined) task.priority = normalizeTaskPriority(updates.priority);
+    if (updates.status !== undefined) task.status = normalizeTaskStatus(updates.status);
     if (updates.dueDate !== undefined) task.dueDate = updates.dueDate;
     if (updates.estimatedHours !== undefined) task.estimatedHours = Number(updates.estimatedHours) || 0;
 
@@ -445,9 +463,10 @@ exports.updateTask = async (req, res) => {
             : updates.assignee
               ? [updates.assignee]
               : [];
+        const resolvedUsers = await resolveUserObjectIds([...(nextSingle ? [nextSingle] : []), ...(Array.isArray(nextList) ? nextList : [])]);
         const { primaryAssignee, uniqueAssignees } = normalizeAssignmentInput({
-          assignee: nextSingle,
-          assignees: nextList,
+          assignee: nextSingle && mongoose.isValidObjectId(String(nextSingle)) ? nextSingle : resolvedUsers[0] || null,
+          assignees: resolvedUsers,
           assignedDepartments: [],
         });
         task.assignee = primaryAssignee;
@@ -455,12 +474,8 @@ exports.updateTask = async (req, res) => {
       }
 
       if (updates.assignedDepartments !== undefined) {
-        task.assignedDepartments = Array.from(
-          new Set(
-            Array.isArray(updates.assignedDepartments)
-              ? updates.assignedDepartments.filter(Boolean).map(String)
-              : []
-          )
+        task.assignedDepartments = await resolveDepartmentObjectIds(
+          Array.isArray(updates.assignedDepartments) ? updates.assignedDepartments : [updates.assignedDepartments]
         );
       }
     }
@@ -575,7 +590,7 @@ exports.updateTask = async (req, res) => {
 exports.updateTaskStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, order } = req.body;
+    const { status, order } = req.body || {};
 
     const validStatuses = ["todo", "in_progress", "review", "done"];
     if (!validStatuses.includes(status)) {
@@ -965,7 +980,7 @@ exports.deleteTask = async (req, res) => {
 exports.submitForReview = async (req, res) => {
   try {
     const { id } = req.params;
-    const { note, proofAttachment } = req.body;
+    const { note, proofAttachment } = req.body || {};
     const task = await Task.findById(id);
     if (!task) return res.status(404).json({ success: false, message: "Task not found" });
 
@@ -992,9 +1007,14 @@ exports.submitForReview = async (req, res) => {
 
     await logActivity({
       task: task._id,
+      project: task.project,
       user: req.user._id,
       action: "submitted_for_review",
-      details: note || "Task submitted for manager verification",
+      details: {
+        field: "status",
+        newValue: "submitted_for_review",
+        message: note || `${req.user.fullname} submitted ${task.key} for manager verification`,
+      },
     });
 
     await createNotification({
@@ -1031,6 +1051,8 @@ exports.submitForReview = async (req, res) => {
       data: { taskId: task._id, newStatus: "submitted_for_review", task },
     });
 
+    enqueueEntityVectorJob({ entityType: "task", entityId: String(task._id) });
+
     res.status(200).json({ success: true, task });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -1041,7 +1063,7 @@ exports.submitForReview = async (req, res) => {
 exports.approveTask = async (req, res) => {
   try {
     const { id } = req.params;
-    const { note } = req.body;
+    const { note } = req.body || {};
     const task = await Task.findById(id);
     if (!task) return res.status(404).json({ success: false, message: "Task not found" });
 
@@ -1053,9 +1075,14 @@ exports.approveTask = async (req, res) => {
 
     await logActivity({
       task: task._id,
+      project: task.project,
       user: req.user._id,
       action: "task_approved",
-      details: note || "Manager verified and approved task completion",
+      details: {
+        field: "status",
+        newValue: "done",
+        message: note || `${req.user.fullname} verified and approved ${task.key}`,
+      },
     });
 
     const approveRecipients = Array.from(
@@ -1103,6 +1130,8 @@ exports.approveTask = async (req, res) => {
       data: { taskId: task._id, newStatus: "done", task },
     });
 
+    enqueueEntityVectorJob({ entityType: "task", entityId: String(task._id) });
+
     res.status(200).json({ success: true, task });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -1113,8 +1142,9 @@ exports.approveTask = async (req, res) => {
 exports.requestRevision = async (req, res) => {
   try {
     const { id } = req.params;
-    const { feedback } = req.body;
-    if (!feedback || !feedback.trim()) {
+    const { feedback, reviewFeedback, reason, note } = req.body || {};
+    const rawFeedback = String(feedback || reviewFeedback || reason || note || "").trim();
+    if (!rawFeedback) {
       return res.status(400).json({
         success: false,
         message: "Inline feedback is required when requesting a revision / redo.",
@@ -1127,15 +1157,20 @@ exports.requestRevision = async (req, res) => {
     task.status = "redo_requested";
     task.reviewedBy = req.user._id;
     task.reviewedAt = new Date();
-    task.reviewFeedback = feedback.trim();
+    task.reviewFeedback = rawFeedback;
     task.revisionCount = (task.revisionCount || 0) + 1;
     await task.save();
 
     await logActivity({
       task: task._id,
+      project: task.project,
       user: req.user._id,
       action: "revision_requested",
-      details: `Revision requested: "${feedback.trim()}"`,
+      details: {
+        field: "status",
+        newValue: "redo_requested",
+        message: `Revision requested: "${rawFeedback}"`,
+      },
     });
 
     const redoRecipients = Array.from(
@@ -1152,7 +1187,7 @@ exports.requestRevision = async (req, res) => {
           publicId: req.user?.publicId,
           type: "task_updated",
           title: `Revision Requested (${task.key})`,
-          message: `${req.user.fullname} requested redo on ${task.key}: "${feedback.trim()}"`,
+          message: `${req.user.fullname} requested redo on ${task.key}: "${rawFeedback}"`,
           task: task._id,
           project: task.project,
           alsoEmail: true,
@@ -1162,7 +1197,7 @@ exports.requestRevision = async (req, res) => {
             title: task.title,
             decision: "Revision Requested",
             reviewerName: req.user.fullname || req.user.email,
-            comment: feedback.trim(),
+            comment: rawFeedback,
           },
           actionUrl: "/board",
         })
@@ -1183,6 +1218,8 @@ exports.requestRevision = async (req, res) => {
       data: { taskId: task._id, newStatus: "redo_requested", task },
     });
 
+    enqueueEntityVectorJob({ entityType: "task", entityId: String(task._id) });
+
     res.status(200).json({ success: true, task });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -1193,7 +1230,7 @@ exports.requestRevision = async (req, res) => {
 exports.updateSubtaskProof = async (req, res) => {
   try {
     const { id, subtaskId } = req.params;
-    const { proofAttachment, completed } = req.body;
+    const { proofAttachment, proofUrl, proofType, completed } = req.body || {};
 
     const task = await Task.findById(id);
     if (!task) return res.status(404).json({ success: false, message: "Task not found" });
@@ -1201,8 +1238,20 @@ exports.updateSubtaskProof = async (req, res) => {
     const sub = task.subtasks.id(subtaskId);
     if (!sub) return res.status(404).json({ success: false, message: "Checklist step not found" });
 
-    if (proofAttachment) {
-      sub.proofAttachment = proofAttachment;
+    const normalizedProof =
+      proofAttachment && proofAttachment.url
+        ? proofAttachment
+        : proofUrl && String(proofUrl).trim()
+        ? {
+            url: String(proofUrl).trim(),
+            originalName: proofType ? `${proofType} proof` : "Proof Link",
+            filename: String(proofUrl).trim(),
+            uploadedAt: new Date(),
+          }
+        : null;
+
+    if (normalizedProof) {
+      sub.proofAttachment = normalizedProof;
     }
 
     if (completed !== undefined) {
@@ -1228,7 +1277,7 @@ exports.updateSubtaskProof = async (req, res) => {
       data: { taskId: task._id, task },
     });
 
-    res.status(200).json({ success: true, task });
+    res.status(200).json({ success: true, task, subtasks: task.subtasks });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -1237,20 +1286,24 @@ exports.updateSubtaskProof = async (req, res) => {
 // 5. High-Density Excel-Like Bulk Updates
 exports.bulkUpdateTasks = async (req, res) => {
   try {
-    const { taskIds, updates } = req.body;
+    const body = req.body || {};
+    const { taskIds } = body;
+    const updates = body.updates && typeof body.updates === "object" ? body.updates : body;
     if (!Array.isArray(taskIds) || taskIds.length === 0) {
       return res.status(400).json({ success: false, message: "taskIds array is required" });
     }
 
     const allowedUpdates = {};
-    if (updates.status) allowedUpdates.status = updates.status;
-    if (updates.assignee !== undefined) allowedUpdates.assignee = updates.assignee || null;
-    if (updates.priority) allowedUpdates.priority = updates.priority;
+    if (updates.status) allowedUpdates.status = normalizeTaskStatus(updates.status);
+    if (updates.assignee !== undefined) {
+      allowedUpdates.assignee = updates.assignee && mongoose.isValidObjectId(String(updates.assignee)) ? updates.assignee : null;
+    }
+    if (updates.priority) allowedUpdates.priority = normalizeTaskPriority(updates.priority);
     if (updates.dueDate !== undefined) allowedUpdates.dueDate = updates.dueDate;
     if (updates.dueTime !== undefined) allowedUpdates.dueTime = updates.dueTime;
     if (updates.isConfidential !== undefined) allowedUpdates.isConfidential = updates.isConfidential;
 
-    await Task.updateMany({ _id: { $in: taskIds } }, { $set: allowedUpdates });
+    const updateRes = await Task.updateMany({ _id: { $in: taskIds } }, { $set: allowedUpdates });
 
     const updatedTasks = await Task.find({ _id: { $in: taskIds } })
       .populate("assignee", "fullname email avatar jobTitle role")
@@ -1276,7 +1329,12 @@ exports.bulkUpdateTasks = async (req, res) => {
       }),
     ]);
 
-    res.status(200).json({ success: true, count: updatedTasks.length, tasks: updatedTasks });
+    res.status(200).json({
+      success: true,
+      count: updatedTasks.length,
+      modifiedCount: updateRes.modifiedCount ?? updatedTasks.length,
+      tasks: updatedTasks,
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

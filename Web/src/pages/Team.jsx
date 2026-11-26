@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useApp } from "../context/Appcontext";
+import { useModal } from "../context/ModalContext";
 import {
   getTeamMembers,
   createUser,
@@ -53,6 +54,7 @@ export default function Team() {
     setAiPrefillDraft,
   } = useApp();
   const isDark = theme === "dark";
+  const { confirm } = useModal();
   const assignableRoles = (roles && roles.length > 0
     ? roles
     : [
@@ -328,7 +330,14 @@ export default function Team() {
   };
 
   const handleDeactivateUser = async (userId, userName) => {
-    if (!window.confirm(`Are you sure you want to deactivate ${userName}'s account?`)) return;
+    const confirmed = await confirm({
+      title: `Deactivate ${userName}?`,
+      message: `Are you sure you want to deactivate ${userName}'s account? They will lose access to workspace modules until reactivated.`,
+      confirmLabel: "Deactivate Account",
+      variant: "danger",
+      icon: Trash2,
+    });
+    if (!confirmed) return;
     const res = await deleteUser(userId);
     if (res.success) {
       toast.success(`${userName}'s account deactivated`);

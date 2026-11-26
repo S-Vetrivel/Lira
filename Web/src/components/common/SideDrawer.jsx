@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { X } from "lucide-react";
 import { useApp } from "../../context/Appcontext";
 import { getGlassTokens } from "../../styles/glassTheme";
+import { hasOpenModal } from "./GlassModal";
 
 export default function SideDrawer({
   sidebarId,
@@ -52,7 +53,7 @@ export default function SideDrawer({
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const onKey = (e) => {
-      if (e.key === "Escape") onClose?.();
+      if (e.key === "Escape" && !hasOpenModal()) onClose?.();
     };
     window.addEventListener("keydown", onKey);
     return () => {

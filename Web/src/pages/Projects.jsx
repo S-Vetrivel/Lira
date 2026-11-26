@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useApp } from "../context/Appcontext";
+import { useModal } from "../context/ModalContext";
 import {
   createProject,
   updateProject,
@@ -83,6 +84,7 @@ export default function Projects() {
     theme,
   } = useApp();
   const isDark = theme === "dark";
+  const { confirm } = useModal();
   const canViewProjects = isSuperAdmin || hasModule("projects");
   const canViewDepts = isSuperAdmin || hasModule("departments");
   const canCreateProject = isSuperAdmin || hasPermission("projects.create");
@@ -445,6 +447,14 @@ export default function Projects() {
 
   const handleDeleteProjUrl = async (urlId) => {
     if (!liveProj) return;
+    const confirmed = await confirm({
+      title: "Remove project link?",
+      message: "This external resource link will be removed from the workspace.",
+      confirmLabel: "Remove Link",
+      variant: "danger",
+      icon: Trash2,
+    });
+    if (!confirmed) return;
     const res = await deleteProjectUrl(liveProj._id, urlId);
     if (res.success) {
       setSelectedProj(res.project);
@@ -628,6 +638,14 @@ export default function Projects() {
 
   const handleDeleteProjFile = async (fileId) => {
     if (!liveProj) return;
+    const confirmed = await confirm({
+      title: "Delete shared file?",
+      message: "This file will be permanently removed from the project workspace.",
+      confirmLabel: "Delete File",
+      variant: "danger",
+      icon: Trash2,
+    });
+    if (!confirmed) return;
     const res = await deleteProjectFile(liveProj._id, fileId);
     if (res.success) {
       setSelectedProj(res.project);

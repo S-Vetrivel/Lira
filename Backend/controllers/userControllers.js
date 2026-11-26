@@ -9,6 +9,7 @@ const { enqueueWebSocketEvent, enqueueEmailJob } = require("../services/queue");
 const { sendPushToUser, sendPushToAdmins } = require("../services/pushService");
 const { createNotification, notifyAdmins } = require("../utils/notificationHelper");
 const { escapeRegex } = require("../utils/envSecrets");
+const { resolveDepartmentDoc } = require("../utils/entityResolvers");
 
 const ts = () => new Date().toISOString();
 
@@ -92,12 +93,15 @@ exports.createUser = async (req, res) => {
     const rawPassword = password && password.trim() ? password.trim() : "Lira@2026";
     const hashedPassword = await bcrypt.hash(rawPassword, salt);
 
-    let deptId = department || departmentId;
+    let deptId = null;
     let deptName = departmentName;
-
-    if (deptId) {
-      const dept = await Department.findById(deptId);
-      if (dept) deptName = dept.name;
+    const rawDeptInput = department || departmentId || departmentName;
+    if (rawDeptInput) {
+      const dept = await resolveDepartmentDoc(rawDeptInput, "_id name");
+      if (dept) {
+        deptId = dept._id;
+        deptName = dept.name;
+      }
     }
 
     const randomSuffix = Math.floor(1000 + Math.random() * 9000);
@@ -176,11 +180,14 @@ exports.updateUser = async (req, res) => {
       if (roleDoc) updates.roleRef = roleDoc._id;
     }
     if (department !== undefined) {
-      updates.department = department || null;
       if (department) {
-        const deptDoc = await Department.findById(department);
-        if (deptDoc) updates.departmentName = deptDoc.name;
+        const deptDoc = await resolveDepartmentDoc(department, "_id name");
+        if (deptDoc) {
+          updates.department = deptDoc._id;
+          updates.departmentName = deptDoc.name;
+        }
       } else {
+        updates.department = null;
         updates.departmentName = "General";
       }
     }

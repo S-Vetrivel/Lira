@@ -9,6 +9,13 @@ const {
   notifyPermissionHolders,
 } = require("../utils/notificationHelper");
 const { enqueueWebSocketEvent, enqueueEmailJob, enqueueEntityVectorJob } = require("../services/queue");
+const {
+  normalizeRequestType,
+  normalizeTaskPriority,
+  resolveDepartmentObjectIds,
+  resolveProjectObjectId,
+  resolveUserObjectIds,
+} = require("../utils/entityResolvers");
 
 const REQUEST_POPULATE = [
   { path: "requester", select: "fullname email avatar jobTitle role publicId" },
@@ -36,29 +43,36 @@ exports.createRequest = async (req, res) => {
       dateNeeded,
       attachments,
       customStages,
-    } = req.body;
+    } = req.body || {};
 
-    let targetDeptId = targetDepartmentId || req.body.targetDepartment || null;
-    let deptId = departmentId || req.user?.department || null;
-    const targetProjId = targetProjectId || req.body.targetProject || project || null;
-    const cleanTargetUsers = Array.from(
-      new Set(
-        (Array.isArray(targetUsers) ? targetUsers : [req.body.targetUser])
-          .filter(Boolean)
-          .map(String)
-      )
-    );
+    const rawTargetDept = targetDepartmentId || req.body?.targetDepartment || null;
+    const rawDept = departmentId || req.user?.department || null;
+    const rawTargetProj = targetProjectId || req.body?.targetProject || project || null;
+
+    const [resolvedTargetDepts, resolvedOwnDepts, resolvedProjId, cleanTargetUsers] = await Promise.all([
+      rawTargetDept ? resolveDepartmentObjectIds([rawTargetDept]) : Promise.resolve([]),
+      rawDept ? resolveDepartmentObjectIds([rawDept]) : Promise.resolve([]),
+      rawTargetProj ? resolveProjectObjectId(rawTargetProj) : Promise.resolve(null),
+      resolveUserObjectIds(Array.isArray(targetUsers) ? targetUsers : [req.body?.targetUser]),
+    ]);
+
+    let targetDeptId = resolvedTargetDepts[0] || null;
+    let deptId = resolvedOwnDepts[0] || null;
+    const targetProjId = resolvedProjId;
 
     if (!deptId) {
       if (targetDeptId) {
         deptId = targetDeptId;
       } else {
-        const defaultDept = await Department.findOne();
-        deptId = defaultDept?._id;
-        if (!targetDeptId) targetDeptId = defaultDept?._id;
+        const defaultDept = await Department.findOne().select("_id").lean();
+        deptId = defaultDept?._id || null;
+        if (!targetDeptId) targetDeptId = defaultDept?._id || null;
       }
     }
     if (!targetDeptId) targetDeptId = deptId;
+    if (!deptId) {
+      return res.status(400).json({ success: false, message: "No department available for request routing" });
+    }
 
     const count = await Request.countDocuments();
     const requestCode = `REQ-${100 + count + 1}`;
@@ -88,14 +102,14 @@ exports.createRequest = async (req, res) => {
     const newRequest = new Request({
       requestCode,
       title,
-      requestType: requestType || "general_request",
+      requestType: normalizeRequestType(requestType),
       description: description || "",
       department: deptId,
       targetDepartment: targetDeptId,
       targetProject: targetProjId,
       targetUsers: cleanTargetUsers,
       requester: req.user._id,
-      priority: priority || "medium",
+      priority: normalizeTaskPriority(priority),
       amount: Number(amount) || 0,
       currency: currency || "INR",
       dateNeeded: dateNeeded ? new Date(dateNeeded) : null,
@@ -167,7 +181,7 @@ exports.createRequest = async (req, res) => {
       event: "request:created",
       data: { request: populatedRequest },
     });
-    enqueueEntityVectorJob({ entityType: "request", entityId: String(request._id) });
+    enqueueEntityVectorJob({ entityType: "request", entityId: String(newRequest._id) });
 
     res.status(201).json({ success: true, request: populatedRequest });
   } catch (err) {
@@ -216,7 +230,7 @@ exports.getRequestById = async (req, res) => {
 exports.approveStage = async (req, res) => {
   try {
     const { id } = req.params;
-    const { comment, notes } = req.body;
+    const { comment, notes } = req.body || {};
     const approvalComment = comment || notes || "Approved";
     const request = await Request.findById(id);
     if (!request) return res.status(404).json({ success: false, message: "Request not found" });
@@ -306,7 +320,7 @@ exports.approveStage = async (req, res) => {
 exports.rejectRequest = async (req, res) => {
   try {
     const { id } = req.params;
-    const { reason, notes } = req.body;
+    const { reason, notes } = req.body || {};
     const rejectionText = reason || notes || "Declined";
     const request = await Request.findById(id);
     if (!request) return res.status(404).json({ success: false, message: "Request not found" });

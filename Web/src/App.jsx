@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 import { useApp } from "./context/Appcontext";
+import { ModalProvider } from "./context/ModalContext";
 import { MainLayout } from "./components/layout/MainLayout";
 import {
   ProtectedRoute,
@@ -65,7 +66,7 @@ function HomeEntry() {
 
 function App() {
   return (
-    <>
+    <ModalProvider>
       <RouteSeoSync />
       <Toaster
         position="top-center"
@@ -143,7 +144,7 @@ function App() {
         {/* Catch-all Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-    </>
+    </ModalProvider>
   );
 }
 

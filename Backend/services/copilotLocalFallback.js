@@ -572,7 +572,7 @@ function runLocalCopilotFallback({ prompt, scopedCtx, history = [] }) {
     steps.push({
       type: "create_request",
       label: "Submit workspace request",
-      prefill: { title: text.slice(0, 70), requestType: amtMatch ? "budget_approval" : "general_signoff", amount: amtMatch ? amtMatch[1] : "", description: text },
+      prefill: { title: text.slice(0, 70), requestType: amtMatch ? "budget_approval" : "general_request", amount: amtMatch ? amtMatch[1] : "", description: text },
     });
     navigateTo = "/requests";
   }

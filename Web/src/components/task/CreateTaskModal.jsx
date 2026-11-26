@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { getGlassTokens } from "../../styles/glassTheme";
+import { hasOpenModal } from "../common/GlassModal";
 import AssignmentSelector from "./AssignmentSelector";
 
 export default function CreateTaskModal({ isOpen, onClose, onCreated }) {
@@ -77,7 +78,7 @@ export default function CreateTaskModal({ isOpen, onClose, onCreated }) {
     if (!isOpen) return;
     window.dispatchEvent(new CustomEvent("lira:sidebar-opened", { detail: { id: "create-task" } }));
     const onKey = (e) => {
-      if (e.key === "Escape") onClose?.();
+      if (e.key === "Escape" && !hasOpenModal()) onClose?.();
     };
     window.addEventListener("keydown", onKey);
     return () => {

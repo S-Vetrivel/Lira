@@ -20,6 +20,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { useApp } from "../../context/Appcontext";
+import { useModal } from "../../context/ModalContext";
 import {
   getAIAssistantSessionAPI,
   sendAIAssistantChatAPI,
@@ -119,6 +120,7 @@ export default function LiraAssistantWidget() {
 
   const isDark = theme === "dark";
   const g = getGlassTokens(isDark);
+  const { confirm } = useModal();
   const canUseAI = Boolean(user && (isSuperAdmin || hasPermission("ai.use")));
 
   const [session, setSession] = useState(null);
@@ -961,6 +963,14 @@ export default function LiraAssistantWidget() {
               <button
                 type="button"
                 onClick={async () => {
+                  const confirmed = await confirm({
+                    title: "Clear Copilot conversation?",
+                    message: "This will clear your current Lira Assistant message history in this sidebar.",
+                    confirmLabel: "Clear Chat",
+                    variant: "warning",
+                    icon: Trash2,
+                  });
+                  if (!confirmed) return;
                   const res = await clearAIAssistantSessionAPI();
                   if (res.success && res.session) setSession(res.session);
                 }}

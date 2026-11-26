@@ -134,7 +134,7 @@ const COPILOT_ACTION_SCHEMAS = {
   send_dm: { method: "POST", endpoint: "/v3/chat/messages", body: { recipientId: "userId*", message: "string*" } },
   toggle_pin_chat_message: { method: "PATCH", endpoint: "/v3/chat/messages/:id/pin", body: { messageId: "ObjectId*" } },
   open_chat: { method: "UI", endpoint: "OfficeChatDrawer", body: { roomId: "string", recipientId: "userId" } },
-  create_request: { method: "POST", endpoint: "/v3/requests", body: { title: "string*", requestType: "budget_approval|general_signoff|procurement|access_request|hiring", description: "string", targetDepartmentId: "deptId", amount: "number", priority: "low|medium|high|urgent" } },
+  create_request: { method: "POST", endpoint: "/v3/requests", body: { title: "string*", requestType: "budget_approval|travel_request|asset_requisition|leave_approval|vendor_payment|compliance_signoff|general_request", description: "string", targetDepartmentId: "deptId", amount: "number", priority: "low|medium|high|urgent" } },
   approve_request: { method: "POST", endpoint: "/v3/requests/:id/approve", body: { requestId: "ObjectId", title: "string", note: "string" } },
   reject_request: { method: "POST", endpoint: "/v3/requests/:id/reject", body: { requestId: "ObjectId", title: "string", note: "string" } },
   create_project: { method: "POST", endpoint: "/v3/projects", body: { name: "string*", prefix: "ABC", description: "string", department: "deptId" } },
