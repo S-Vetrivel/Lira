@@ -252,6 +252,27 @@ const getQueueHealth = async () => {
   return results;
 };
 
+const closeQueues = async () => {
+  const allQueues = [
+    websocketQueue,
+    notificationQueue,
+    activityQueue,
+    taskMetricsQueue,
+    aiProcessingQueue,
+    fileSharingQueue,
+    routineQueue,
+    mediaQueue,
+    emailQueue,
+  ];
+  allQueues.forEach((q) => {
+    if (typeof q?.on === "function") q.on("error", () => {});
+  });
+  await Promise.allSettled(allQueues.map((q) => q?.close?.()));
+  if (typeof connection?.quit === "function" && connection.status !== "end") {
+    await connection.quit().catch(() => {});
+  }
+};
+
 module.exports = {
   connection,
   redisConfig,
@@ -278,4 +299,5 @@ module.exports = {
   publishAIAbort,
   enqueueEmailJob,
   getQueueHealth,
+  closeQueues,
 };

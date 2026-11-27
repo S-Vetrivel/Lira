@@ -74,8 +74,10 @@ if (!fs.existsSync(uploadDir)) {
 app.use("/api/uploads", express.static(uploadDir));
 app.use("/uploads", express.static(uploadDir));
 
+const mongoose = require("mongoose");
 const minioService = require("./services/minioService");
-const { getQueueHealth } = require("./services/queue");
+const { getQueueHealth, closeQueues } = require("./services/queue");
+const { getIO } = require("./config/socket");
 const { getAppVersionInfo } = require("./utils/appVersion");
 const { startWorkers } = require("./workers/index");
 const { resumePendingAssistantJobs } = require("./services/aiAssistantService");
@@ -163,6 +165,44 @@ server.listen(port, "0.0.0.0", () => {
   console.log(`☑️ Lira Backend API listening on http://0.0.0.0:${port} (PID: ${process.pid})`);
 });
 
+let workerHandle = null;
+let isShuttingDown = false;
+
+async function gracefulShutdown(signal) {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+  console.log(`🛑 Received ${signal}, shutting down Lira Backend cleanly...`);
+
+  const forceExitTimer = setTimeout(() => {
+    process.exit(0);
+  }, 5000);
+  forceExitTimer.unref?.();
+
+  try {
+    await Promise.allSettled([
+      new Promise((resolve) => server.close(() => resolve())),
+      Promise.resolve().then(() => getIO()?.close?.()),
+      workerHandle?.shutdown ? workerHandle.shutdown({ closeRedis: false, exit: false }) : Promise.resolve(),
+    ]);
+    await Promise.allSettled([
+      mongoose.connection.readyState !== 0 ? mongoose.disconnect() : Promise.resolve(),
+      closeQueues(),
+    ]);
+  } catch (err) {
+    console.warn("⚠️ Graceful shutdown warning:", err.message);
+  }
+  console.log("✅ Lira Backend shutdown complete");
+  if (signal === "SIGUSR2") {
+    process.kill(process.pid, "SIGUSR2");
+  } else {
+    process.exit(0);
+  }
+}
+
+process.once("SIGINT", () => gracefulShutdown("SIGINT"));
+process.once("SIGTERM", () => gracefulShutdown("SIGTERM"));
+process.once("SIGUSR2", () => gracefulShutdown("SIGUSR2"));
+
 // Connect to MongoDB, ensure MinIO bucket, seed workspace, and start unified queue workers
 (async () => {
   try {
@@ -170,7 +210,7 @@ server.listen(port, "0.0.0.0", () => {
     await seedDatabase();
     await minioService.ensureBucket();
     if (!process.env.WORKER_ROLE) {
-      await startWorkers();
+      workerHandle = await startWorkers();
       await resumePendingAssistantJobs();
     }
   } catch (err) {

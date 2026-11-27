@@ -3,7 +3,7 @@ require("dotenv").config({ path: path.resolve(__dirname, "../.env") });
 const { assertRequiredSecrets } = require("../utils/envSecrets");
 assertRequiredSecrets();
 const connectMongo = require("../config/connectMongo");
-const { connection } = require("../services/queue");
+const { connection, closeQueues } = require("../services/queue");
 
 let workersStarted = false;
 
@@ -28,7 +28,7 @@ const startWorkers = async () => {
     const { enqueueRoutineJob, aiProcessingQueue } = require("../services/queue");
 
     // Register nightly pruning job for stale/deprecated copilot experiences
-    aiProcessingQueue
+    const startupPrunePromise = aiProcessingQueue
       .add(
         "prune-copilot-experiences",
         { maxAgeDays: 60 },
@@ -57,28 +57,49 @@ const startWorkers = async () => {
       enqueueRoutineJob();
     }, 60000);
 
-    // Graceful shutdown
-    const shutdown = async () => {
+    // Graceful shutdown (idempotent & safe for optional worker handles)
+    let shuttingDown = false;
+    const workers = [
+      websocketWorker,
+      notificationWorker,
+      activityWorker,
+      taskMetricsWorker,
+      aiWorker,
+      fileSharingWorker,
+      routineSchedulerWorker,
+      mediaWorker,
+      emailWorker,
+    ];
+    workers.forEach((w) => {
+      if (typeof w?.on === "function") {
+        w.on("error", (err) => {
+          if (!shuttingDown && !/Connection is closed/i.test(err?.message || "")) {
+            console.warn(`[Worker Error] ${w.name || "worker"}:`, err?.message || err);
+          }
+        });
+      }
+    });
+
+    const shutdown = async ({ closeRedis = require.main === module, exit = require.main === module } = {}) => {
+      if (shuttingDown) return;
+      shuttingDown = true;
       console.log("🛑 Stopping background workers...");
       clearInterval(routineInterval);
       await Promise.allSettled([
-        websocketWorker.close(),
-        notificationWorker.close(),
-        activityWorker.close(),
-        taskMetricsWorker.close(),
-        aiWorker.close(),
-        fileSharingWorker.close(),
-        routineSchedulerWorker.close(),
-        mediaWorker.close(),
-        emailWorker.close(),
-        connection.quit(),
+        startupPrunePromise,
+        ...workers.map((w) => (typeof w?.close === "function" ? w.close() : Promise.resolve())),
       ]);
+      if (closeRedis) {
+        await closeQueues().catch(() => {});
+      }
       console.log("✅ All unified background workers gracefully closed");
-      if (require.main === module) process.exit(0);
+      if (exit) process.exit(0);
     };
 
-    process.on("SIGTERM", shutdown);
-    process.on("SIGINT", shutdown);
+    if (require.main === module) {
+      process.once("SIGTERM", () => shutdown());
+      process.once("SIGINT", () => shutdown());
+    }
 
     return {
       websocketWorker,

@@ -1,6 +1,6 @@
 const { Worker } = require("bullmq");
 const mongoose = require("mongoose");
-const { connection } = require("../services/queue");
+const { redisConfig } = require("../services/queue");
 const sharp = require("sharp");
 const path = require("path");
 const fs = require("fs");
@@ -148,10 +148,12 @@ const worker = new Worker(
     }
   },
   {
-    connection,
+    connection: redisConfig,
     attempts: 3,
     backoff: { type: "exponential", delay: 1000 },
   }
 );
 
 console.log("🧵 Media Worker started (MinIO + DEBUG)");
+
+module.exports = worker;
