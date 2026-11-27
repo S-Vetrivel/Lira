@@ -1,4 +1,8 @@
 {
+  "name": "lira-workspace",
+  "version": "1.0.2",
+  "private": true,
+  "description": "Lira Workspace — Team Operations, Sprint Boards, Calendar, Approvals, E2EE Chat & AI Copilot",
   "dependencies": {
     "puppeteer-core": "^24.43.1"
   }

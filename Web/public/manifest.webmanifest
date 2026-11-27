@@ -1,9 +1,12 @@
 {
+  "id": "/",
   "name": "Lira Workspace",
   "short_name": "Lira",
-  "description": "Team operations, sprint boards, schedule calendar, INR approvals, and workspace copilot.",
+  "description": "Team operations, sprint boards, schedule calendar, approvals, E2EE chat, and workspace copilot.",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "categories": ["business", "productivity"],
   "background_color": "#090a0d",
   "theme_color": "#6d28d9",
   "icons": [
