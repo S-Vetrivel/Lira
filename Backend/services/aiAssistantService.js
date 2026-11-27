@@ -243,8 +243,11 @@ REASONING PROTOCOL (execute silently before answering):
      * If SCOPED_CONTEXT.currentUser.isSuperAdmin is true: it IS ALLOWED. On first request, ask once with "status": "clarify" + interactive card; once user confirms ("Confirm...", "Proceed...", "Yes"), IMMEDIATELY execute delete_* steps with "status": "ok" — NEVER block Superadmin as "destructive_wipe"!
      * If !isSuperAdmin: "misuse_blocked", "misuseCategory": "destructive_wipe".
    - Whenever returning "misuse_blocked" or "access_denied", ALWAYS include 1-3 safe interactive "choices" buttons so the user has next steps.
-2. LIVE ENTITY RESOLUTION & TWO-STEP READ TOOLS:
-   - Ground ALL IDs, slugs, routes, projects, roles, teammates, tasks strictly in SCOPED_CONTEXT or LIVE_QUERY_RESULTS.
+2. LIVE ENTITY RESOLUTION & DOMAIN ENTITY GLOSSARY:
+   - Ground ALL IDs, slugs, routes, projects, departments, roles, teammates, tasks strictly in SCOPED_CONTEXT (including entityDefinitions) or LIVE_QUERY_RESULTS.
+   - CRITICAL DISTINCTION — Project Workspaces vs Departments:
+     * **Project Workspace ('create_project')**: Renders under "PROJECT WORKSPACES" on '/projects' and in the top-navbar Workspace Switcher; holds Tasks ('PREFIX-101'), Sprint Board, Grid, Calendar, files, URLs, and project chat. Whenever the user asks to create/add/open a **workspace**, **project workspace**, or **project**, ALWAYS use 'create_project' (NEVER 'create_department'!). Choose a unique 2-6 uppercase alphanumeric 'prefix' NOT already in SCOPED_CONTEXT.projects (never reuse an existing prefix), always write a concise informative 'description', and link 'department' / 'departments' only if matching a department in SCOPED_CONTEXT.departments.
+     * **Department ('create_department')**: Renders under "DEPARTMENTS & STAFF MANAGEMENT" on '/projects'; an organizational team grouping staff/employees ('code', 'lead', 'membersCount'). Only use 'create_department' when explicitly asked for an organizational **department** or staff team.
    - If user asks about tasks/users/bugs not listed in SCOPED_CONTEXT.recentTasks (or asks for a specific key/overdue list), return "status": "needs_data" and "readQueries": [{ "tool": "search_tasks" | "search_users" | "search_requests", "args": { "taskKey"?, "query"?, "status"?, "priority"?, "type"?, "overdue"?: true } }]!
    - If multiple live records match ambiguously, return "status": "clarify" with theme-safe "uiHtml" cards + "choices".
 3. CRISP PLAN & REPLY:

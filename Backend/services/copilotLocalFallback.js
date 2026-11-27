@@ -474,18 +474,36 @@ function runLocalCopilotFallback({ prompt, scopedCtx, history = [] }) {
   }
 
   // 0d. Project & Department Creation (preserve raw original `text` for names!)
-  if (steps.length === 0 && /\b(create|new|make|setup|add)\s+(?:a\s+|an\s+|new\s+)?(?:project\s*workspace|workspace|project)\b/i.test(lower) && allowed.has("create_project")) {
+  if (steps.length === 0 && /\b(create|new|make|setup|add)\s+(?:a\s+|an\s+|new\s+|another\s+|extra\s+|additional\s+)?(?:project\s*workspace|workspace|project)\b/i.test(lower) && allowed.has("create_project")) {
     const nm = text.match(/(?:named|called)\s+["']?([^"',.;]+?)(?:\s+with\s+prefix|\s*$)/i);
     const pref = text.match(/\bprefix\s+["']?([a-zA-Z0-9]{2,8})["']?/i);
-    const projName = nm?.[1]?.trim() || "Workspace Project";
-    steps.push({ type: "create_project", label: `Create project "${projName}"`, prefill: { name: projName, prefix: (pref?.[1] || projName.slice(0, 4)).toUpperCase(), description: text } });
+    const existingCount = (scopedCtx.projects || []).length;
+    const projName = nm?.[1]?.trim() || `Team Workspace ${existingCount + 1}`;
+    const desiredPrefix = (pref?.[1] || projName.replace(/[^a-zA-Z0-9]/g, "").slice(0, 4) || `WS${existingCount + 1}`).toUpperCase();
+    steps.push({
+      type: "create_project",
+      label: `Create project workspace "${projName}"`,
+      prefill: {
+        name: projName,
+        prefix: desiredPrefix,
+        description: `${projName} workspace for tracking tasks, sprint boards, shared files, and team collaboration.`,
+      },
+    });
     navigateTo = "/projects";
   }
-  if (steps.length === 0 && /\b(create|new|make|setup|add)\s+(?:a\s+|an\s+|new\s+)?department\b/i.test(lower) && allowed.has("create_department")) {
+  if (steps.length === 0 && /\b(create|new|make|setup|add)\s+(?:a\s+|an\s+|new\s+|another\s+|extra\s+|additional\s+)?department\b/i.test(lower) && allowed.has("create_department")) {
     const dm = text.match(/(?:named|called)\s+["']?([^"',.;]+?)(?:\s+with\s+code|\s*$)/i);
     const cd = text.match(/\bcode\s+["']?([a-zA-Z0-9]{2,6})["']?/i);
-    const deptName = dm?.[1]?.trim() || "New Department";
-    steps.push({ type: "create_department", label: `Create department "${deptName}"`, prefill: { name: deptName, code: (cd?.[1] || deptName.slice(0, 4)).toUpperCase(), description: text } });
+    const deptName = dm?.[1]?.trim() || `Department ${(scopedCtx.departments || []).length + 1}`;
+    steps.push({
+      type: "create_department",
+      label: `Create department "${deptName}"`,
+      prefill: {
+        name: deptName,
+        code: (cd?.[1] || deptName.replace(/[^a-zA-Z0-9]/g, "").slice(0, 4) || "DEP").toUpperCase(),
+        description: `${deptName} organizational department for staff management and coordination.`,
+      },
+    });
     navigateTo = "/projects";
   }
 

@@ -7,6 +7,7 @@ const Role = require("../models/roleModel");
 const AIGlobalGrant = require("../models/aiGlobalGrantModel");
 const { MODULES_CATALOG } = require("../config/modulesCatalog");
 const {
+  ENTITY_DEFINITIONS,
   getScopedRoutesCatalog,
   getScopedActionSchemas,
 } = require("../config/copilotActionRegistry");
@@ -118,7 +119,9 @@ async function buildScopedWebsiteContext({ user, currentRoute = "/", activeProje
       ? { status: { $ne: "archived" } }
       : { members: user._id, status: { $ne: "archived" } };
   const accessibleProjects = await Project.find(projectFilter)
-    .select("_id name prefix description department")
+    .select("_id name prefix description status color department departments members")
+    .populate("department", "name code")
+    .populate("departments", "name code")
     .sort({ createdAt: -1 })
     .limit(20)
     .lean();
@@ -134,19 +137,21 @@ async function buildScopedWebsiteContext({ user, currentRoute = "/", activeProje
 
   const [departments, teammates, rawRecentTasks, semanticTasks, pendingRequests, rolesSummary, pendingJoinRequests, aiGrantsSummary] =
     await Promise.all([
-      canDepts ? Department.find({}).select("_id name code description").limit(20).lean() : Promise.resolve([]),
+      canDepts
+        ? Department.find({}).select("_id name code description color lead").populate("lead", "fullname publicId").limit(20).lean()
+        : Promise.resolve([]),
       canTeam
         ? User.find({
             isActive: { $ne: false },
             status: { $nin: ["pending_approval", "rejected"] },
           })
-            .select("_id fullname publicId role departmentName jobTitle avatar profilePicture")
+            .select("_id fullname publicId role department departmentName jobTitle avatar profilePicture")
             .limit(35)
             .lean()
         : Promise.resolve([]),
       canTasks
         ? Task.find(activeProjectId ? { project: activeProjectId } : { project: { $in: accessibleProjIds } })
-            .select("_id key title status priority type project dueDate")
+            .select("_id key title description status priority type project dueDate")
             .sort({ updatedAt: -1 })
             .limit(15)
             .lean()
@@ -162,7 +167,7 @@ async function buildScopedWebsiteContext({ user, currentRoute = "/", activeProje
         : Promise.resolve([]),
       canReqs
         ? Request.find(isSuper || hasPerm(user, "requests.approve") ? {} : { requester: user._id })
-            .select("_id title status requestType priority amount")
+            .select("_id title description status requestType priority amount")
             .sort({ createdAt: -1 })
             .limit(10)
             .lean()
@@ -193,6 +198,8 @@ async function buildScopedWebsiteContext({ user, currentRoute = "/", activeProje
   }
   const recentTasks = Array.from(mergedTasksMap.values());
 
+  const projLookupById = new Map(accessibleProjects.map((p) => [String(p._id), p]));
+
   return {
     currentUser: {
       id: String(user._id),
@@ -217,17 +224,42 @@ async function buildScopedWebsiteContext({ user, currentRoute = "/", activeProje
       description: m.description,
       route: m.route,
     })),
-    projects: accessibleProjects.map((p) => ({
-      id: String(p._id),
-      prefix: p.prefix,
-      name: p.name,
-      description: p.description || "",
-    })),
-    departments: departments.map((d) => ({
-      id: String(d._id),
-      name: d.name,
-      code: d.code,
-    })),
+    projects: accessibleProjects.map((p) => {
+      const linkedDepts = Array.isArray(p.departments) && p.departments.length > 0
+        ? p.departments.map((d) => d?.code || d?.name || String(d)).filter(Boolean)
+        : p.department
+        ? [p.department?.code || p.department?.name || String(p.department)]
+        : [];
+      return {
+        id: String(p._id),
+        prefix: p.prefix,
+        name: p.name,
+        status: p.status || "active",
+        description: String(p.description || "").slice(0, 180) || "Project workspace for tasks, boards, files, and team collaboration.",
+        departments: linkedDepts,
+        membersCount: Array.isArray(p.members) ? p.members.length : 0,
+      };
+    }),
+    departments: departments.map((d) => {
+      const did = String(d._id);
+      const membersCount = teammates.filter(
+        (u) => String(u.department || "") === did || String(u.departmentName || "").toLowerCase() === String(d.name || "").toLowerCase()
+      ).length;
+      const projectsCount = accessibleProjects.filter((p) => {
+        const primaryMatch = p.department && String(p.department._id || p.department) === did;
+        const multiMatch = Array.isArray(p.departments) && p.departments.some((pd) => String(pd._id || pd) === did);
+        return primaryMatch || multiMatch;
+      }).length;
+      return {
+        id: did,
+        name: d.name,
+        code: d.code,
+        description: String(d.description || "").slice(0, 180) || "Organizational staff department.",
+        lead: d.lead?.fullname || "",
+        membersCount,
+        projectsCount,
+      };
+    }),
     teammates: teammates
       .filter((u) => Boolean(u.fullname && u.fullname.trim()))
       .map((u) => ({
@@ -239,19 +271,28 @@ async function buildScopedWebsiteContext({ user, currentRoute = "/", activeProje
         dept: u.departmentName || "General",
         avatar: u.profilePicture || u.avatar || "",
       })),
-    recentTasks: recentTasks.map((t) => ({
-      id: String(t._id),
-      key: t.key,
-      title: t.title,
-      status: t.status,
-      priority: t.priority,
-      dueDate: t.dueDate ? new Date(t.dueDate).toISOString().slice(0, 10) : null,
-    })),
+    recentTasks: recentTasks.map((t) => {
+      const projMeta = t.project ? projLookupById.get(String(t.project)) : null;
+      return {
+        id: String(t._id),
+        key: t.key,
+        title: t.title,
+        type: t.type || "task",
+        status: t.status,
+        priority: t.priority,
+        project: projMeta ? `${projMeta.name} [${projMeta.prefix}]` : "",
+        description: t.description ? String(t.description).replace(/\s+/g, " ").slice(0, 140) : "",
+        dueDate: t.dueDate ? new Date(t.dueDate).toISOString().slice(0, 10) : null,
+      };
+    }),
     requests: pendingRequests.map((r) => ({
       id: String(r._id),
       title: r.title,
       status: r.status,
       type: r.requestType,
+      priority: r.priority || "medium",
+      amount: r.amount ?? null,
+      description: r.description ? String(r.description).replace(/\s+/g, " ").slice(0, 120) : "",
     })),
     ...(rolesSummary.length > 0
       ? {
@@ -259,6 +300,7 @@ async function buildScopedWebsiteContext({ user, currentRoute = "/", activeProje
             id: String(r._id),
             name: r.name,
             displayName: r.displayName,
+            description: r.description ? String(r.description).slice(0, 140) : "",
             modules: r.modules || [],
             isDefault: Boolean(r.isDefault),
             isSystem: Boolean(r.isSystem),
@@ -395,27 +437,39 @@ function compactContextForLLM(scopedCtx, mode = "review", promptText = "") {
   const compactSchemas = {};
   for (const [act, meta] of Object.entries(scopedCtx.actionSchemas || {})) {
     const keys = meta?.body && typeof meta.body === "object" ? Object.keys(meta.body) : [];
-    compactSchemas[act] = keys.join(",") || "none";
+    const fieldStr = keys.join(",") || "none";
+    compactSchemas[act] = meta?.description
+      ? `${fieldStr} — [${meta.entity || "Action"}] ${meta.description}`
+      : fieldStr;
   }
 
   return {
     currentUser: scopedCtx.currentUser,
     currentRoute: scopedCtx.currentRoute,
     activeProjectId: scopedCtx.activeProjectId,
+    entityDefinitions: ENTITY_DEFINITIONS,
     allowedRoutes: (scopedCtx.allowedRoutes || []).map((r) => `${r.route} (${r.label})`),
     allowedActions: scopedCtx.allowedActions,
     ...(wantsModules
-      ? { modulesCatalog: (scopedCtx.modulesCatalog || []).map((m) => `${m.key}: ${m.name}`) }
+      ? { modulesCatalog: (scopedCtx.modulesCatalog || []).map((m) => `${m.key}: ${m.name} — ${m.description}`) }
       : {}),
     projects: (scopedCtx.projects || []).map((p) => ({
       id: p.id,
       prefix: p.prefix,
       name: p.name,
+      status: p.status,
+      description: p.description,
+      departments: p.departments,
+      membersCount: p.membersCount,
     })),
     departments: (scopedCtx.departments || []).map((d) => ({
       id: d.id,
-      name: d.name,
       code: d.code,
+      name: d.name,
+      description: d.description,
+      lead: d.lead,
+      membersCount: d.membersCount,
+      projectsCount: d.projectsCount,
     })),
     teammates: (scopedCtx.teammates || []).map((u) => ({
       id: u.id,

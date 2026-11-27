@@ -231,14 +231,20 @@ async function executeSingleStep(step, user, chainState = {}) {
   }
 
   if (step.type === "create_department") {
+    const deptName = String(rawPrefill.name || "New Department").trim();
+    const desiredCode = String(rawPrefill.code || deptName.replace(/[^a-zA-Z0-9]/g, "").slice(0, 4) || "DEP")
+      .toUpperCase()
+      .trim();
     const res = await callProtectedBackendAPI({
       user,
       method: "POST",
       path: "/departments",
       data: {
-        name: rawPrefill.name,
-        code: rawPrefill.code || String(rawPrefill.name || "DEP").slice(0, 4).toUpperCase(),
-        description: rawPrefill.description || "",
+        name: deptName,
+        code: desiredCode.length >= 2 ? desiredCode : `${desiredCode}X`,
+        description:
+          String(rawPrefill.description || "").trim() ||
+          `${deptName} organizational department for staff coordination and capacity management.`,
         color: rawPrefill.color || "#6366f1",
       },
     });
@@ -246,23 +252,53 @@ async function executeSingleStep(step, user, chainState = {}) {
     return {
       executed: true,
       actionType: "create_department",
-      summary: `Created department "${res.department?.name || rawPrefill.name}"`,
+      summary: `Created department "${res.department?.name || deptName}" [${res.department?.code || desiredCode}]`,
       undoStep: deptId
-        ? { type: "delete_department", label: `Undo: Delete department "${res.department?.name || rawPrefill.name}"`, prefill: { departmentId: deptId } }
+        ? { type: "delete_department", label: `Undo: Delete department "${res.department?.name || deptName}"`, prefill: { departmentId: deptId } }
         : null,
     };
   }
 
   if (step.type === "create_project") {
+    const projName = String(rawPrefill.name || "New Project Workspace").trim();
+    let desiredPrefix = String(rawPrefill.prefix || projName.replace(/[^a-zA-Z0-9]/g, "").slice(0, 4) || "PRJ")
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, "");
+    if (desiredPrefix.length < 2) desiredPrefix = `${desiredPrefix || "P"}W`;
+
+    // Prevent prefix collisions from breaking generic prompts like "add another workspace"
+    let uniquePrefix = desiredPrefix;
+    let suffixNum = 2;
+    while (await Project.exists({ prefix: uniquePrefix })) {
+      uniquePrefix = `${desiredPrefix.slice(0, 5)}${suffixNum}`;
+      suffixNum += 1;
+    }
+
+    const deptInputs = [
+      ...(rawPrefill.department ? [rawPrefill.department] : []),
+      ...(Array.isArray(rawPrefill.departments) ? rawPrefill.departments : []),
+    ];
+    const [resolvedDeptIds, resolvedMemberIds] = await Promise.all([
+      deptInputs.length > 0 ? resolveDepartmentObjectIds(deptInputs) : Promise.resolve([]),
+      Array.isArray(rawPrefill.members) && rawPrefill.members.length > 0
+        ? resolveUserObjectIds(rawPrefill.members)
+        : Promise.resolve([]),
+    ]);
+
     const res = await callProtectedBackendAPI({
       user,
       method: "POST",
       path: "/projects",
       data: {
-        name: rawPrefill.name,
-        prefix: (rawPrefill.prefix || String(rawPrefill.name || "PRJ").slice(0, 4)).toUpperCase(),
-        description: rawPrefill.description || "",
-        department: rawPrefill.department || null,
+        name: projName,
+        prefix: uniquePrefix,
+        description:
+          String(rawPrefill.description || "").trim() ||
+          `${projName} workspace for tracking tasks, sprint boards, shared files, and team collaboration.`,
+        department: resolvedDeptIds[0] || null,
+        departments: resolvedDeptIds,
+        members: resolvedMemberIds,
+        ...(rawPrefill.color ? { color: rawPrefill.color } : {}),
       },
     });
     const createdProjId = res.project?._id ? String(res.project._id) : "";
@@ -270,9 +306,11 @@ async function executeSingleStep(step, user, chainState = {}) {
     return {
       executed: true,
       actionType: "create_project",
-      summary: `Created workspace "${res.project?.name || rawPrefill.name}" [${res.project?.prefix || ""}]`,
+      projectId: createdProjId,
+      projectPrefix: res.project?.prefix || uniquePrefix,
+      summary: `Created project workspace "${res.project?.name || projName}" [${res.project?.prefix || uniquePrefix}]`,
       undoStep: createdProjId
-        ? { type: "delete_project", label: `Undo: Delete workspace "${res.project?.name || rawPrefill.name}"`, prefill: { projectId: createdProjId } }
+        ? { type: "delete_project", label: `Undo: Delete workspace "${res.project?.name || projName}"`, prefill: { projectId: createdProjId } }
         : null,
     };
   }

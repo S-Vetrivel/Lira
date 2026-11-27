@@ -706,7 +706,8 @@ export default function Projects() {
             Workspaces & Departments
           </h1>
           <p className={`text-xs sm:text-sm mt-1 ${mutedText}`}>
-            {projects.length} project workspaces and {departments.length} departments. Click any card to manage staff, files, and team chat.
+            {projects.length} project {projects.length === 1 ? "workspace" : "workspaces"} and {departments.length}{" "}
+            {departments.length === 1 ? "department" : "departments"}. Click any card to manage staff, files, and team chat.
           </p>
         </div>
 
@@ -739,14 +740,14 @@ export default function Projects() {
       {/* 1. Projects Section */}
       {canViewProjects && (
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <FolderTree className={`w-4 h-4 ${g.accentIcon}`} />
             <h2 className={`text-sm font-bold uppercase tracking-wider ${g.heading}`}>
               Project Workspaces
             </h2>
           </div>
-          <span className={`text-xs ${mutedText}`}>Manage members, shared files & team chat</span>
+          <span className={`text-xs ${mutedText}`}>Task boards, sprint planning, members, shared files & team chat</span>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -885,7 +886,7 @@ export default function Projects() {
               Departments & Staff Management
             </h2>
           </div>
-          <span className={`text-xs ${mutedText}`}>Click any department to assign or manage staff</span>
+          <span className={`text-xs ${mutedText}`}>Organizational staff teams & leads (click a card to assign staff)</span>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
