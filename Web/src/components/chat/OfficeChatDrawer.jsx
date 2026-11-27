@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   MessageSquare,
   Send,
@@ -63,6 +64,25 @@ const CHANNELS = [
 
 const CHUNK_SIZE = 1024 * 1024; // 1MB
 
+function FlipStatusLine({ primary, secondary, showAlt, className = "" }) {
+  return (
+    <span className={`block overflow-hidden [perspective:400px] ${className}`}>
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.span
+          key={showAlt ? "alt" : "primary"}
+          initial={{ opacity: 0, y: 7, rotateX: -75 }}
+          animate={{ opacity: 1, y: 0, rotateX: 0 }}
+          exit={{ opacity: 0, y: -7, rotateX: 75 }}
+          transition={{ duration: 0.26, ease: "easeInOut" }}
+          className="block truncate origin-center"
+        >
+          {showAlt ? secondary : primary}
+        </motion.span>
+      </AnimatePresence>
+    </span>
+  );
+}
+
 export default function OfficeChatDrawer({ isOpen, onClose }) {
   const {
     user,
@@ -101,6 +121,15 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [inspectedSender, setInspectedSender] = useState(null);
   const [showPinnedList, setShowPinnedList] = useState(false);
+  const [showAltStatus, setShowAltStatus] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    const timer = setInterval(() => {
+      setShowAltStatus((prev) => !prev);
+    }, 3500);
+    return () => clearInterval(timer);
+  }, [isOpen]);
 
   const messagesEndRef = useRef(null);
   const quickFileInputRef = useRef(null);
@@ -854,9 +883,22 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
 
                       <div className="min-w-0">
                         <p className="text-xs font-bold truncate">{displayName}</p>
-                        <p className={`text-[10px] truncate ${g.muted}`}>
-                          {colleague.jobTitle || colleague.departmentName || "Staff"}
-                        </p>
+                        <FlipStatusLine
+                          showAlt={showAltStatus}
+                          primary={`${colleague.jobTitle || colleague.departmentName || "Staff"}${
+                            colleague.publicId ? ` · ${colleague.publicId}` : ""
+                          }`}
+                          secondary={
+                            isOnline ? (
+                              <span className="text-emerald-400 font-semibold">Online now</span>
+                            ) : colleague.lastSeenAt ? (
+                              `Last seen ${formatDateIN(colleague.lastSeenAt)}, ${formatTimeIN(colleague.lastSeenAt)}`
+                            ) : (
+                              "Offline"
+                            )
+                          }
+                          className={`text-[10px] ${g.muted}`}
+                        />
                       </div>
                     </div>
 
@@ -942,19 +984,26 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
                     Private
                   </span>
                 </div>
-                <p className={`text-[11px] truncate ${g.muted}`}>
-                  {isDirect
-                    ? `${selectedRoom?.colleague?.departmentName || "Team"} • ${
-                        selectedRoom?.colleague?.publicId || "Verified Staff"
-                      } • ${
-                        isRecipientOnline
-                          ? "Online"
-                          : recipientLastSeen
-                            ? `Offline (last seen ${formatDateIN(recipientLastSeen)} ${formatTimeIN(recipientLastSeen)})`
-                            : "Offline"
-                      }`
-                    : selectedRoom?.label}
-                </p>
+                {isDirect ? (
+                  <FlipStatusLine
+                    showAlt={showAltStatus}
+                    primary={`${selectedRoom?.colleague?.departmentName || "Team"} • ${
+                      selectedRoom?.colleague?.publicId || "Verified Staff"
+                    }`}
+                    secondary={
+                      isRecipientOnline ? (
+                        <span className="text-emerald-400 font-semibold">Online now</span>
+                      ) : recipientLastSeen ? (
+                        `Offline • Last seen ${formatDateIN(recipientLastSeen)}, ${formatTimeIN(recipientLastSeen)}`
+                      ) : (
+                        "Offline"
+                      )
+                    }
+                    className={`text-[11px] ${g.muted}`}
+                  />
+                ) : (
+                  <p className={`text-[11px] truncate ${g.muted}`}>{selectedRoom?.label}</p>
+                )}
               </div>
             </div>
 
