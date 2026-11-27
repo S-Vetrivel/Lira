@@ -1,7 +1,10 @@
 import { Routes, Route, Navigate } from "react-router-dom";
+import { useEffect } from "react";
 import { Toaster } from "react-hot-toast";
 import { useApp } from "./context/Appcontext";
 import { ModalProvider } from "./context/ModalContext";
+import AppUpdaterModal from "./components/common/AppUpdaterModal";
+import { initAppUpdater } from "./services/appUpdater";
 import { MainLayout } from "./components/layout/MainLayout";
 import {
   ProtectedRoute,
@@ -65,9 +68,14 @@ function HomeEntry() {
 }
 
 function App() {
+  useEffect(() => {
+    initAppUpdater();
+  }, []);
+
   return (
     <ModalProvider>
       <RouteSeoSync />
+      <AppUpdaterModal />
       <Toaster
         position="top-center"
         toastOptions={{

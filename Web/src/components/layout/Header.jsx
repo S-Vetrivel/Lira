@@ -28,8 +28,10 @@ import {
   Maximize2,
   Menu,
   X,
+  RefreshCw,
 } from "lucide-react";
 import { markNotificationRead, markAllNotificationsRead } from "../../services/api";
+import { subscribeAppUpdater, getAppUpdaterSnapshot, reopenAppUpdateModal } from "../../services/appUpdater";
 import UserAvatar from "../common/UserAvatar";
 import LiraLogo from "../common/LiraLogo";
 import SideDrawer from "../common/SideDrawer";
@@ -73,6 +75,9 @@ export default function Header() {
   const [notifFilter, setNotifFilter] = useState("all");
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showMobileNav, setShowMobileNav] = useState(false);
+  const [appUpdateSnap, setAppUpdateSnap] = useState(getAppUpdaterSnapshot);
+
+  useEffect(() => subscribeAppUpdater(setAppUpdateSnap), []);
 
   const headerRef = useRef(null);
 
@@ -328,6 +333,22 @@ export default function Header() {
 
       {/* 3. Right: Modern Spacious Action & System Tray */}
       <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+        {appUpdateSnap.available && !appUpdateSnap.modalOpen && (
+          <button
+            type="button"
+            onClick={reopenAppUpdateModal}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] font-semibold border transition-colors cursor-pointer shrink-0 ${
+              isDark
+                ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25"
+                : "border-emerald-600/35 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20"
+            }`}
+            title="New workspace update available — click to update & refresh"
+          >
+            <RefreshCw className="w-3 h-3" />
+            <span className="hidden sm:inline">Update Ready</span>
+          </button>
+        )}
+
         {/* Grouped Frosted System Utility Tray */}
         <div className={`flex items-center gap-0.5 sm:gap-1 p-0.5 sm:p-1 rounded-xl sm:rounded-2xl border ${g.utilityTray}`}>
           {/* Spotlight Search Trigger */}

@@ -2,11 +2,14 @@ const { Server } = require("socket.io");
 const { createAdapter } = require("@socket.io/redis-adapter");
 const Redis = require("ioredis");
 const { redisConfig, enqueueEmailJob } = require("../services/queue");
+const { getAppVersionInfo, isUpdateAvailableForClient } = require("../utils/appVersion");
 
 let io = null;
 const activePeers = new Map(); // socketId -> { userId, name, department, clientIp, joinedAt }
 const onlineUsers = new Map(); // userId -> Set<socketId>
 let presenceTimer = null;
+let versionWatchTimer = null;
+let lastBroadcastBuildId = "";
 
 async function recordPresenceEvent({ userId = null, event = "online", ip = "" } = {}) {
   try {
@@ -127,8 +130,44 @@ const initSocket = (server) => {
     console.warn("⚠️ Failed to attach Redis adapter, using standalone adapter:", err.message);
   }
 
+  lastBroadcastBuildId = getAppVersionInfo().buildId;
+
   io.on("connection", (socket) => {
     const clientIp = socket.handshake.address || socket.conn.remoteAddress;
+
+    // 0. App & PWA Updater Handshake on WebSocket connection initiation
+    const serverVersionInfo = getAppVersionInfo();
+    const clientBuildId = String(
+      socket.handshake?.auth?.clientBuildId || socket.handshake?.query?.clientBuildId || ""
+    ).trim();
+    const clientVersion = String(
+      socket.handshake?.auth?.clientVersion || socket.handshake?.query?.clientVersion || ""
+    ).trim();
+
+    socket.emit("app:version", serverVersionInfo);
+    if (isUpdateAvailableForClient({ buildId: clientBuildId, version: clientVersion }, serverVersionInfo)) {
+      socket.emit("app:update-available", {
+        ...serverVersionInfo,
+        clientBuildId,
+        clientVersion,
+      });
+    }
+    if (serverVersionInfo.source === "web-dist" && lastBroadcastBuildId && serverVersionInfo.buildId !== lastBroadcastBuildId) {
+      lastBroadcastBuildId = serverVersionInfo.buildId;
+      io.emit("app:update-available", serverVersionInfo);
+    }
+
+    socket.on("app:check-update", (clientInfo = {}, ack) => {
+      const fresh = getAppVersionInfo();
+      const updateAvailable = isUpdateAvailableForClient(clientInfo, fresh);
+      const payload = { ...fresh, updateAvailable };
+      if (typeof ack === "function") {
+        ack(payload);
+      } else {
+        socket.emit("app:version", fresh);
+        if (updateAvailable) socket.emit("app:update-available", payload);
+      }
+    });
 
     // 1. Personal Room & Online Presence Tracking
     socket.on("join:user", (userId) => {
@@ -343,6 +382,17 @@ const initSocket = (server) => {
       }
     }, 5 * 60 * 1000);
     presenceTimer.unref?.();
+  }
+
+  if (!versionWatchTimer) {
+    versionWatchTimer = setInterval(() => {
+      const fresh = getAppVersionInfo();
+      if (fresh.source === "web-dist" && lastBroadcastBuildId && fresh.buildId !== lastBroadcastBuildId) {
+        lastBroadcastBuildId = fresh.buildId;
+        io?.emit("app:update-available", fresh);
+      }
+    }, 30 * 1000);
+    versionWatchTimer.unref?.();
   }
 
   return io;

@@ -11,6 +11,20 @@ const SOCKET_URL =
 
 let socket = null;
 
+export const CLIENT_APP_META = {
+  version: import.meta.env.VITE_APP_VERSION || "1.0.0",
+  buildId: import.meta.env.VITE_APP_BUILD_ID || "dev",
+  builtAt: import.meta.env.VITE_APP_BUILT_AT || "",
+};
+
+export const isStandalonePwa = () => {
+  if (typeof window === "undefined") return false;
+  return Boolean(
+    window.matchMedia?.("(display-mode: standalone)")?.matches ||
+      window.navigator?.standalone === true
+  );
+};
+
 export const initSocketClient = (userId) => {
   if (!socket) {
     socket = io(SOCKET_URL, {
@@ -18,6 +32,11 @@ export const initSocketClient = (userId) => {
       transports: ["websocket", "polling"],
       reconnectionAttempts: 10,
       reconnectionDelay: 1000,
+      auth: {
+        clientVersion: CLIENT_APP_META.version,
+        clientBuildId: CLIENT_APP_META.buildId,
+        isPwa: isStandalonePwa(),
+      },
     });
 
     socket.on("connect", () => {
@@ -25,6 +44,14 @@ export const initSocketClient = (userId) => {
       if (userId) {
         socket.emit("join:user", userId);
       }
+    });
+
+    socket.on("app:version", (payload) => {
+      emitLocalRealtimeEvent("app:version", payload || {});
+    });
+
+    socket.on("app:update-available", (payload) => {
+      emitLocalRealtimeEvent("app:update-available", payload || {});
     });
 
     socket.on("disconnect", () => {
@@ -36,6 +63,23 @@ export const initSocketClient = (userId) => {
 
   return socket;
 };
+
+export const checkSocketAppUpdate = () =>
+  new Promise((resolve) => {
+    if (!socket || !socket.connected) {
+      resolve(null);
+      return;
+    }
+    socket.emit(
+      "app:check-update",
+      {
+        version: CLIENT_APP_META.version,
+        buildId: CLIENT_APP_META.buildId,
+        isPwa: isStandalonePwa(),
+      },
+      (res) => resolve(res || null)
+    );
+  });
 
 export const getSocket = () => socket;
 

@@ -76,6 +76,7 @@ app.use("/uploads", express.static(uploadDir));
 
 const minioService = require("./services/minioService");
 const { getQueueHealth } = require("./services/queue");
+const { getAppVersionInfo } = require("./utils/appVersion");
 const { startWorkers } = require("./workers/index");
 const { resumePendingAssistantJobs } = require("./services/aiAssistantService");
 
@@ -83,6 +84,10 @@ const { resumePendingAssistantJobs } = require("./services/aiAssistantService");
 // ROUTES
 // -----------------
 app.get("/v3/ping", (req, res) => res.send("pong"));
+app.get(["/v3/app-version", "/api/app-version"], (req, res) => {
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+  res.json({ success: true, ...getAppVersionInfo() });
+});
 app.get("/v3/health", async (req, res) => {
   const queueHealth = await getQueueHealth();
   const minioHealth = await minioService.checkHealth();
