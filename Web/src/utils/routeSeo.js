@@ -82,6 +82,12 @@ const ROUTE_SEO_META = [
     robots: "noindex, nofollow",
   },
   {
+    match: (p) => p.startsWith("/broadcast"),
+    title: "Push & Broadcast Console — Lira Workspace",
+    description: "Send targeted or org-wide Web Push, In-App, and Email broadcasts with AI drafting.",
+    robots: "noindex, nofollow",
+  },
+  {
     match: (p) => p.startsWith("/profile"),
     title: "Profile & Personal AI Keys — Lira Workspace",
     description: "Manage profile details, availability, and personal AI BYOK credentials.",

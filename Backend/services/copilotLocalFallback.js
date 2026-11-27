@@ -507,9 +507,27 @@ function runLocalCopilotFallback({ prompt, scopedCtx, history = [] }) {
     navigateTo = "/projects";
   }
 
-  // 0e. Mark notifications read / Task Review & Approval
+  // 0e. Mark notifications read / Broadcast Announcement / Task Review & Approval
   if (steps.length === 0 && /\bmark\b.*\bnotifications?\b.*\bread\b/i.test(lower) && allowed.has("mark_notifications_read")) {
     steps.push({ type: "mark_notifications_read", label: "Mark all notifications read", prefill: {} });
+  }
+  if (
+    steps.length === 0 &&
+    /\b(broadcast|announce|push\s+notification|notify\s+everyone|message\s+everyone)\b/i.test(lower) &&
+    allowed.has("send_broadcast_notification")
+  ) {
+    steps.push({
+      type: "send_broadcast_notification",
+      label: "Send Broadcast Notification",
+      prefill: {
+        title: "Workspace Announcement",
+        message: text,
+        category: /\burgent|critical\b/i.test(lower) ? "urgent" : "announcement",
+        audienceType: /\bonline\b/i.test(lower) ? "online_only" : /\boffline\b/i.test(lower) ? "offline_only" : "all",
+        channels: { inApp: true, webPush: true, email: /\bemail\b/i.test(lower) },
+      },
+    });
+    navigateTo = "/broadcast";
   }
   const keyMatch = text.match(/\b([A-Z0-9]{2,8}-\d+)\b/i);
   if (steps.length === 0 && (keyMatch || recentTaskKey)) {
@@ -696,6 +714,7 @@ function runLocalCopilotFallback({ prompt, scopedCtx, history = [] }) {
     { route: "/roles?tab=ai", rx: /\b(ai\s+vault|global\s+key|ai\s+models)\b/i },
     { route: "/roles", rx: /\b(roles?|permissions?)\b/i },
     { route: "/audit", rx: /\b(audit|usage\s+logs?|online\s+users?)\b/i },
+    { route: "/broadcast", rx: /\b(broadcast|push\s+console|announcements?)\b/i },
     { route: "/", rx: /\b(dashboard|home|overview)\b/i },
   ];
   const matchedAlias = ROUTE_ALIAS_TESTS.find(

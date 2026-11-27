@@ -31,6 +31,8 @@ const NotificationSchema = new Schema(
         "department_update",
         "file_shared",
         "chat_message",
+        "broadcast",
+        "announcement",
         "system",
       ],
       default: "system",

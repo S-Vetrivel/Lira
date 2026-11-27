@@ -7,7 +7,7 @@ const ActionLog = require("../models/actionLogModel");
 const ActivityLog = require("../models/activityLogModel");
 const PresenceLog = require("../models/presenceLogModel");
 const batchLogger = require("../services/batchLogger");
-const { getOnlineUserIds } = require("../config/socket");
+const { getOnlineUserIdsAsync } = require("../config/socket");
 const { isSuperAdminUser, hasWildcardPermission } = require("../utils/roles");
 const { buildTimeBuckets, findBucketIndex } = require("../utils/timeSeriesHelper");
 
@@ -675,7 +675,7 @@ async function computePresenceTelemetry(rawRange = "24h", liveOnlineIds = []) {
 exports.getPresenceTimeline = async (req, res) => {
   try {
     await batchLogger.flush().catch(() => {});
-    const liveIds = getOnlineUserIds();
+    const liveIds = await getOnlineUserIdsAsync();
     const telemetry = await computePresenceTelemetry(req.query.range || "24h", liveIds);
     res.status(200).json({ success: true, ...telemetry });
   } catch (err) {
@@ -690,7 +690,7 @@ exports.getAuditOverview = async (req, res) => {
     const { page = 1, limit = 40, presenceRange = "24h" } = req.query;
     const query = buildActionLogQuery(req.query);
 
-    const onlineIds = getOnlineUserIds();
+    const onlineIds = await getOnlineUserIdsAsync();
     const onlineSet = new Set(onlineIds.map(String));
 
     const [

@@ -967,6 +967,27 @@ async function executeSingleStep(step, user, chainState = {}) {
     return { executed: true, actionType: step.type, summary: "Marked all notifications read" };
   }
 
+  if (step.type === "send_broadcast_notification") {
+    const res = await callProtectedBackendAPI({
+      user,
+      method: "POST",
+      path: "/broadcast/send",
+      data: {
+        title: interpolate(rawPrefill.title) || "Workspace Announcement",
+        message: interpolate(rawPrefill.message) || "Please check the workspace for a new announcement.",
+        category: rawPrefill.category || "announcement",
+        audienceType: rawPrefill.audienceType || "all",
+        actionUrl: rawPrefill.actionUrl || "/",
+        channels: rawPrefill.channels || { inApp: true, webPush: true, email: false },
+      },
+    });
+    return {
+      executed: true,
+      actionType: step.type,
+      summary: res.message || `Sent broadcast notification "${rawPrefill.title || "Announcement"}"`,
+    };
+  }
+
   if (step.type === "update_profile") {
     await callProtectedBackendAPI({
       user,

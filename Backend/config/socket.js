@@ -1,15 +1,123 @@
 const { Server } = require("socket.io");
 const { createAdapter } = require("@socket.io/redis-adapter");
 const Redis = require("ioredis");
-const { redisConfig, enqueueEmailJob } = require("../services/queue");
+const { redisConfig, connection: sharedRedis, enqueueWebSocketEvent } = require("../services/queue");
 const { getAppVersionInfo, isUpdateAvailableForClient } = require("../utils/appVersion");
+
+const PRESENCE_SOCKETS_HASH = "lira:presence:sockets";
+const PRESENCE_STALE_MS = 12 * 60 * 1000;
 
 let io = null;
 const activePeers = new Map(); // socketId -> { userId, name, department, clientIp, joinedAt }
-const onlineUsers = new Map(); // userId -> Set<socketId>
+const onlineUsers = new Map(); // local worker userId -> Set<socketId>
+let clusterOnlineIds = new Set(); // synced cluster-wide Set<userId>
 let presenceTimer = null;
 let versionWatchTimer = null;
 let lastBroadcastBuildId = "";
+
+function parsePresenceEntry(rawVal = "") {
+  const idx = String(rawVal).lastIndexOf(":");
+  if (idx === -1) return { userId: String(rawVal), seenAt: Date.now() };
+  return {
+    userId: String(rawVal).slice(0, idx),
+    seenAt: Number(String(rawVal).slice(idx + 1)) || 0,
+  };
+}
+
+async function getOnlineUserIdsAsync() {
+  const combined = new Set(Array.from(onlineUsers.keys()).map(String));
+  try {
+    if (sharedRedis && sharedRedis.status === "ready") {
+      const entries = await sharedRedis.hgetall(PRESENCE_SOCKETS_HASH);
+      const now = Date.now();
+      const staleFields = [];
+      for (const [field, rawVal] of Object.entries(entries || {})) {
+        const { userId, seenAt } = parsePresenceEntry(rawVal);
+        if (!userId || (seenAt > 0 && now - seenAt > PRESENCE_STALE_MS)) {
+          staleFields.push(field);
+        } else {
+          combined.add(userId);
+        }
+      }
+      if (staleFields.length > 0) {
+        sharedRedis.hdel(PRESENCE_SOCKETS_HASH, ...staleFields).catch(() => {});
+      }
+      clusterOnlineIds = new Set(combined);
+    }
+  } catch {
+    // fallback safely to local worker set
+  }
+  return Array.from(combined);
+}
+
+async function isUserOnlineAsync(userId) {
+  if (!userId) return false;
+  const uid = String(userId);
+  const localSet = onlineUsers.get(uid);
+  if (localSet && localSet.size > 0) return true;
+  const ids = await getOnlineUserIdsAsync();
+  return ids.includes(uid);
+}
+
+const isUserOnline = (userId) => {
+  if (!userId) return false;
+  const uid = String(userId);
+  const set = onlineUsers.get(uid);
+  return Boolean((set && set.size > 0) || clusterOnlineIds.has(uid));
+};
+
+const getOnlineUserIds = () => {
+  const merged = new Set([...Array.from(onlineUsers.keys()).map(String), ...Array.from(clusterOnlineIds)]);
+  return Array.from(merged);
+};
+
+async function registerSocketPresenceInRedis(socketId, userId) {
+  if (!socketId || !userId) return;
+  try {
+    if (sharedRedis && sharedRedis.status === "ready") {
+      await sharedRedis.hset(
+        PRESENCE_SOCKETS_HASH,
+        `${process.pid}:${socketId}`,
+        `${String(userId)}:${Date.now()}`
+      );
+      await sharedRedis.expire(PRESENCE_SOCKETS_HASH, 3600);
+    }
+  } catch {
+    // non-fatal
+  }
+}
+
+async function removeSocketPresenceInRedis(socketId) {
+  if (!socketId) return;
+  try {
+    if (sharedRedis && sharedRedis.status === "ready") {
+      await sharedRedis.hdel(PRESENCE_SOCKETS_HASH, `${process.pid}:${socketId}`);
+    }
+  } catch {
+    // non-fatal
+  }
+}
+
+async function cleanupStalePidSocketsInRedis() {
+  try {
+    if (!sharedRedis || sharedRedis.status !== "ready") return;
+    const entries = await sharedRedis.hgetall(PRESENCE_SOCKETS_HASH);
+    const pidPrefix = `${process.pid}:`;
+    const now = Date.now();
+    const toRemove = [];
+    for (const [field, rawVal] of Object.entries(entries || {})) {
+      const { seenAt } = parsePresenceEntry(rawVal);
+      if (field.startsWith(pidPrefix) || (seenAt > 0 && now - seenAt > PRESENCE_STALE_MS)) {
+        toRemove.push(field);
+      }
+    }
+    if (toRemove.length > 0) {
+      await sharedRedis.hdel(PRESENCE_SOCKETS_HASH, ...toRemove);
+    }
+  } catch {
+    // ignore
+  }
+}
 
 async function recordPresenceEvent({ userId = null, event = "online", ip = "" } = {}) {
   try {
@@ -22,7 +130,7 @@ async function recordPresenceEvent({ userId = null, event = "online", ip = "" } 
         .lean()
         .catch(() => null);
     }
-    const ids = Array.from(onlineUsers.keys());
+    const ids = await getOnlineUserIdsAsync();
     const doc = await PresenceLog.create({
       user: userId || null,
       userName: snap?.fullname || "",
@@ -55,14 +163,6 @@ async function recordPresenceEvent({ userId = null, event = "online", ip = "" } 
   }
 }
 
-const isUserOnline = (userId) => {
-  if (!userId) return false;
-  const set = onlineUsers.get(userId.toString());
-  return Boolean(set && set.size > 0);
-};
-
-const getOnlineUserIds = () => Array.from(onlineUsers.keys());
-
 const emitTargetEvent = (target, room, event, data) => {
   if (!io || !event) return;
   if (target === "user" && room) {
@@ -91,6 +191,8 @@ const initSocket = (server) => {
     transports: ["websocket", "polling"],
   });
 
+  cleanupStalePidSocketsInRedis();
+
   // Attach Redis adapter for multi-node cluster synchronization + worker-to-API broadcast relay
   try {
     const pubClient = new Redis(redisConfig);
@@ -116,6 +218,9 @@ const initSocket = (server) => {
       if (channel !== "CLUSTER_WEBSOCKET_CHANNEL" || !raw) return;
       try {
         const msg = JSON.parse(raw);
+        if (msg.event === "presence:update" && Array.isArray(msg.data?.onlineUserIds)) {
+          clusterOnlineIds = new Set(msg.data.onlineUserIds.map(String));
+        }
         if (msg.fromPid && msg.fromPid === process.pid) return;
         if (msg.deliveryId) {
           const lock = await pubClient.set(`ws:relay:${msg.deliveryId}`, "1", "EX", 30, "NX");
@@ -169,26 +274,36 @@ const initSocket = (server) => {
       }
     });
 
-    // 1. Personal Room & Online Presence Tracking
-    socket.on("join:user", (userId) => {
-      if (userId) {
-        const uid = userId.toString();
-        socket.data.userId = uid;
-        socket.join(`user_${uid}`);
-        const wasOffline = !onlineUsers.has(uid) || onlineUsers.get(uid).size === 0;
-        if (!onlineUsers.has(uid)) {
-          onlineUsers.set(uid, new Set());
-        }
-        onlineUsers.get(uid).add(socket.id);
-        io.emit("presence:update", { onlineUserIds: getOnlineUserIds() });
-        if (wasOffline) {
-          recordPresenceEvent({ userId: uid, event: "online", ip: clientIp });
-        }
+    // 1. Personal Room & Online Presence Tracking (cluster-wide via Redis)
+    socket.on("join:user", async (userId) => {
+      if (!userId) return;
+      const uid = userId.toString();
+      socket.data.userId = uid;
+      socket.join(`user_${uid}`);
+
+      const wasOffline = !(await isUserOnlineAsync(uid));
+      if (!onlineUsers.has(uid)) {
+        onlineUsers.set(uid, new Set());
+      }
+      onlineUsers.get(uid).add(socket.id);
+      await registerSocketPresenceInRedis(socket.id, uid);
+
+      const allOnline = await getOnlineUserIdsAsync();
+      clusterOnlineIds = new Set(allOnline.map(String));
+      io.emit("presence:update", { onlineUserIds: allOnline });
+      enqueueWebSocketEvent({ target: "all", event: "presence:update", data: { onlineUserIds: allOnline } }).catch(() => {});
+
+      const User = require("../models/userModel");
+      User.updateOne({ _id: uid }, { lastSeenAt: new Date() }).catch(() => {});
+
+      if (wasOffline) {
+        recordPresenceEvent({ userId: uid, event: "online", ip: clientIp });
       }
     });
 
-    socket.on("presence:request", () => {
-      socket.emit("presence:update", { onlineUserIds: getOnlineUserIds() });
+    socket.on("presence:request", async () => {
+      const allOnline = await getOnlineUserIdsAsync();
+      socket.emit("presence:update", { onlineUserIds: allOnline });
     });
 
     // 2. Project Room
@@ -221,12 +336,28 @@ const initSocket = (server) => {
       socket.to(`chat_${roomId}`).emit("chat:typing", { userId, userName, isTyping });
     });
 
-    // Direct WebSocket-based chatting (persists to MongoDB, emits real-time, and triggers offline email)
+    socket.on("chat:read", async ({ roomId } = {}, ack) => {
+      try {
+        const readerId = socket.data.userId;
+        if (!readerId || !roomId) {
+          if (typeof ack === "function") ack({ success: false });
+          return;
+        }
+        const User = require("../models/userModel");
+        const { markRoomMessagesRead } = require("../services/chatNotificationService");
+        const readerUser = await User.findById(readerId).select("_id fullname avatar profilePicture publicId").lean();
+        const result = await markRoomMessagesRead({ roomId, readerUser: readerUser || { _id: readerId } });
+        if (typeof ack === "function") ack({ success: true, ...result });
+      } catch (err) {
+        if (typeof ack === "function") ack({ success: false, message: err.message });
+      }
+    });
+
+    // Direct WebSocket-based chatting (persists to MongoDB, emits real-time, and triggers Push + offline email)
     socket.on("chat:send", async (payload = {}, ack) => {
       try {
         const Message = require("../models/messageModel");
-        const User = require("../models/userModel");
-        const { createNotification } = require("../utils/notificationHelper");
+        const { notifyChatMessageRecipients } = require("../services/chatNotificationService");
         const {
           chatType = "direct",
           roomId,
@@ -264,51 +395,23 @@ const initSocket = (server) => {
         });
 
         const USER_POPULATE_FIELDS =
-          "fullname email avatar profilePicture role department departmentName publicId jobTitle status";
+          "fullname email avatar profilePicture role department departmentName publicId jobTitle status lastSeenAt";
         const populated = await Message.findById(newMessage._id)
           .populate("sender", USER_POPULATE_FIELDS)
-          .populate("recipient", USER_POPULATE_FIELDS);
+          .populate("recipient", USER_POPULATE_FIELDS)
+          .populate("readBy.user", "fullname avatar profilePicture publicId")
+          .lean();
 
         io.to(`chat_${roomId}`).emit("chat:message", populated);
 
-        const senderName =
-          populated?.sender?.fullname || populated?.sender?.email || "A teammate";
-
-        if (recipientId) {
-          const rid = recipientId.toString();
-          emitToUser(rid, "chat:message", populated);
-          emitToUser(rid, "chat:notification", {
-            sender: senderName,
-            senderId: effectiveSenderId,
-            roomId,
-            chatType,
-          });
-
-          createNotification({
-            recipient: rid,
-            sender: effectiveSenderId,
-            type: "chat_message",
-            title: "New Direct Message",
-            message:
-              Array.isArray(attachments) && attachments.length > 0
-                ? `${senderName} shared a file in Direct Messages.`
-                : `${senderName} sent you a direct message.`,
-          }).catch(() => {});
-
-          if (!isUserOnline(rid)) {
-            const recipientUser = await User.findById(rid).select("email fullname").lean();
-            if (recipientUser?.email) {
-              enqueueEmailJob({
-                to: recipientUser.email,
-                type: "offline_chat_message",
-                data: {
-                  senderName,
-                  roomLabel: "Direct Messages",
-                },
-              });
-            }
-          }
-        }
+        await notifyChatMessageRecipients({
+          senderUser: populated?.sender || { _id: effectiveSenderId },
+          messageDoc: populated,
+          chatType,
+          roomId,
+          recipientId,
+          attachments,
+        });
 
         if (typeof ack === "function") {
           ack({ success: true, message: populated });
@@ -334,11 +437,8 @@ const initSocket = (server) => {
       };
       activePeers.set(socket.id, peerInfo);
 
-      // Reply with active peer list
       const peerList = Array.from(activePeers.values()).filter((p) => p.socketId !== socket.id);
       socket.emit("peer:list", peerList);
-
-      // Broadcast to other peers
       socket.broadcast.emit("peer:joined", peerInfo);
     });
 
@@ -353,17 +453,25 @@ const initSocket = (server) => {
       }
     });
 
-    socket.on("disconnect", () => {
-      if (socket.data.userId && onlineUsers.has(socket.data.userId)) {
+    socket.on("disconnect", async () => {
+      if (socket.data.userId) {
         const uid = socket.data.userId;
-        const set = onlineUsers.get(uid);
-        set.delete(socket.id);
-        const wentOffline = set.size === 0;
-        if (wentOffline) {
-          onlineUsers.delete(uid);
+        if (onlineUsers.has(uid)) {
+          const set = onlineUsers.get(uid);
+          set.delete(socket.id);
+          if (set.size === 0) onlineUsers.delete(uid);
         }
-        io.emit("presence:update", { onlineUserIds: getOnlineUserIds() });
+        await removeSocketPresenceInRedis(socket.id);
+        const allOnline = await getOnlineUserIdsAsync();
+        clusterOnlineIds = new Set(allOnline.map(String));
+        const wentOffline = !allOnline.includes(uid);
+
+        io.emit("presence:update", { onlineUserIds: allOnline });
+        enqueueWebSocketEvent({ target: "all", event: "presence:update", data: { onlineUserIds: allOnline } }).catch(() => {});
+
         if (wentOffline) {
+          const User = require("../models/userModel");
+          User.updateOne({ _id: uid }, { lastSeenAt: new Date() }).catch(() => {});
           recordPresenceEvent({ userId: uid, event: "offline", ip: clientIp });
         }
       }
@@ -376,9 +484,21 @@ const initSocket = (server) => {
   });
 
   if (!presenceTimer) {
-    presenceTimer = setInterval(() => {
-      if (onlineUsers.size > 0) {
-        recordPresenceEvent({ event: "heartbeat" });
+    presenceTimer = setInterval(async () => {
+      try {
+        if (sharedRedis && sharedRedis.status === "ready") {
+          for (const [uid, set] of onlineUsers.entries()) {
+            for (const sid of set) {
+              await registerSocketPresenceInRedis(sid, uid);
+            }
+          }
+        }
+        const ids = await getOnlineUserIdsAsync();
+        if (ids.length > 0) {
+          recordPresenceEvent({ event: "heartbeat" });
+        }
+      } catch {
+        // non-fatal
       }
     }, 5 * 60 * 1000);
     presenceTimer.unref?.();
@@ -387,7 +507,7 @@ const initSocket = (server) => {
   if (!versionWatchTimer) {
     versionWatchTimer = setInterval(() => {
       const fresh = getAppVersionInfo();
-      if (fresh.source === "web-dist" && lastBroadcastBuildId && fresh.buildId !== lastBroadcastBuildId) {
+      if (fresh.source !== "server-boot" && lastBroadcastBuildId && fresh.buildId !== lastBroadcastBuildId) {
         lastBroadcastBuildId = fresh.buildId;
         io?.emit("app:update-available", fresh);
       }
@@ -426,5 +546,7 @@ module.exports = {
   emitToProject,
   emitToAll,
   isUserOnline,
+  isUserOnlineAsync,
   getOnlineUserIds,
+  getOnlineUserIdsAsync,
 };

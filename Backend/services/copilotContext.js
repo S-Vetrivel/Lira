@@ -28,6 +28,7 @@ const ROUTE_MODULE_MAP = [
   { route: "/roles", moduleKey: "rbac", perm: "rbac.view", label: "Roles & Departments" },
   { route: "/roles?tab=ai", moduleKey: "ai", perm: "ai.manage", label: "AI Models & Vault" },
   { route: "/audit", moduleKey: "audit", perm: "audit.view", label: "Audit Logs & Live Sessions" },
+  { route: "/broadcast", moduleKey: "broadcast", perm: "broadcast.view", label: "Push & Broadcast Console" },
 ];
 
 function expandModulesToPermissions(moduleKeys = []) {
@@ -109,6 +110,9 @@ async function buildScopedWebsiteContext({ user, currentRoute = "/", activeProje
   if (hasPerm(user, "team.join_requests")) allowedActions.push("approve_join_request", "reject_join_request");
   if (hasPerm(user, "ai.manage")) {
     allowedActions.push("grant_ai_access", "revoke_ai_access", "restore_ai_access", "delete_ai_grant", "update_ai_config");
+  }
+  if (hasPerm(user, "broadcast.send")) {
+    allowedActions.push("send_broadcast_notification");
   }
   if (isSuper) {
     allowedActions.push("remove_non_superadmins", "create_role", "update_role", "delete_role");

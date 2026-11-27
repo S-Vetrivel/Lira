@@ -24,6 +24,7 @@ import {
   logoutUser,
 } from "../services/api";
 import { initSocketClient, joinProjectRoom, leaveProjectRoom, emitLocalRealtimeEvent } from "../services/socket";
+import { syncExistingPushSubscription } from "../services/pushClient";
 
 const AppContext = createContext();
 
@@ -442,6 +443,8 @@ export const AppProvider = ({ children }) => {
 
       // Initialize Socket connection
       const socket = initSocketClient(user._id);
+      socket.emit("presence:request");
+      syncExistingPushSubscription().catch(() => {});
 
       // Listen for real-time notifications
       const handleNotification = (notif) => {
@@ -575,7 +578,32 @@ export const AppProvider = ({ children }) => {
         });
       };
 
+      const handleBroadcastAlert = (alert) => {
+        if (!alert) return;
+        toast(
+          (t) => (
+            <div
+              onClick={() => {
+                toast.dismiss(t.id);
+                if (alert.actionUrl) navigate(alert.actionUrl);
+              }}
+              className="flex items-start gap-2.5 cursor-pointer"
+            >
+              <span className="text-lg">📣</span>
+              <div>
+                <p className="font-semibold text-xs text-zinc-100">{alert.title || "Workspace Broadcast"}</p>
+                <p className="text-[11px] text-zinc-300 line-clamp-2">{alert.message}</p>
+                <p className="text-[10px] text-zinc-500 mt-0.5">From {alert.senderName || "Admin"} · Click to view</p>
+              </div>
+            </div>
+          ),
+          { id: `broadcast-${alert.broadcastId || alert.title}`, duration: 6500 }
+        );
+        refreshNotifications();
+      };
+
       socket.on("notification:new", handleNotification);
+      socket.on("broadcast:alert", handleBroadcastAlert);
       socket.on("join-request:new", handleNewJoinRequest);
       socket.on("join-request:updated", handleUpdatedJoinRequest);
       socket.on("request:created", handleRequestEvent);
@@ -614,6 +642,9 @@ export const AppProvider = ({ children }) => {
         "ai:usage-logged",
         "ai:misuse-warning",
         "notification:new",
+        "broadcast:alert",
+        "broadcast:history-updated",
+        "chat:read",
         "presence:update",
         "comment:new",
         "activity:new",
@@ -626,6 +657,7 @@ export const AppProvider = ({ children }) => {
 
       return () => {
         socket.off("notification:new", handleNotification);
+        socket.off("broadcast:alert", handleBroadcastAlert);
         socket.off("join-request:new", handleNewJoinRequest);
         socket.off("join-request:updated", handleUpdatedJoinRequest);
         socket.off("request:created", handleRequestEvent);

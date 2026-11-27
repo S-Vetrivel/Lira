@@ -834,8 +834,8 @@ export async function togglePinChatMessage(messageId) {
 
 export async function markChatRoomRead(roomId) {
   try {
-    await api.post(`/chat/rooms/${roomId}/read`);
-    return { success: true };
+    const res = await api.post(`/chat/rooms/${roomId}/read`);
+    return { success: true, ...res.data };
   } catch (error) {
     return { success: false };
   }
@@ -848,9 +848,19 @@ export async function getChatConversations() {
       success: true,
       colleagues: res.data.colleagues || [],
       channelUnread: res.data.channelUnread || {},
+      totalUnread: res.data.totalUnread || 0,
     };
   } catch (error) {
-    return { success: false, colleagues: [], channelUnread: {} };
+    return { success: false, colleagues: [], channelUnread: {}, totalUnread: 0 };
+  }
+}
+
+export async function getVapidPublicKeyAPI() {
+  try {
+    const res = await api.get("/notifications/vapid-public-key");
+    return res.data;
+  } catch {
+    return { success: false, vapidPublicKey: "" };
   }
 }
 
@@ -1261,6 +1271,41 @@ export async function getAuditOverview(params = {}) {
     return res.data;
   } catch (error) {
     return { success: false, auditLogs: [], onlineUsers: [], offlineUsers: [], teamsOverview: [] };
+  }
+}
+
+// ==========================================
+// PUSH NOTIFICATION & BROADCAST CONSOLE APIs
+// ==========================================
+export async function getBroadcastOverviewAPI() {
+  try {
+    const res = await api.get("/broadcast");
+    return res.data;
+  } catch (error) {
+    return { success: false, summary: {}, users: [], departments: [], roles: [], history: [], capabilities: {} };
+  }
+}
+
+export async function sendBroadcastNotificationAPI(payload) {
+  try {
+    const res = await api.post("/broadcast/send", payload);
+    if (res.data?.success) {
+      toast.success(res.data.message || "Broadcast sent successfully");
+    }
+    return res.data;
+  } catch (error) {
+    toast.error(error.response?.data?.message || "Failed to send broadcast");
+    return { success: false, message: error.response?.data?.message };
+  }
+}
+
+export async function draftBroadcastWithAIAPI(payload) {
+  try {
+    const res = await api.post("/broadcast/ai-draft", payload);
+    return res.data;
+  } catch (error) {
+    toast.error(error.response?.data?.message || "AI composer could not draft broadcast");
+    return { success: false, message: error.response?.data?.message, needsKey: Boolean(error.response?.data?.needsKey) };
   }
 }
 

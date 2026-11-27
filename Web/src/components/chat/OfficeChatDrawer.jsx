@@ -12,6 +12,7 @@ import {
   Download,
   FolderOpen,
   ArrowLeft,
+  Check,
   CheckCheck,
   Image as ImageIcon,
   ShieldCheck,
@@ -37,6 +38,7 @@ import {
   leaveChatRoom,
   announcePeer,
   sendSocketChatMessage,
+  subscribeRealtimeEvents,
 } from "../../services/socket";
 import { encryptText, decryptText } from "../../services/crypto";
 import ChunkUploader from "../files/ChunkUploader";
@@ -74,6 +76,7 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
     chatTargetRoom,
     setChatTargetRoom,
     refreshChatUnread,
+    onlineUserIds: globalOnlineUserIds,
     aiPrefillDraft,
     setAiPrefillDraft,
   } = useApp();
@@ -112,13 +115,18 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
 
   const pinnedMessages = useMemo(() => messages.filter((m) => m.isPinned), [messages]);
 
+  const currentUserIdStr = user?._id ? String(user._id) : "";
   const onlineUserIds = useMemo(() => {
-    const ids = new Set();
+    const ids = new Set((globalOnlineUserIds || []).map(String));
     peers.forEach((p) => {
       if (p.userId) ids.add(p.userId.toString());
     });
+    colleagues.forEach((c) => {
+      if (c?.isOnline && c?._id) ids.add(String(c._id));
+    });
+    if (currentUserIdStr) ids.add(currentUserIdStr);
     return ids;
-  }, [peers]);
+  }, [globalOnlineUserIds, peers, colleagues, currentUserIdStr]);
 
   const loadConversations = async () => {
     const res = await getChatConversations();
@@ -190,6 +198,7 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
 
     const socket = getSocket();
     if (socket) {
+      socket.emit("presence:request");
       announcePeer({
         userId: user._id,
         name: getDisplayName(user),
@@ -242,6 +251,8 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
           })
         );
         setMessages(decryptedList);
+        const socketNow = getSocket();
+        socketNow?.emit?.("chat:read", { roomId });
         await markChatRoomRead(roomId);
         refreshChatUnread?.();
         // Clear unread count locally
@@ -266,10 +277,35 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
           if (newMsg._id && prev.some((m) => m._id === newMsg._id)) return prev;
           return [...prev, { ...newMsg, decryptedText: text }];
         });
-        markChatRoomRead(roomId).then(() => refreshChatUnread?.());
+        const senderOfNew = newMsg.sender?._id || newMsg.sender;
+        if (String(senderOfNew) !== String(user?._id)) {
+          getSocket()?.emit?.("chat:read", { roomId });
+          markChatRoomRead(roomId).then(() => refreshChatUnread?.());
+        }
       } else {
         loadConversations();
       }
+    };
+
+    const handleChatRead = (payload) => {
+      if (!payload || payload.roomId !== roomId || !payload.userId) return;
+      const readerObj = payload.reader || { _id: payload.userId };
+      const targetIds = Array.isArray(payload.messageIds) && payload.messageIds.length > 0
+        ? new Set(payload.messageIds.map(String))
+        : null;
+      setMessages((prev) =>
+        prev.map((m) => {
+          if (targetIds && !targetIds.has(String(m._id))) return m;
+          const existing = Array.isArray(m.readBy) ? m.readBy : [];
+          if (existing.some((r) => String(r?.user?._id || r?.user) === String(payload.userId))) {
+            return m;
+          }
+          return {
+            ...m,
+            readBy: [...existing, { user: readerObj, readAt: payload.readAt || new Date().toISOString() }],
+          };
+        })
+      );
     };
 
     const handleTyping = ({ userId, userName, isTyping }) => {
@@ -306,15 +342,19 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
       socket.on("chat:message", handleIncomingMessage);
       socket.on("chat:typing", handleTyping);
       socket.on("chat:pinned", handlePinnedMessage);
+      socket.on("chat:read", handleChatRead);
     }
+    const unsubRealtimeRead = subscribeRealtimeEvents(["chat:read"], handleChatRead);
 
     return () => {
       isMounted = false;
       leaveChatRoom(roomId);
+      unsubRealtimeRead();
       if (socket) {
         socket.off("chat:message", handleIncomingMessage);
         socket.off("chat:typing", handleTyping);
         socket.off("chat:pinned", handlePinnedMessage);
+        socket.off("chat:read", handleChatRead);
       }
     };
   }, [selectedRoom, isOpen, user?._id]);
@@ -566,6 +606,10 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
 
   const isDirect = selectedRoom?.type === "direct";
   const isRecipientOnline = isDirect && onlineUserIds.has(selectedRoom?.recipientId?.toString());
+  const recipientLastSeen =
+    selectedRoom?.colleague?.lastSeenAt ||
+    colleagues.find((c) => String(c._id) === String(selectedRoom?.recipientId))?.lastSeenAt ||
+    null;
   const typingNames = Object.values(typingUsers);
 
   const renderAttachmentCard = (att, isMe) => {
@@ -902,7 +946,13 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
                   {isDirect
                     ? `${selectedRoom?.colleague?.departmentName || "Team"} • ${
                         selectedRoom?.colleague?.publicId || "Verified Staff"
-                      } • ${isRecipientOnline ? "Online" : "Offline"}`
+                      } • ${
+                        isRecipientOnline
+                          ? "Online"
+                          : recipientLastSeen
+                            ? `Offline (last seen ${formatDateIN(recipientLastSeen)} ${formatTimeIN(recipientLastSeen)})`
+                            : "Offline"
+                      }`
                     : selectedRoom?.label}
                 </p>
               </div>
@@ -1047,6 +1097,27 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
                   const msgDateStr = formatDateIN(msg.createdAt || Date.now());
                   const prevDateStr = prevMsg ? formatDateIN(prevMsg.createdAt) : null;
                   const showDateDivider = msgDateStr !== prevDateStr;
+                  const otherReaders = (msg.readBy || []).filter(
+                    (r) => String(r?.user?._id || r?.user) !== String(user?._id)
+                  );
+                  const recipientReadEntry = isDirect
+                    ? otherReaders.find(
+                        (r) => String(r?.user?._id || r?.user) === String(selectedRoom?.recipientId)
+                      ) || otherReaders[0]
+                    : null;
+                  const isSeenByRecipient = isDirect ? Boolean(recipientReadEntry) : otherReaders.length > 0;
+                  const readerTooltip = isDirect
+                    ? recipientReadEntry
+                      ? `Seen${recipientReadEntry.readAt ? ` at ${formatTimeIN(recipientReadEntry.readAt)}` : ""}`
+                      : isRecipientOnline
+                        ? "Delivered (Recipient online)"
+                        : "Sent (Recipient offline)"
+                    : otherReaders.length > 0
+                      ? `Seen by ${otherReaders
+                          .map((r) => getDisplayName(r.user, "Member"))
+                          .slice(0, 6)
+                          .join(", ")}${otherReaders.length > 6 ? ` +${otherReaders.length - 6}` : ""}`
+                      : "Sent to channel";
 
                   return (
                     <React.Fragment key={msg._id || index}>
@@ -1095,7 +1166,27 @@ export default function OfficeChatDrawer({ isOpen, onClose }) {
                               {formatTimeIN(msg.createdAt || Date.now())}
                             </span>
                             {msg.isPinned && <Pin className="w-2.5 h-2.5 text-amber-400 shrink-0" title="Pinned" />}
-                            {isMe && <CheckCheck className={`w-3 h-3 ${g.accentIcon}`} />}
+                            {isMe && (
+                              <span
+                                className="inline-flex items-center gap-0.5 select-none"
+                                title={readerTooltip}
+                              >
+                                {isSeenByRecipient ? (
+                                  <>
+                                    <CheckCheck className="w-3.5 h-3.5 text-sky-400" />
+                                    {!isDirect && otherReaders.length > 0 && (
+                                      <span className="text-[9px] font-semibold text-sky-400">
+                                        {otherReaders.length}
+                                      </span>
+                                    )}
+                                  </>
+                                ) : isDirect && isRecipientOnline ? (
+                                  <CheckCheck className={`w-3 h-3 ${g.muted}`} />
+                                ) : (
+                                  <Check className={`w-3 h-3 ${g.muted}`} />
+                                )}
+                              </span>
+                            )}
                           </div>
 
                           <div className="flex items-center gap-1.5">

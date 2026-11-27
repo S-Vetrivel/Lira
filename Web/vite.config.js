@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import fs from "fs";
@@ -30,13 +30,18 @@ function liraPwaVersionPlugin({ version, buildId, builtAt }) {
   };
 }
 
-export default defineConfig(({ command }) => {
+export default defineConfig(({ command, mode }) => {
+  const fileEnv = loadEnv(mode, __dirname, "");
   const isBuild = command === "build";
   const builtAt = new Date().toISOString();
-  const buildId = isBuild
-    ? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`
-    : "dev";
-  const appVersion = pkg.version && pkg.version !== "0.0.0" ? pkg.version : "1.0.0";
+  const rawBuildId = fileEnv.VITE_APP_BUILD_ID?.trim() || process.env.VITE_APP_BUILD_ID?.trim() || "";
+  const buildId =
+    rawBuildId ||
+    (isBuild ? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}` : "dev");
+  const appVersion =
+    fileEnv.VITE_APP_VERSION?.trim() ||
+    process.env.VITE_APP_VERSION?.trim() ||
+    (pkg.version && pkg.version !== "0.0.0" ? pkg.version : "1.0.1");
 
   process.env.VITE_APP_VERSION = appVersion;
   process.env.VITE_APP_BUILD_ID = buildId;

@@ -132,6 +132,17 @@ const MODULES_CATALOG = [
       { slug: "audit.view", label: "View Audit & Online Overview", description: "Inspect user actions, online users, and org-wide team status" },
     ],
   },
+  {
+    key: "broadcast",
+    name: "Push & Broadcast Console",
+    description: "Send org-wide or targeted In-App, Browser Web Push, and Email announcements with AI drafting",
+    route: "/broadcast",
+    actions: [
+      { slug: "broadcast.view", label: "View Broadcast Console & History", description: "Access push broadcast metrics and sent announcements" },
+      { slug: "broadcast.send", label: "Send Push & Email Broadcasts", description: "Dispatch alerts to all users, departments, roles, online or offline staff" },
+      { slug: "broadcast.ai", label: "Use AI Broadcast Composer", description: "Generate and refine broadcast announcements using AI" },
+    ],
+  },
 ];
 
 const ALL_MODULE_KEYS = MODULES_CATALOG.map((m) => m.key);

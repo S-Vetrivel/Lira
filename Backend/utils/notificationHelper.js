@@ -109,7 +109,13 @@ const createNotification = async ({
       room: recipientId,
       event: "notification:new",
       data: populated,
-    });
+    }).catch(() => {});
+
+    sendPushToUser(recipientId, {
+      title: publicId ? `${title || "Lira Notification"} (${publicId})` : title || "Lira Notification",
+      message,
+      url: actionUrl,
+    }).catch(() => {});
 
     console.log(
       `[${ts()}] [Notification] Created direct notif=${notif._id} recipient=${recipientId} publicId=${publicId || "-"}`

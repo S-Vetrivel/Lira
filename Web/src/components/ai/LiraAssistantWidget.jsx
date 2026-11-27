@@ -45,6 +45,7 @@ function inferModuleFromPath(pathname) {
   if (pathname.startsWith("/team")) return "team";
   if (pathname.startsWith("/roles")) return "rbac";
   if (pathname.startsWith("/audit")) return "audit";
+  if (pathname.startsWith("/broadcast")) return "broadcast";
   if (pathname.startsWith("/profile")) return "ai";
   return "dashboard";
 }

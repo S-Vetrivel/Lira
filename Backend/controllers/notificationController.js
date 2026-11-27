@@ -1,5 +1,14 @@
 const Notification = require("../models/notificationModel");
 const User = require("../models/userModel");
+const { getVapidPublicKey, isVapidConfigured } = require("../services/pushService");
+
+exports.getVapidPublicKeyHandler = (req, res) => {
+  res.status(200).json({
+    success: true,
+    vapidPublicKey: getVapidPublicKey(),
+    isVapidConfigured,
+  });
+};
 
 exports.getNotifications = async (req, res) => {
   try {

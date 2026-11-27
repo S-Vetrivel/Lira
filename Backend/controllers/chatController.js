@@ -1,11 +1,11 @@
 const Message = require("../models/messageModel");
 const User = require("../models/userModel");
-const { enqueueWebSocketEvent, enqueueEmailJob } = require("../services/queue");
-const { emitToUser, getIO, isUserOnline } = require("../config/socket");
-const { createNotification } = require("../utils/notificationHelper");
+const { enqueueWebSocketEvent } = require("../services/queue");
+const { getIO, getOnlineUserIdsAsync } = require("../config/socket");
+const { notifyChatMessageRecipients, markRoomMessagesRead } = require("../services/chatNotificationService");
 
 const USER_POPULATE_FIELDS =
-  "fullname email avatar profilePicture role department departmentName publicId jobTitle status";
+  "fullname email avatar profilePicture role department departmentName publicId jobTitle status lastSeenAt";
 
 // 1. Send / Record Encrypted Message
 exports.sendMessage = async (req, res) => {
@@ -47,59 +47,30 @@ exports.sendMessage = async (req, res) => {
     const populated = await Message.findById(newMessage._id)
       .populate("sender", USER_POPULATE_FIELDS)
       .populate("recipient", USER_POPULATE_FIELDS)
-      .populate("pinnedBy", "fullname email avatar publicId");
+      .populate("pinnedBy", "fullname email avatar publicId")
+      .populate("readBy.user", "fullname avatar profilePicture publicId")
+      .lean();
 
-    // Broadcast in real-time
+    // Broadcast to active room + notify offline/online targets uniformly (In-App + WebPush + Offline Email)
     const io = getIO();
     if (io) {
       io.to(`chat_${roomId}`).emit("chat:message", populated);
-      if (recipientId) {
-        emitToUser(recipientId.toString(), "chat:message", populated);
-        emitToUser(recipientId.toString(), "chat:notification", {
-          sender: req.user.fullname || req.user.email,
-          senderId: req.user._id,
-          roomId,
-          chatType,
-        });
-        createNotification({
-          recipient: recipientId.toString(),
-          sender: req.user._id,
-          type: "chat_message",
-          title: "New Direct Message",
-          message:
-            Array.isArray(attachments) && attachments.length > 0
-              ? `${req.user.fullname || req.user.email} shared a file in Direct Messages.`
-              : `${req.user.fullname || req.user.email} sent you a direct message.`,
-        }).catch(() => {});
-
-        // Trigger SMTP Email Worker if recipient is currently offline
-        if (!isUserOnline(recipientId.toString())) {
-          const recipientUser = await User.findById(recipientId).select("email fullname").lean();
-          if (recipientUser?.email) {
-            enqueueEmailJob({
-              to: recipientUser.email,
-              type: "offline_chat_message",
-              data: {
-                senderName: req.user.fullname || req.user.email,
-                roomLabel: "Direct Messages",
-              },
-            });
-          }
-        }
-      }
     }
+    await enqueueWebSocketEvent({
+      room: `chat_${roomId}`,
+      event: "chat:message",
+      data: populated,
+      target: "chat",
+    }).catch(() => {});
 
-    // Also queue for multi-cluster sync
-    try {
-      await enqueueWebSocketEvent({
-        room: `chat_${roomId}`,
-        event: "chat:message",
-        data: populated,
-        target: "chat",
-      });
-    } catch (err) {
-      // non-blocking
-    }
+    await notifyChatMessageRecipients({
+      senderUser: req.user,
+      messageDoc: populated,
+      chatType,
+      roomId,
+      recipientId,
+      attachments,
+    });
 
     res.status(201).json({ success: true, message: populated });
   } catch (error) {
@@ -124,7 +95,9 @@ exports.getMessages = async (req, res) => {
       .limit(parseInt(limit, 10))
       .populate("sender", USER_POPULATE_FIELDS)
       .populate("recipient", USER_POPULATE_FIELDS)
-      .populate("pinnedBy", "fullname email avatar publicId");
+      .populate("pinnedBy", "fullname email avatar publicId")
+      .populate("readBy.user", "fullname avatar profilePicture publicId")
+      .lean();
 
     res.status(200).json({ success: true, count: messages.length, messages });
   } catch (error) {
@@ -149,7 +122,9 @@ exports.togglePinMessage = async (req, res) => {
     const populated = await Message.findById(msg._id)
       .populate("sender", USER_POPULATE_FIELDS)
       .populate("recipient", USER_POPULATE_FIELDS)
-      .populate("pinnedBy", "fullname email avatar publicId");
+      .populate("pinnedBy", "fullname email avatar publicId")
+      .populate("readBy.user", "fullname avatar profilePicture publicId")
+      .lean();
 
     const io = getIO();
     if (io) {
@@ -171,24 +146,22 @@ exports.togglePinMessage = async (req, res) => {
   }
 };
 
-// 3. Mark Room Messages as Read
+// 3. Mark Room Messages as Read (+ emit real-time read receipt)
 exports.markRead = async (req, res) => {
   try {
     const { roomId } = req.params;
-    await Message.updateMany(
-      { roomId, "readBy.user": { $ne: req.user._id } },
-      { $addToSet: { readBy: { user: req.user._id, readAt: new Date() } } }
-    );
-    res.status(200).json({ success: true, message: "Marked as read" });
+    const result = await markRoomMessagesRead({ roomId, readerUser: req.user });
+    res.status(200).json({ success: true, message: "Marked as read", ...result });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// 4. Get active chat conversations / colleagues with real DM metadata & unread counts
+// 4. Get active chat conversations / colleagues with real DM metadata, online status & unread counts
 exports.getConversations = async (req, res) => {
   try {
     const currentUserId = req.user._id.toString();
+    const onlineSet = new Set((await getOnlineUserIdsAsync()).map(String));
 
     const colleagues = await User.find({
       _id: { $ne: req.user._id },
@@ -208,7 +181,7 @@ exports.getConversations = async (req, res) => {
         const [lastMessage, unreadCount] = await Promise.all([
           Message.findOne({ roomId: dmRoomId })
             .sort({ createdAt: -1 })
-            .select("createdAt attachments sender")
+            .select("createdAt attachments sender readBy")
             .lean(),
           Message.countDocuments({
             roomId: dmRoomId,
@@ -221,7 +194,9 @@ exports.getConversations = async (req, res) => {
           ...colleague,
           departmentName: colleague.department?.name || colleague.departmentName || "General",
           dmRoomId,
+          isOnline: onlineSet.has(colleague._id.toString()),
           lastMessageAt: lastMessage?.createdAt || null,
+          lastMessageReadCount: Array.isArray(lastMessage?.readBy) ? lastMessage.readBy.length : 0,
           unreadCount,
         };
       })

@@ -43,15 +43,41 @@ function buildEmailTemplate({ type, data = {} }) {
     case "offline_chat_message": {
       const sender = data.senderName || "A teammate";
       const roomLabel = data.roomLabel || "Direct Messages";
-      const subject = `[${brand}] New message from ${sender}`;
-      const text = `${sender} sent you a message in ${roomLabel} while you were offline.\n\nOpen ${appUrl} to read and reply.`;
+      const hasAttachment = Boolean(data.hasAttachment);
+      const subject = `[${brand}] New message from ${sender} (${roomLabel})`;
+      const text = `${sender} ${hasAttachment ? "shared a file with you" : "sent you an encrypted message"} in ${roomLabel} while you were offline.\n\nOpen ${appUrl} to read and reply.`;
       const html = `
         <div style="font-family:Inter,Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px;background:#0f1117;color:#f4f4f5;border-radius:12px;border:1px solid #27272a;">
+          <span style="display:inline-block;padding:4px 10px;border-radius:999px;background:#10b98122;color:#34d399;font-size:11px;font-weight:700;margin-bottom:10px;">OFFLINE MESSAGE ALERT</span>
           <h2 style="margin:0 0 12px;font-size:18px;color:#ffffff;">New message from ${sender}</h2>
           <p style="margin:0 0 16px;font-size:14px;line-height:1.6;color:#d4d4d8;">
-            <strong>${sender}</strong> sent you an encrypted message in <strong>${roomLabel}</strong> while you were offline.
+            <strong>${sender}</strong> ${hasAttachment ? "shared a file" : "sent you an encrypted message"} in <strong>${roomLabel}</strong> while you were offline.
           </p>
           <a href="${appUrl}" style="display:inline-block;padding:10px 18px;background:#ffffff;color:#09090b;text-decoration:none;border-radius:8px;font-weight:600;font-size:13px;">
+            Open ${brand} Chat
+          </a>
+        </div>
+      `;
+      return { subject, text, html };
+    }
+
+    case "broadcast_announcement": {
+      const title = data.title || "Workspace Broadcast";
+      const message = data.message || "";
+      const category = String(data.category || "announcement").toUpperCase();
+      const senderName = data.senderName || "Workspace Admin";
+      const targetUrl = data.actionUrl && data.actionUrl !== "/" ? `${appUrl}${data.actionUrl}` : appUrl;
+      const subject = `[${brand}] [${category}] ${title}`;
+      const text = `${title}\n\n${message}\n\nSent by ${senderName}\nOpen: ${targetUrl}`;
+      const html = `
+        <div style="font-family:Inter,Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px;background:#0f1117;color:#f4f4f5;border-radius:12px;border:1px solid #27272a;">
+          <span style="display:inline-block;padding:4px 10px;border-radius:999px;background:#6366f122;color:#a5b4fc;font-size:11px;font-weight:700;margin-bottom:12px;">
+            ${brand} • ${category}
+          </span>
+          <h2 style="margin:0 0 10px;font-size:18px;color:#ffffff;">${title}</h2>
+          <p style="margin:0 0 16px;font-size:14px;line-height:1.6;color:#d4d4d8;white-space:pre-line;">${message}</p>
+          <p style="margin:0 0 16px;font-size:12px;color:#a1a1aa;">Broadcasted by ${senderName}</p>
+          <a href="${targetUrl}" style="display:inline-block;padding:10px 18px;background:#ffffff;color:#09090b;text-decoration:none;border-radius:8px;font-weight:600;font-size:13px;">
             Open ${brand}
           </a>
         </div>

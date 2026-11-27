@@ -29,8 +29,10 @@ import {
   Menu,
   X,
   RefreshCw,
+  Megaphone,
 } from "lucide-react";
 import { markNotificationRead, markAllNotificationsRead } from "../../services/api";
+import { enableBrowserPush } from "../../services/pushClient";
 import { subscribeAppUpdater, getAppUpdaterSnapshot, reopenAppUpdateModal } from "../../services/appUpdater";
 import UserAvatar from "../common/UserAvatar";
 import LiraLogo from "../common/LiraLogo";
@@ -128,6 +130,9 @@ export default function Header() {
       : []),
     ...(isSuperAdmin || hasPermission("audit.view") || hasPermission("dashboard.logs")
       ? [{ label: "Audit", path: "/audit", icon: Activity, moduleKey: "audit" }]
+      : []),
+    ...(isSuperAdmin || hasPermission("broadcast.view") || hasPermission("broadcast.send")
+      ? [{ label: "Broadcast", path: "/broadcast", icon: Megaphone, moduleKey: "broadcast" }]
       : []),
   ].filter((item) => {
     if (isSuperAdmin) return true;
@@ -470,10 +475,8 @@ export default function Header() {
                         <button
                           type="button"
                           onClick={async () => {
-                            if (typeof Notification !== "undefined") {
-                              const perm = await Notification.requestPermission();
-                              setPushPermission?.(perm);
-                            }
+                            const res = await enableBrowserPush({ interactive: true });
+                            if (res?.permission) setPushPermission?.(res.permission);
                           }}
                           className="px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/25 hover:bg-amber-500/25 cursor-pointer"
                         >

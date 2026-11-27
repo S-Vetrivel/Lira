@@ -2,6 +2,7 @@ import React from "react";
 import { MessageSquare, Shield, Building2, Mail, BadgeCheck } from "lucide-react";
 import UserAvatar from "../common/UserAvatar";
 import GlassModal from "../common/GlassModal";
+import { useApp } from "../../context/Appcontext";
 import { getDisplayName } from "../../utils/formatters";
 import { getGlassTokens } from "../../styles/glassTheme";
 
@@ -16,6 +17,7 @@ export default function MessageSenderPopover({
   onStartDM,
   isDark = true,
 }) {
+  const { onlineUserIds } = useApp();
   const g = getGlassTokens(isDark);
 
   const senderId = sender?._id || sender;
@@ -25,6 +27,7 @@ export default function MessageSenderPopover({
     : {};
 
   const isMe = Boolean(sender && String(senderId) === String(currentUserId));
+  const isOnline = isMe || (onlineUserIds || []).map(String).includes(String(senderId));
   const name = getDisplayName(enriched, "Team Member");
 
   return (
@@ -36,6 +39,13 @@ export default function MessageSenderPopover({
         <span className="flex items-center gap-1.5">
           <span className="truncate">{name}</span>
           <BadgeCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+          <span
+            className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold ${
+              isOnline ? "bg-emerald-500/15 text-emerald-400" : "bg-zinc-500/15 text-zinc-400"
+            }`}
+          >
+            {isOnline ? "Online" : "Offline"}
+          </span>
         </span>
       }
       subtitle={

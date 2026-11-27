@@ -12,7 +12,7 @@ const SOCKET_URL =
 let socket = null;
 
 export const CLIENT_APP_META = {
-  version: import.meta.env.VITE_APP_VERSION || "1.0.0",
+  version: import.meta.env.VITE_APP_VERSION || "1.0.1",
   buildId: import.meta.env.VITE_APP_BUILD_ID || "dev",
   builtAt: import.meta.env.VITE_APP_BUILT_AT || "",
 };

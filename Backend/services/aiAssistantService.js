@@ -267,7 +267,7 @@ RESPONSE FORMAT — Valid JSON ONLY:
   "misuseCategory": "" | "off_topic_code_or_image" | "architecture_probe" | "unauthorized_module" | "audit_tampering" | "destructive_wipe" | "privilege_escalation" | "credential_exfiltration",
   "reply": "Crisp, direct English summary (1-2 sentences or concise bullets).",
   "readQueries": [],
-  "navigateTo": "/board" | "/table" | "/calendar" | "/projects" | "/requests" | "/team" | "/my-work" | "/roles" | "/roles?tab=ai" | "/audit" | "/profile?tab=ai" | "/" | null,
+  "navigateTo": "/board" | "/table" | "/calendar" | "/projects" | "/requests" | "/team" | "/my-work" | "/roles" | "/roles?tab=ai" | "/audit" | "/broadcast" | "/profile?tab=ai" | "/" | null,
   "cursorGuide": false,
   "intent": null | { "type": "...", "prefill": {} },
   "steps": [ { "type": "...", "label": "Short step label", "prefill": {} } ],

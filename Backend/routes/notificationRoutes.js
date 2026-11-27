@@ -6,8 +6,10 @@ const {
   markAsRead,
   markAllAsRead,
   subscribePush,
+  getVapidPublicKeyHandler,
 } = require("../controllers/notificationController");
 
+router.get("/vapid-public-key", getVapidPublicKeyHandler);
 router.get("/", protect(), getNotifications);
 router.patch("/:id/read", protect(), markAsRead);
 router.post("/read-all", protect(), markAllAsRead);
