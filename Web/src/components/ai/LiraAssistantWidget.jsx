@@ -17,7 +17,6 @@ import {
   Paperclip,
   X,
   FileText,
-  RotateCcw,
 } from "lucide-react";
 import { useApp } from "../../context/Appcontext";
 import { useModal } from "../../context/ModalContext";
@@ -30,7 +29,6 @@ import {
   stopAIAssistantAPI,
   setAIAssistantModeAPI,
   confirmAIAssistantActionAPI,
-  undoAIAssistantActionAPI,
   clearAIAssistantSessionAPI,
 } from "../../services/api";
 import { initSocketClient, subscribeRealtimeEvents, emitLocalRealtimeEvent } from "../../services/socket";
@@ -134,7 +132,6 @@ export default function LiraAssistantWidget() {
   const [sending, setSending] = useState(false);
   const [stopping, setStopping] = useState(false);
   const [confirmingMsgId, setConfirmingMsgId] = useState("");
-  const [undoingMsgId, setUndoingMsgId] = useState("");
   const [streamingChunks, setStreamingChunks] = useState({});
   const fileInputRef = useRef(null);
   const textareaRef = useRef(null);
@@ -828,16 +825,6 @@ export default function LiraAssistantWidget() {
     }
   };
 
-  const handleUndoExecutedAction = async (msg) => {
-    setUndoingMsgId(msg._id);
-    const res = await undoAIAssistantActionAPI(msg._id);
-    setUndoingMsgId("");
-    if (res.success) {
-      if (res.session) setSession(res.session);
-      refreshAllWorkspaceStores();
-    }
-  };
-
   const handlePebblePointerDown = (e) => {
     if (e.button !== 0 && e.pointerType === "mouse") return;
     const rect = pebbleRef.current?.getBoundingClientRect();
@@ -1459,7 +1446,7 @@ export default function LiraAssistantWidget() {
                     </div>
                   )}
 
-                  {msg.status === "completed" && (msg.navigateTo || msg.intent || hasSteps || (msg.executedResult?.undoSteps?.length > 0 && !msg.undone)) && (
+                  {msg.status === "completed" && (msg.navigateTo || ((msg.intent || hasSteps) && msg.intent?.type !== "navigate" && !msg.actionApplied)) && (
                     <div className="flex flex-wrap items-center gap-2 pt-1">
                       {msg.navigateTo && (
                         <button
@@ -1473,23 +1460,6 @@ export default function LiraAssistantWidget() {
                         >
                           <Navigation className="w-3 h-3 text-sky-400" />
                           <span>Open Page</span>
-                        </button>
-                      )}
-
-                      {msg.executedResult?.undoSteps?.length > 0 && !msg.undone && (
-                        <button
-                          type="button"
-                          disabled={undoingMsgId === msg._id}
-                          onClick={() => handleUndoExecutedAction(msg)}
-                          className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-semibold flex items-center gap-1 cursor-pointer disabled:opacity-50 ${g.btnSecondary}`}
-                          title="Revert this executed workspace action"
-                        >
-                          {undoingMsgId === msg._id ? (
-                            <Loader2 className="w-3 h-3 animate-spin" />
-                          ) : (
-                            <RotateCcw className="w-3 h-3 text-zinc-400" />
-                          )}
-                          <span>Undo</span>
                         </button>
                       )}
 

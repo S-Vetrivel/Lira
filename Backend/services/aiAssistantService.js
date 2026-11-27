@@ -1233,10 +1233,15 @@ async function undoAssistantMessageAction({ user, messageId }) {
   }
 
   const undoResult = await executeAssistantWorkflow({ steps: allowedUndo, intent: allowedUndo[0], user });
+  if (undoResult?.executed) {
+    await AIAssistantSession.updateOne(
+      { _id: session._id, "messages._id": msg._id },
+      { $set: { "messages.$.undone": true } }
+    );
+  }
   const updated = await AIAssistantSession.findOneAndUpdate(
     { _id: session._id },
     {
-      $set: { "messages.$[m].undone": Boolean(undoResult?.executed) },
       $push: {
         messages: {
           $each: [
@@ -1256,7 +1261,7 @@ async function undoAssistantMessageAction({ user, messageId }) {
         },
       },
     },
-    { arrayFilters: [{ "m._id": msg._id }], new: true }
+    { new: true }
   ).lean();
 
   return { session: updated, undoResult };
